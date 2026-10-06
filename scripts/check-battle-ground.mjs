@@ -39,6 +39,9 @@ try {
   const { createBattleGround, scoreTransfer } = await import(
     out + "/battle-ground-ui/controller.js"
   )
+  const { createGameLearnerRunner } = await import(
+    out + "/battle-ground-ui/model-learner.js"
+  )
   const { buildMatchDeck } = await import(
     out + "/battle-ground-ui/match-deck.js"
   )
@@ -258,6 +261,100 @@ try {
     15
   )
 
+  // Click path without a browser: family marks order the deck, Start is paused
+  // until Start both, both boards are live, and human Next does not abort or
+  // move an agent that is still thinking.
+  let smokeTime = 0
+  const smoke = createBattleGround(
+    ordered.flatMap((game) => game.packs),
+    {
+      roundsPerGame: 3,
+      actionCap: 1,
+      timeCapMs: 120000,
+      startPaused: true,
+      now: () => smokeTime,
+    }
+  )
+  smokeTime = 5000
+  smoke.tick()
+  assert.equal(smoke.getSnapshot().remainingMs.human, 120000)
+  assert.equal(smoke.getSnapshot().remainingMs.learner, 120000)
+  const openingCell = smoke
+    .boardProps("human")
+    .cells.find((cell) => cell.visible && !cell.locked)
+  assert.ok(openingCell)
+  smoke.actions("human").selectCell(openingCell.index)
+  assert.equal(smoke.getSnapshot().attempts.human.state.actions, 0)
+  assert.equal(smoke.boardProps("human").seed, smoke.boardProps("learner").seed)
+  assert.equal(smoke.boardProps("learner").readOnly, true)
+  assert.equal(smoke.getSnapshot().cursors.human.index, 0)
+  assert.equal(smoke.getSnapshot().cursors.learner.index, 0)
+  assert.equal(smoke.start(), true)
+  assert.equal(smoke.start(), false)
+  smokeTime += 1000
+  smoke.tick()
+  assert.equal(smoke.getSnapshot().remainingMs.human, 119000)
+  assert.equal(smoke.getSnapshot().remainingMs.learner, 119000)
+  assert.equal(smoke.getSnapshot().attempts.human.status, "playing")
+  assert.equal(smoke.getSnapshot().attempts.learner.status, "playing")
+  const agentSeed = smoke.boardProps("learner").seed
+  const agentCells = smoke.getSnapshot().attempts.learner.state.cells.slice()
+  const agentRemaining = smoke.getSnapshot().remainingMs.learner
+  const agentCell = smoke
+    .boardProps("learner")
+    .cells.find((cell) => cell.visible && !cell.locked)
+  assert.ok(agentCell)
+  let learnerSignal
+  let finishThink
+  const runner = createGameLearnerRunner({
+    observe: () => smoke.boardProps("learner"),
+    api: smoke.actions("learner"),
+    memory: { claims: [], currentClaim: null },
+    mix: "astra",
+    decide: async (_request, signal) => {
+      learnerSignal = signal
+      return new Promise((done) => {
+        finishThink = done
+      })
+    },
+  })
+  const unsubscribeSmoke = smoke.subscribe(runner.sync)
+  const pendingThink = runner.step()
+  assert.equal(learnerSignal.aborted, false)
+  smoke.actions("human").selectCell(openingCell.index)
+  assert.equal(smoke.getSnapshot().attempts.human.status, "action-cap")
+  assert.equal(smoke.getSnapshot().canAdvance.human, true)
+  assert.equal(smoke.getSnapshot().canAdvance.learner, false)
+  assert.equal(learnerSignal.aborted, false)
+  assert.equal(smoke.advance("human"), true)
+  assert.equal(smoke.advance("learner"), false)
+  assert.equal(smoke.getSnapshot().cursors.human.index, 1)
+  assert.equal(smoke.getSnapshot().cursors.learner.index, 0)
+  assert.equal(smoke.boardProps("learner").seed, agentSeed)
+  assert.deepEqual(
+    smoke.getSnapshot().attempts.learner.state.cells,
+    agentCells
+  )
+  assert.equal(smoke.getSnapshot().remainingMs.learner, agentRemaining)
+  assert.equal(smoke.getSnapshot().attempts.learner.status, "playing")
+  runner.sync()
+  assert.equal(
+    learnerSignal.aborted,
+    false,
+    "Human Next must not abort the agent"
+  )
+  finishThink({
+    action: { type: "selectCell", cell: agentCell.index },
+    state: "decision",
+    patternClaim: "Still on this round.",
+  })
+  assert.equal(await pendingThink, true)
+  assert.equal(smoke.getSnapshot().cursors.learner.index, 0)
+  assert.equal(smoke.getSnapshot().attempts.learner.state.actions, 1)
+  assert.equal(smoke.getSnapshot().cursors.human.index, 1)
+  unsubscribeSmoke()
+  runner.dispose()
+
   const appSource = await readFile(
     new URL("../components/battle-app.tsx", import.meta.url),
     "utf8"
@@ -272,11 +369,44 @@ try {
   )
   assert.match(appSource, /data-slot="match-next"/)
   assert.match(appSource, /advance\("human"\)/)
+  assert.doesNotMatch(appSource, /advance\("learner"\)/)
   assert.doesNotMatch(fieldSource, /onNext|advance\(/)
+  assert.match(appSource, /Show rules/)
+  assert.match(appSource, /Start both/)
+  assert.match(appSource, /Next stays yours\. The agent is not moved\./)
+  assert.match(appSource, /humanInteractive=\{!watching\}/)
+  assert.match(appSource, /learnerModeIds\.map/)
+  for (const label of [
+    "Astra",
+    "Code",
+    "Astra + Jev",
+    "Jev bare",
+    "Astra + Laya",
+    "Laya bare",
+    "OpenAI Decisions",
+    "You vs Agent",
+    "Agent vs Agent",
+  ]) {
+    assert.match(appSource, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  }
+  assert.match(appSource, /legend="3 · Agent A"/)
+  assert.match(appSource, /legend="4 · Agent B"/)
+  assert.match(appSource, /legend="3 · Agent ability"/)
+  assert.doesNotMatch(appSource, /astra-hybrid/)
   assert.match(shellSource, /"human agent"/)
   assert.match(shellSource, /grid-area: actions/)
+  assert.match(
+    shellSource,
+    /puzzle-cell:not\(\[data-fixed="true"\]\):active:not\(:disabled\)/
+  )
+  const layoutSource = await readFile(
+    new URL("../app/layout.tsx", import.meta.url),
+    "utf8"
+  )
+  assert.match(layoutSource, /display: "swap"/)
+  assert.match(layoutSource, /adjustFontFallback: true/)
   console.log(
-    "Battle bridge verified: five games, three distinct rounds, independent clocks, per-side advance, transfer scoring."
+    "Battle bridge verified: setup marks, paused start, dual boards, human Next leaves the agent thinking, mix labels, five games, independent clocks."
   )
 } finally {
   await rm(out, { recursive: true, force: true })

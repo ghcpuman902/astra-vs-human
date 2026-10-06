@@ -686,7 +686,8 @@ body {
 .puzzle-cell:disabled {
   opacity: 1;
 }
-.puzzle-cell:not([data-fixed="true"]):hover:not(:disabled) {
+.puzzle-cell:not([data-fixed="true"]):hover:not(:disabled),
+.puzzle-cell:not([data-fixed="true"]):active:not(:disabled) {
   outline: 1px solid var(--ink);
   outline-offset: -5px;
 }

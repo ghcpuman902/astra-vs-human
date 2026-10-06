@@ -128,7 +128,7 @@ const mixCopy: Record<
     detail: "Laya sees the public board only. No Astra plan is wrapped around it.",
   },
   "openai-decisions": {
-    label: "Decisions",
+    label: "OpenAI Decisions",
     detail: "OpenAI Decisions stays on this machine. Nothing is sent.",
   },
 }
