@@ -66,7 +66,7 @@ export const BattleField = ({
         className="battle-arena"
         data-player="human"
         data-done={humanDone || undefined}
-        aria-label="Human game"
+        aria-label={`${humanTitle} game`}
       >
         <header className="arena-header">
           <strong>
@@ -161,7 +161,7 @@ export const BattleField = ({
         className="battle-arena"
         data-player="learner"
         data-behind={agentWorking || undefined}
-        aria-label="Agent game"
+        aria-label={`${learnerTitle} game`}
       >
         <header className="arena-header">
           <strong>

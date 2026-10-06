@@ -156,8 +156,15 @@ function FamilyGate({
         : [...selected, id]
     )
   }
+  const serverLine = !servers
+    ? ""
+    : !servers.openai && !servers.gateway
+      ? "No model credential is set, so the agent will wait."
+      : servers.jev
+        ? "Jev can run on this server."
+        : "Jev is not configured here. Astra still plays."
   return (
-    <main className="battle-ground">
+    <main className="battle-ground is-setup">
       <form
         className="family-gate"
         onSubmit={(event) => {
@@ -165,33 +172,78 @@ function FamilyGate({
           onPlay({ played, disliked })
         }}
       >
-        <p className="wordmark">astra-vs-human</p>
-        <h1>What have you played?</h1>
-        <p>
-          New families come first. Ones you want less of move later. All five
-          still appear. Then pick who plays, and how the learner plans.
-        </p>
-        <fieldset className="choice-row">
-          <legend>Who plays</legend>
+        <header className="setup-intro">
+          <p className="wordmark">astra-vs-human</p>
+          <h1>Same rules. Two clocks.</h1>
+          <p>
+            Pick who plays. Mark families you have played or want less of.
+            Then start. New families come first. All five stay.
+          </p>
+        </header>
+        <fieldset className="variant-grid">
+          <legend>1 · Who plays</legend>
           <button
             type="button"
-            className="paper-button"
+            className="variant-card"
             aria-pressed={arena === "play"}
             onClick={() => onArena("play")}
           >
-            You vs Agent
+            <span className="variant-boards" aria-hidden="true">
+              <span>You</span>
+              <span>Agent</span>
+            </span>
+            <strong>You vs Agent</strong>
+            <span>You tap the left board.</span>
           </button>
           <button
             type="button"
-            className="paper-button"
+            className="variant-card"
             aria-pressed={arena === "watch"}
             onClick={() => onArena("watch")}
           >
-            Agent vs Agent
+            <span className="variant-boards" aria-hidden="true">
+              <span>A</span>
+              <span>B</span>
+            </span>
+            <strong>Agent vs Agent</strong>
+            <span>You watch both clocks.</span>
           </button>
         </fieldset>
+        <fieldset className="family-block">
+          <legend>2 · Families you already know</legend>
+          <ul className="family-list">
+            {families.map((family) => (
+              <li key={family.id} className="family-row">
+                <div>
+                  <strong>{family.label}</strong>
+                  <p>{family.pattern}</p>
+                </div>
+                <div className="family-marks">
+                  <button
+                    type="button"
+                    className="paper-button"
+                    aria-pressed={played.includes(family.id)}
+                    aria-label={`Played ${family.label}`}
+                    onClick={() => toggle(family.id, played, setPlayed)}
+                  >
+                    Played
+                  </button>
+                  <button
+                    type="button"
+                    className="paper-button"
+                    aria-pressed={disliked.includes(family.id)}
+                    aria-label={`Less of ${family.label}`}
+                    onClick={() => toggle(family.id, disliked, setDisliked)}
+                  >
+                    Less
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </fieldset>
         <fieldset className="choice-row">
-          <legend>Learner</legend>
+          <legend>3 · How the agent plans</legend>
           {(Object.keys(mixCopy) as LearnerMixId[]).map((id) => (
             <button
               key={id}
@@ -203,53 +255,13 @@ function FamilyGate({
               {mixCopy[id].label}
             </button>
           ))}
-          <p>{mixCopy[mix].detail}</p>
           <p>
-            {arena === "watch"
-              ? "You watch both boards. Each agent keeps its own clock."
-              : "You play the left board. The agent plays the right."}
-            {servers
-              ? servers.jev
-                ? " Jev can run on this server."
-                : " Jev is not configured here. Astra still plays."
-              : ""}
-            {servers && !servers.openai && !servers.gateway
-              ? " No model credential is set, so the agent will wait."
-              : ""}
+            {mixCopy[mix].detail}
+            {serverLine ? ` ${serverLine}` : ""}
           </p>
         </fieldset>
-        <ul className="family-list" aria-label="Puzzle families">
-          {families.map((family) => (
-            <li key={family.id} className="family-row">
-              <div>
-                <strong>{family.label}</strong>
-                <p>{family.pattern}</p>
-              </div>
-              <div className="family-marks">
-                <button
-                  type="button"
-                  className="paper-button"
-                  aria-pressed={played.includes(family.id)}
-                  aria-label={`Played ${family.label}`}
-                  onClick={() => toggle(family.id, played, setPlayed)}
-                >
-                  Played
-                </button>
-                <button
-                  type="button"
-                  className="paper-button"
-                  aria-pressed={disliked.includes(family.id)}
-                  aria-label={`Less of ${family.label}`}
-                  onClick={() => toggle(family.id, disliked, setDisliked)}
-                >
-                  Less
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
         <button type="submit" className="primary-button">
-          Start with this lineup
+          Start
         </button>
       </form>
     </main>
@@ -471,11 +483,13 @@ function BattleSession({
               <section key={side} className="match-side" aria-label={`${label} progress`}>
                 <header>
                   <strong>{label}</strong>
-                  <span>
-                    {roundText(cursor, gameCount, roundsPerGame)} ·{" "}
-                    {clock(snapshot.remainingMs[side])} left
+                  <span className="match-clock">
+                    {clock(snapshot.remainingMs[side])}
                   </span>
                 </header>
+                <span className="match-round">
+                  {roundText(cursor, gameCount, roundsPerGame)}
+                </span>
                 <ol className="match-games">
                   {Array.from({ length: gameCount }, (_, game) => (
                     <li key={game} className="match-game">
