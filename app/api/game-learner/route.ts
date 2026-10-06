@@ -1,22 +1,20 @@
-import { learnerDecisionSchema } from "@/lib/puzzle/model-learner"
-import { createOpenAI } from "@ai-sdk/openai"
-import { gateway, generateText, Output } from "ai"
 import { allowedLearnerModel } from "@/lib/learner-models"
-import { planLearnerMix } from "@/lib/battle-ground-ui/learner-providers"
+import {
+  bareLearnerControl,
+  codeLearnerPolicy,
+  planLearnerMix,
+} from "@/lib/battle-ground-ui/learner-providers"
 
 import {
   decideGameLearner,
   gameLearnerRequestSchema,
-  gameLearnerSystemPrompt,
 } from "@/lib/battle-ground-ui/model-learner"
 
 export const runtime = "nodejs"
 export const maxDuration = 15
 
-// Live provider is OpenAI generateText structured output.
-// Astra + Jev and Astra + Laya commit through planLearnerMix when that mix
-// is selected and its credential is set. OpenAI Decisions stays a local
-// placeholder in lib/battle-ground-ui/model-learner.ts. Do not post it.
+// Astra plays or writes a policy. Jev and Laya commit only for their mixes.
+// OpenAI Decisions is a local placeholder: this route does not post it.
 export async function POST(request: Request) {
   const started = performance.now()
   const headers = { "cache-control": "no-store" }
@@ -66,76 +64,56 @@ export async function POST(request: Request) {
       { status: 400, headers }
     )
   const mix = parsed.data.mix ?? "astra"
-  if (mix !== "astra") {
-    const planned = await decideGameLearner(
+  const visibleInput = {
+    ...parsed.data,
+    model: selectedModel,
+    board: {
+      ...parsed.data.board,
+      remainingMs: Math.max(
+        0,
+        parsed.data.board.remainingMs - (performance.now() - started)
+      ),
+    },
+  }
+  if (mix === "openai-decisions") {
+    return Response.json(
       {
-        ...parsed.data,
-        board: {
-          ...parsed.data.board,
-          remainingMs: Math.max(
-            0,
-            parsed.data.board.remainingMs - (performance.now() - started)
-          ),
-        },
+        action: null,
+        state: "wait",
+        patternClaim: "OpenAI Decisions stays local.",
       },
-      async (visible, signal) => {
-        const plan = await planLearnerMix(visible, mix, signal)
-        return {
-          action: null,
-          patternClaim: plan.patternClaim,
-          placements: plan.placements,
-        }
-      },
-      request.signal
+      { headers }
     )
-    return Response.json(planned, { headers })
   }
   const result = await decideGameLearner(
-    {
-      ...parsed.data,
-      board: {
-        ...parsed.data.board,
-        remainingMs: Math.max(
-          0,
-          parsed.data.board.remainingMs - (performance.now() - started)
-        ),
-      },
-    },
+    visibleInput,
     async (visible, signal) => {
-      const prompt = JSON.stringify({
-        board: visible.board,
-        priorClaims: visible.priorClaims,
-      })
-      if (process.env.OPENAI_API_KEY) {
-        const openai = createOpenAI({
-          apiKey: process.env.OPENAI_API_KEY,
-          organization: process.env.OPENAI_ORG_ID,
-        })
-        const { output } = await generateText({
-          model: openai.responses(selectedModel),
-          output: Output.object({ schema: learnerDecisionSchema }),
-          system: gameLearnerSystemPrompt,
-          prompt,
-          abortSignal: signal,
-          maxRetries: 0,
-          providerOptions: { openai: { store: false, reasoningEffort: "low" } },
-        })
-        return output
+      if (mix === "code") {
+        const policy = await codeLearnerPolicy(visible, signal)
+        return { action: null, patternClaim: policy.note, policy }
       }
-      if (process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN) {
-        const { output } = await generateText({
-          model: gateway.languageModel(
-            selectedModel.includes("/") ? selectedModel : `openai/${selectedModel}`
-          ),
-          output: Output.object({ schema: learnerDecisionSchema }),
-          system: gameLearnerSystemPrompt,
-          prompt,
-          abortSignal: signal,
-          maxRetries: 0,
-        })
-        return output
+      if (mix === "jev-bare" || mix === "laya-bare") {
+        const choice = await bareLearnerControl(visible, mix, signal)
+        if (choice === "unconfigured") {
+          return {
+            action: null,
+            patternClaim:
+              mix === "laya-bare"
+                ? "Laya is not configured."
+                : "Jev is not configured.",
+          }
+        }
+        return {
+          action: choice === "wait" ? null : choice,
+          patternClaim: null,
+        }
       }
-      throw new Error("Unconfigured")
+      const plan = await planLearnerMix(visible, mix, signal)
+      return {
+        action: null,
+        patternClaim: plan.patternClaim,
+        placements: plan.placements,
+      }
     },
     request.signal
   )

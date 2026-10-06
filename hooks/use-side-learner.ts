@@ -7,7 +7,10 @@ import {
   type Side,
   createBattleGround,
 } from "@/lib/battle-ground-ui/controller"
-import type { LearnerMixId } from "@/lib/battle-ground-ui/learner-mix"
+import {
+  interpretPolicy,
+  type LearnerMixId,
+} from "@/lib/battle-ground-ui/learner-mix"
 import {
   createGameLearnerRunner,
   fetchGameLearnerDecision,
@@ -73,22 +76,30 @@ export function useSideLearner({
       decide: async (request, signal) => {
         if (!disposed) setStatus("Thinking")
         const result = await fetchGameLearnerDecision(request, signal)
+        const steps = result.policy
+          ? interpretPolicy(result.policy, request.board.cells)
+          : undefined
+        const played = steps ? { ...result, steps } : result
         if (!disposed) {
-          const batch = result.placements?.length ?? 0
+          const batch = played.steps?.length
+            ? played.steps.filter((step) => step.type === "selectCell").length
+            : (played.placements?.length ?? 0)
           setStatus(
-            result.state === "decision"
+            played.state === "decision"
               ? batch > 1
                 ? `Playing · ${batch} cells`
-                : `Playing · ${result.action?.type ?? "plan"}`
-              : result.reason === "deadline"
-                ? "Thinking took too long; retrying"
-                : result.reason === "unavailable"
-                  ? "Connection unavailable; retrying"
-                  : "Considering next move"
+                : `Playing · ${played.action?.type ?? played.policy?.rule ?? "plan"}`
+              : played.patternClaim
+                ? played.patternClaim
+                : played.reason === "deadline"
+                  ? "Thinking took too long; retrying"
+                  : played.reason === "unavailable"
+                    ? "Connection unavailable; retrying"
+                    : "Considering next move"
           )
-          if (result.patternClaim) setClaim(result.patternClaim)
+          if (played.patternClaim) setClaim(played.patternClaim)
         }
-        return result
+        return played
       },
     })
     const unsubscribe = battle.subscribe(runner.sync)

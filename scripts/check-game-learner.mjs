@@ -41,6 +41,10 @@ try {
   } = await import(join(output, "battle-ground-ui/model-learner.js"))
   const {
     expandPlacements,
+    interpretPolicy,
+    bareCandidateCells,
+    bareControlQuestions,
+    readBareControl,
     jevCommitBody,
     layaCommitBody,
     layaSystemOneTarget,
@@ -226,6 +230,73 @@ try {
     assert.equal(applyCommit([1, 2, 3], "one").length, 1)
     assert.equal(applyCommit([1, 2], "wait").length, 0)
     assert.equal(applyCommit([1, 2], null).length, 2)
+    assert.equal(
+      gameLearnerRequestSchema.safeParse({ ...input, mix: "jev-bare" }).success,
+      true
+    )
+    assert.equal(
+      gameLearnerRequestSchema.safeParse({ ...input, mix: "code" }).success,
+      true
+    )
+    assert.equal(
+      gameLearnerRequestSchema.safeParse({
+        ...input,
+        mix: "openai-decisions",
+      }).success,
+      true
+    )
+    assert.equal(
+      gameLearnerRequestSchema.safeParse({ ...input, mix: "solver" }).success,
+      false
+    )
+    const visible = board.cells.map((entry) => ({
+      visible: entry.visible,
+      locked: entry.locked,
+    }))
+    visible[cell] = { visible: true, locked: false }
+    if (cell > 0) visible[cell - 1] = { visible: true, locked: true }
+    const candidates = bareCandidateCells(visible)
+    assert.equal(candidates.includes(cell), true)
+    assert.equal(candidates.includes(cell - 1), false)
+    const bare = bareControlQuestions(candidates)
+    assert.equal(JSON.stringify(bare).includes("solution"), false)
+    assert.deepEqual(
+      readBareControl(
+        { answers: { control: { choice: `cell-${cell}` } } },
+        candidates
+      ),
+      { type: "selectCell", cell }
+    )
+    assert.equal(
+      readBareControl({ answers: { control: { choice: "cell-99" } } }, candidates),
+      null
+    )
+    assert.equal(
+      readBareControl({ answers: { control: { choice: "wait" } } }, candidates),
+      "wait"
+    )
+    const coded = interpretPolicy(
+      { rule: "named-cells", cells: [cell - 1, cell], cycles: 1, note: null },
+      visible
+    )
+    assert.deepEqual(coded, [
+      { type: "selectCell", cell },
+      { type: "cycle" },
+    ])
+    assert.equal(
+      interpretPolicy(
+        { rule: "first-unlocked", cells: [], cycles: 1, note: "local" },
+        visible
+      )[0].cell,
+      candidates[0]
+    )
+    assert.deepEqual(
+      interpretPolicy(
+        { rule: "selected-cycle", cells: [], cycles: 2, note: null },
+        visible
+      ),
+      [{ type: "cycle" }, { type: "cycle" }]
+    )
     const expanded = expandPlacements(
       [{ cell, cycles: 1 }],
       board.cells.map((entry) => ({

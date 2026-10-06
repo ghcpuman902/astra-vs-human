@@ -59,8 +59,8 @@ A rules pack supplies props to the frame. It does not set layout or colours. Cat
 - **Lovable / Cursor** — paper-craft UI. Cursor ports the Mac craft export. This lane does not restyle tokens.
 - **Codex** — packs, verifiers, and `/api/pack` plus `/api/game-pack`.
 - **Astra Learner** — `/api/learner` and `/api/game-learner`. Same eyes as the human. Default model `gpt-6-astra`.
-- **Learner mix** — One tap (Astra), Astra + Jev, Astra + Laya, or a batch plan played in the browser. Jev runs only when `TYPESAFE_API_KEY` or an AI Gateway credential is set. Laya runs only when `LAYA_API_KEY`, `IMPOSSIBL_API_KEY`, or `LAYA_BASE_URL` is set. OpenAI Decisions stays a local placeholder.
-- **Agent vs Agent** — two learners, independent clocks. The human watches.
+
+Three abilities share that public board and the counted taps. **Play** is Astra: one cell or a short burst. **Code** asks Astra for a tiny policy (first unlocked cell, cycle the selection, or named cells); the browser runs it and does not eval JavaScript. **Code plus a cheap decision model** either lets Astra write that plan as context for Jev (AI Gateway `typesafe-ai/jev`, or `TYPESAFE_API_KEY`) or Laya (when `LAYA_API_KEY`, `IMPOSSIBL_API_KEY`, or `LAYA_BASE_URL` is set), or it sends the board to that model with no written plan. The question, carried over from a manual 2048 bench, is whether the written context beats the bare model and the human. OpenAI Decisions stays a local placeholder and is not called. Agent vs Agent can pit two of these modes on independent clocks. No keys are stored in the repo.
 
 ## Learner credentials
 

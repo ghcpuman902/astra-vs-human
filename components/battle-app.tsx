@@ -17,7 +17,10 @@ import {
   orderByFamily,
   type FamilyMarks,
 } from "@/lib/battle-ground-ui/family-bias"
-import type { LearnerMixId } from "@/lib/battle-ground-ui/learner-mix"
+import {
+  learnerModeIds,
+  type LearnerMixId,
+} from "@/lib/battle-ground-ui/learner-mix"
 import type { MatchDeck } from "@/lib/battle-ground-ui/match-deck"
 import { packSchema, type GamePack } from "@/lib/mini-game-rules/schema"
 import { verifyGame } from "@/lib/mini-game-rules/verifier"
@@ -46,7 +49,8 @@ const clock = (ms: number) => {
 export function BattleApp({ deck }: { deck: MatchDeck }) {
   const [packs, setPacks] = useState<readonly GamePack[] | null>(null)
   const [arena, setArena] = useState<"play" | "watch">("play")
-  const [mix, setMix] = useState<LearnerMixId>("astra")
+  const [leftMix, setLeftMix] = useState<LearnerMixId>("astra")
+  const [rightMix, setRightMix] = useState<LearnerMixId>("astra")
   const [cap, setCap] = useState(600000)
   const [practice, setPractice] = useState(false)
   const [session, setSession] = useState(0)
@@ -56,9 +60,11 @@ export function BattleApp({ deck }: { deck: MatchDeck }) {
     return (
       <FamilyGate
         arena={arena}
-        mix={mix}
+        leftMix={leftMix}
+        rightMix={rightMix}
         onArena={setArena}
-        onMix={setMix}
+        onLeftMix={setLeftMix}
+        onRightMix={setRightMix}
         onPlay={(marks) => {
           const games = orderByFamily(deck.games, marks)
           setPacks(games.flatMap((game) => [...game.packs]))
@@ -71,7 +77,8 @@ export function BattleApp({ deck }: { deck: MatchDeck }) {
       key={`${session}:${cap}:${practice}:${packs.map((pack) => pack.seed).join("-")}`}
       packs={packs}
       arena={arena}
-      mix={mix}
+      leftMix={leftMix}
+      rightMix={rightMix}
       gameCount={deck.gameCount}
       roundsPerGame={deck.roundsPerGame}
       cap={cap}
@@ -92,36 +99,111 @@ export function BattleApp({ deck }: { deck: MatchDeck }) {
   )
 }
 
-const mixCopy: Record<LearnerMixId, { label: string; detail: string }> = {
+const mixCopy: Record<
+  (typeof learnerModeIds)[number],
+  { label: string; detail: string }
+> = {
   astra: {
-    label: "One tap",
-    detail: "Astra chooses a single control, then waits.",
+    label: "Astra",
+    detail: "Same public board as you. Astra names one cell or a short burst of taps.",
+  },
+  code: {
+    label: "Code",
+    detail: "Astra writes a tiny policy. This browser runs it. No JavaScript is eval'd.",
   },
   "astra-jev": {
     label: "Astra + Jev",
-    detail: "Astra drafts a short plan. Jev commits it when the server has a credential.",
+    detail: "Astra writes the plan as context. Jev commits it when a Jev credential is set.",
+  },
+  "jev-bare": {
+    label: "Jev bare",
+    detail: "Jev sees the public board only. No Astra plan is wrapped around it.",
   },
   "astra-laya": {
     label: "Astra + Laya",
-    detail: "Astra drafts a short plan. Laya commits it when a Laya credential is set.",
+    detail: "Astra writes the plan as context. Laya commits it when a Laya credential is set.",
   },
-  "astra-hybrid": {
-    label: "Batch plan",
-    detail: "Astra names several cells. This browser plays that plan in one burst.",
+  "laya-bare": {
+    label: "Laya bare",
+    detail: "Laya sees the public board only. No Astra plan is wrapped around it.",
   },
+  "openai-decisions": {
+    label: "Decisions",
+    detail: "OpenAI Decisions stays on this machine. Nothing is sent.",
+  },
+}
+
+function modeNote(
+  mix: LearnerMixId,
+  servers: { openai: boolean; gateway: boolean; jev: boolean; laya: boolean } | null
+) {
+  if (!servers) return ""
+  if (mix === "openai-decisions") return ""
+  if (mix === "jev-bare" || mix === "astra-jev") {
+    return servers.jev
+      ? "Jev can run on this server."
+      : "Jev is not configured, so this side waits."
+  }
+  if (mix === "laya-bare" || mix === "astra-laya") {
+    return servers.laya
+      ? "Laya can run on this server."
+      : "Laya is not configured, so this side waits."
+  }
+  if (!servers.openai && !servers.gateway)
+    return "No Astra credential is set, so this side waits."
+  return ""
+}
+
+function ModePicker({
+  legend,
+  mix,
+  servers,
+  onMix,
+}: {
+  legend: string
+  mix: LearnerMixId
+  servers: { openai: boolean; gateway: boolean; jev: boolean; laya: boolean } | null
+  onMix: (mix: LearnerMixId) => void
+}) {
+  const note = modeNote(mix, servers)
+  const copy = mixCopy[mix as (typeof learnerModeIds)[number]] ?? mixCopy.astra
+  return (
+    <fieldset className="choice-row">
+      <legend>{legend}</legend>
+      {learnerModeIds.map((id) => (
+        <button
+          key={id}
+          type="button"
+          className="paper-button"
+          aria-pressed={mix === id}
+          onClick={() => onMix(id)}
+        >
+          {mixCopy[id].label}
+        </button>
+      ))}
+      <p>
+        {copy.detail}
+        {note ? ` ${note}` : ""}
+      </p>
+    </fieldset>
+  )
 }
 
 function FamilyGate({
   arena,
-  mix,
+  leftMix,
+  rightMix,
   onArena,
-  onMix,
+  onLeftMix,
+  onRightMix,
   onPlay,
 }: {
   arena: "play" | "watch"
-  mix: LearnerMixId
+  leftMix: LearnerMixId
+  rightMix: LearnerMixId
   onArena: (arena: "play" | "watch") => void
-  onMix: (mix: LearnerMixId) => void
+  onLeftMix: (mix: LearnerMixId) => void
+  onRightMix: (mix: LearnerMixId) => void
   onPlay: (marks: FamilyMarks) => void
 }) {
   const families = matchFamilies()
@@ -169,19 +251,7 @@ function FamilyGate({
         : [...selected, id]
     )
   }
-  const serverLine = !servers
-    ? ""
-    : !servers.openai && !servers.gateway
-      ? "No model credential is set, so the agent will wait."
-      : mix === "astra-laya"
-        ? servers.laya
-          ? "Laya can run on this server."
-          : "Laya is not configured here. Astra still plays."
-        : mix === "astra-jev"
-          ? servers.jev
-            ? "Jev can run on this server."
-            : "Jev is not configured here. Astra still plays."
-          : ""
+  const watching = arena === "watch"
   return (
     <main className="battle-ground is-setup">
       <form
@@ -261,24 +331,29 @@ function FamilyGate({
             ))}
           </ul>
         </fieldset>
-        <fieldset className="choice-row">
-          <legend>3 · How the agent plans</legend>
-          {(Object.keys(mixCopy) as LearnerMixId[]).map((id) => (
-            <button
-              key={id}
-              type="button"
-              className="paper-button"
-              aria-pressed={mix === id}
-              onClick={() => onMix(id)}
-            >
-              {mixCopy[id].label}
-            </button>
-          ))}
-          <p>
-            {mixCopy[mix].detail}
-            {serverLine ? ` ${serverLine}` : ""}
-          </p>
-        </fieldset>
+        {watching ? (
+          <>
+            <ModePicker
+              legend="3 · Agent A"
+              mix={leftMix}
+              servers={servers}
+              onMix={onLeftMix}
+            />
+            <ModePicker
+              legend="4 · Agent B"
+              mix={rightMix}
+              servers={servers}
+              onMix={onRightMix}
+            />
+          </>
+        ) : (
+          <ModePicker
+            legend="3 · Agent ability"
+            mix={rightMix}
+            servers={servers}
+            onMix={onRightMix}
+          />
+        )}
         <button type="submit" className="primary-button">
           Start
         </button>
@@ -290,7 +365,8 @@ function FamilyGate({
 function BattleSession({
   packs,
   arena,
-  mix,
+  leftMix,
+  rightMix,
   gameCount,
   roundsPerGame,
   cap,
@@ -305,7 +381,8 @@ function BattleSession({
 }: {
   packs: readonly GamePack[]
   arena: "play" | "watch"
-  mix: LearnerMixId
+  leftMix: LearnerMixId
+  rightMix: LearnerMixId
   gameCount: number
   roundsPerGame: number
   cap: number
@@ -358,7 +435,7 @@ function BattleSession({
     battle,
     packs,
     started,
-    mix,
+    mix: leftMix,
     getModel,
   })
   const rightLearner = useSideLearner({
@@ -367,13 +444,17 @@ function BattleSession({
     battle,
     packs,
     started,
-    mix,
+    mix: rightMix,
     getModel,
   })
   const agentStatus = rightLearner.status
   const claim = rightLearner.claim
-  const leftName = watching ? "Agent A" : "Human"
-  const rightName = watching ? "Agent B" : "Agent"
+  const modeName = (mix: LearnerMixId) =>
+    mixCopy[mix as (typeof learnerModeIds)[number]]?.label ?? "Astra"
+  const leftName = watching ? `Agent A · ${modeName(leftMix)}` : "Human"
+  const rightName = watching
+    ? `Agent B · ${modeName(rightMix)}`
+    : `Agent · ${modeName(rightMix)}`
 
   useEffect(() => {
     if (!notice) return

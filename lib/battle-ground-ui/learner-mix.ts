@@ -1,13 +1,39 @@
 import { z } from "zod"
 
-/** How the Learner turns a public board into counted taps. */
-export type LearnerMixId = "astra" | "astra-jev" | "astra-laya" | "astra-hybrid"
+/**
+ * How the Learner turns a public board into counted taps.
+ * `astra-hybrid` is the planned-burst alias of `astra`.
+ */
+export type LearnerMixId =
+  | "astra"
+  | "astra-hybrid"
+  | "code"
+  | "astra-jev"
+  | "jev-bare"
+  | "astra-laya"
+  | "laya-bare"
+  | "openai-decisions"
 
 export const learnerMixIds = [
   "astra",
-  "astra-jev",
-  "astra-laya",
   "astra-hybrid",
+  "code",
+  "astra-jev",
+  "jev-bare",
+  "astra-laya",
+  "laya-bare",
+  "openai-decisions",
+] as const satisfies readonly LearnerMixId[]
+
+/** Modes shown before start. `astra-hybrid` stays accepted on the API. */
+export const learnerModeIds = [
+  "astra",
+  "code",
+  "astra-jev",
+  "jev-bare",
+  "astra-laya",
+  "laya-bare",
+  "openai-decisions",
 ] as const satisfies readonly LearnerMixId[]
 
 export const placementSchema = z.strictObject({
@@ -114,12 +140,95 @@ export function layaSystemOneTarget(env: NodeJS.ProcessEnv = process.env): {
   return { url, authorization: key ? `Bearer ${key}` : null }
 }
 
+type VisibleCell = { visible: boolean; locked: boolean }
+
 export function readJevCommit(body: unknown): JevCommit | null {
   if (!body || typeof body !== "object") return null
   const choice = (body as { answers?: { commit?: { choice?: unknown } } })
     .answers?.commit?.choice
   if (choice === "wait" || choice === "one" || choice === "batch") return choice
   return null
+}
+
+export const policySchema = z.strictObject({
+  rule: z.enum(["first-unlocked", "selected-cycle", "named-cells"]),
+  cells: z.array(z.number().int().min(0).max(35)).max(4),
+  cycles: z.number().int().min(1).max(3),
+  note: z.string().max(160).nullable(),
+})
+
+export type LearnerPolicy = z.infer<typeof policySchema>
+
+/**
+ * In-browser sandbox for a Code-mode policy.
+ * It reads visible and locked flags only. It does not eval JavaScript,
+ * search hidden values, or call the network.
+ */
+export function interpretPolicy(
+  policy: LearnerPolicy,
+  cells: readonly VisibleCell[]
+): CountedAction[] {
+  if (policy.rule === "selected-cycle") {
+    return Array.from({ length: policy.cycles }, () => ({ type: "cycle" }))
+  }
+  const indexes =
+    policy.rule === "first-unlocked"
+      ? cells.flatMap((cell, index) =>
+          cell.visible && !cell.locked ? [index] : []
+        ).slice(0, 1)
+      : policy.cells
+  return expandPlacements(
+    indexes.map((cell) => ({ cell, cycles: policy.cycles })),
+    cells
+  )
+}
+
+/** Up to six visible editable cells, in board order, for a bare choice. */
+export function bareCandidateCells(cells: readonly VisibleCell[]) {
+  const indexes: number[] = []
+  for (let index = 0; index < cells.length && indexes.length < 6; index++) {
+    const cell = cells[index]
+    if (cell?.visible && !cell.locked) indexes.push(index)
+  }
+  return indexes
+}
+
+/** Minimal System One question. No plan and no written context. */
+export function bareControlQuestions(cells: readonly number[]) {
+  const criteria: Record<string, string> = {
+    wait: "No supported tap on the visible board.",
+    cycle: "Cycle the selected editable cell once.",
+    undo: "Undo the last counted change.",
+    clear: "Restore the round's starting board.",
+  }
+  for (const cell of cells.slice(0, 6)) {
+    criteria[`cell-${cell}`] = `Select visible cell ${cell}.`
+  }
+  return {
+    control: {
+      type: "choice" as const,
+      instructions:
+        "Pick one counted control from the public board. Do not search.",
+      criteria,
+    },
+  }
+}
+
+export function readBareControl(
+  body: unknown,
+  cells: readonly number[]
+): CountedAction | "wait" | null {
+  if (!body || typeof body !== "object") return null
+  const choice = (body as { answers?: { control?: { choice?: unknown } } })
+    .answers?.control?.choice
+  if (choice === "wait") return "wait"
+  if (choice === "cycle") return { type: "cycle" }
+  if (choice === "undo") return { type: "undo" }
+  if (choice === "clear") return { type: "clear" }
+  if (typeof choice !== "string" || !choice.startsWith("cell-")) return null
+  const cell = Number(choice.slice(5))
+  if (!cells.includes(cell)) return null
+  return { type: "selectCell", cell }
 }
 
 /** `null` keeps the Astra plan. Jev `wait` drops it. `one` keeps the first placement. */
@@ -131,8 +240,6 @@ export function applyCommit<T>(
   if (choice === "one") return items.slice(0, 1)
   return [...items]
 }
-
-type VisibleCell = { visible: boolean; locked: boolean }
 
 /**
  * In-browser expansion of a model plan into counted taps.
