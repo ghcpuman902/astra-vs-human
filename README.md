@@ -1,14 +1,14 @@
 # astra-vs-human
 
-![Demo — dual-arena play](docs/demo.gif)
+![Demo](public/demo.gif)
 
 **Are you cleverer than the agent, or is the agent just quicker?**
 
+Play: [astra-vs-human.vercel.app](https://astra-vs-human.vercel.app) · Demo: [Loom](https://www.loom.com/share/b549d07622694c8c9b1d9b31f2e38f60) · Craft: [Lovable](https://paper-play-board.lovable.app)
+
+**We score the pattern carried forward, not the class recognised.**
+
 OpenAI × Lovable **GPT-6 Astra Hackathon London** · Tue 6 Oct 2026.
-
-A human and one Learner each play the same rule pack and the same seed. Independent attempts. Shared board, shared clock. We score the local friend-pattern that carries to the next near-transfer board — not the puzzle class you recognised.
-
-**Live:** [astra-vs-human.vercel.app](https://astra-vs-human.vercel.app) · **Lovable:** [paper-play-board.lovable.app](https://paper-play-board.lovable.app) · **1-min demo:** [Loom](https://www.loom.com/share/b549d07622694c8c9b1d9b31f2e38f60)
 
 ## How to run
 
