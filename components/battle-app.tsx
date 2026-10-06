@@ -1,14 +1,11 @@
 "use client"
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { Play, RotateCcw, Undo2 } from "lucide-react"
+import { Lock, LockOpen, Play, RotateCcw, Undo2 } from "lucide-react"
 
-import { BattleBoard } from "@/components/battle-board"
-import { Switch } from "@/components/ui/switch"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { postcards } from "@/components/lovable/marks"
+import { PaperBoard } from "@/components/lovable/paper-board"
+import { verifyGame } from "@/lib/mini-game-rules/verifier"
 import {
   createBattleGround,
   scoreTransfer,
@@ -46,6 +43,11 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
   const [locked, setLocked] = useState(false)
   const [practice, setPractice] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{
+    x: number
+    y: number
+    text: string
+  } | null>(null)
   const [source, setSource] = useState("verified starter")
   const [hash, setHash] = useState<string | undefined>()
   const [records, setRecords] = useState<BattleRecord[]>([])
@@ -97,8 +99,21 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
       setBusy(false)
     }
   }
-  function pick(index: number) {
-    if (locked || busy || index === selected) return
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), 1600)
+    return () => clearTimeout(timer)
+  }, [notice])
+  function pick(index: number, event?: { clientX: number; clientY: number }) {
+    if (index === selected) return
+    if (locked || busy) {
+      setNotice({
+        x: event?.clientX ?? 24,
+        y: event?.clientY ?? 24,
+        text: "Finish this round first",
+      })
+      return
+    }
     memories.current[family] = memory
     const next = fixtures[index]
     const nextFamily = `${next.category}:${next.n}:${next.mode}:${next.visibility.kind}:${next.transfer.family}`
@@ -110,67 +125,61 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
     setRevision((v) => v + 1)
     setError(null)
   }
+  const roundNumber =
+    records.filter((record) => record.side === "human" && record.seed !== pack.seed)
+      .length + 1
   return (
-    <main className="battle-page">
-      <header className="battle-topbar">
-        <div className="battle-brand">
-          <span className="brand-grid" aria-hidden="true">
-            ◩
-          </span>
-          astra-vs-human
-        </div>
-        <span className="battle-caption">
-          Same board. Same taps. Same clock.
-        </span>
-      </header>
-      <nav className="category-nav" aria-label="Game mechanics">
-        <ToggleGroup
-          value={[String(selected)]}
-          onValueChange={(values) => {
-            if (values[0] !== undefined) pick(Number(values[0]))
-          }}
-          aria-label="Game mechanics"
-          className="flex-wrap"
-        >
-          {fixtures.map((fixture, index) => (
-            <ToggleGroupItem
-              key={fixture.category}
-              value={String(index)}
-              disabled={locked || busy}
-            >
-              {names[fixture.category]}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-        <label className="practice-choice" htmlFor="practice-preview">
-          <Switch
-            id="practice-preview"
-            size="sm"
-            checked={practice}
+    <main className="battle-ground">
+      <header className="battle-top">
+        <div className="wordmark">astra-vs-human · Round {roundNumber}</div>
+        <nav className="game-tabs" aria-label="Round games">
+          <button
+            type="button"
+            className="paper-button"
+            aria-pressed={practice}
             disabled={locked || busy}
-            onCheckedChange={(value) => {
-              setPractice(value)
+            aria-label={
+              practice
+                ? "Test mode: scores excluded. Switch to a scored round"
+                : "Scored round. Switch to test mode"
+            }
+            onClick={() => {
+              setPractice((value) => !value)
               setRevision((current) => current + 1)
             }}
-          />
-          Practice preview
-        </label>
-      </nav>
-      <div className="battle-heading">
-        <div>
-          <p className="eyebrow">
-            HUMAN × LEARNER · ROUND{" "}
-            {records.filter((r) => r.side === "human" && r.seed !== pack.seed)
-              .length + 1}
-          </p>
-          <h1>
-            {names[pack.category]}{" "}
-            <span>
-              {pack.n} × {pack.n}
-            </span>
-          </h1>
-        </div>
-        <Badge variant="outline">{pack.mode}</Badge>
+          >
+            {practice ? <LockOpen /> : <Lock />}
+            {practice ? "Test" : "Real"}
+          </button>
+          {fixtures.map((fixture, index) => {
+            const done = records.some(
+              (record) =>
+                record.side === "human" &&
+                record.seed === fixture.seed &&
+                record.status === "finished"
+            )
+            return (
+              <button
+                key={fixture.category}
+                type="button"
+                className="paper-button"
+                aria-current={selected === index ? "step" : undefined}
+                aria-disabled={locked || busy ? true : undefined}
+                onClick={(event) => pick(index, event)}
+              >
+                {index + 1}. {names[fixture.category]}
+                {done ? " ✓" : ""}
+              </button>
+            )
+          })}
+        </nav>
+      </header>
+      <div className="battle-title">
+        <h1>{names[pack.category]}</h1>
+        <span className="mode-badge">{pack.mode}</span>
+        <span className="battle-size">
+          {pack.n} × {pack.n}
+        </span>
       </div>
       <Round
         key={`${pack.seed}:${revision}:${cap}:${practice}`}
@@ -194,74 +203,75 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
           ])
         }
       />
-      <section className="respawn-panel" aria-label="Generation controls">
-        <div>
-          <strong>Carry the pattern forward</strong>
-          <p>A fresh board in the same game family.</p>
-        </div>
-        <div className="respawn-controls">
-          <Button
-            variant="outline"
+      <footer className="battle-footer">
+        <div className="footer-tools">
+          <button
+            type="button"
+            className="paper-button"
             disabled={busy || locked}
             onClick={() => void generate(true)}
           >
             {busy ? "Generating…" : "Respawn same family"}
-          </Button>
-          <Button
-            variant="ghost"
+          </button>
+          <button
+            type="button"
+            className="paper-button"
             disabled={busy || locked}
             onClick={() => void generate(false)}
           >
             Invent another variation
-          </Button>
+          </button>
+          <label>
+            Shared cap{" "}
+            <select
+              aria-label="Shared round time cap"
+              value={cap}
+              disabled={locked || busy}
+              onChange={(event) => setCap(Number(event.target.value))}
+            >
+              <option value={120000}>2 minutes</option>
+              <option value={600000}>10 minutes, if stuck</option>
+            </select>
+          </label>
         </div>
-        <label className="cap-choice">
-          Shared cap{" "}
-          <select
-            aria-label="Shared round time cap"
-            value={cap}
-            disabled={locked || busy}
-            onChange={(event) => setCap(Number(event.target.value))}
-          >
-            <option value={120000}>2 minutes</option>
-            <option value={600000}>10 minutes, if stuck</option>
-          </select>
-        </label>
-        {error && (
+        <span className="seed">
+          SEED {pack.seed}
+          {source ? ` · ${source}` : ""}
+        </span>
+        <div className="transfer-line" aria-label="Learning across respawns">
+          {(["human", "learner"] as const).map((side) => {
+            const score = scoreTransfer(records, side, family)
+            const count = records.filter(
+              (record) =>
+                record.side === side &&
+                record.transferGroup === family &&
+                record.status === "finished"
+            ).length
+            return (
+              <span key={side}>
+                <strong>{side === "human" ? "Human" : "Learner"}</strong> ·{" "}
+                {score.eligible
+                  ? `action slope ${score.actionSlope?.toFixed(1)} per round${score.actionsFalling ? " · actions falling" : ""}`
+                  : `${count}/3 completed transfer rounds`}
+              </span>
+            )
+          })}
+        </div>
+        {error ? (
           <p role="alert" className="battle-error">
             {error}
           </p>
-        )}
-      </section>
-      <section
-        className="transfer-summary"
-        aria-label="Learning across respawns"
-      >
-        {(["human", "learner"] as const).map((side) => {
-          const score = scoreTransfer(records, side, family)
-          const count = records.filter(
-            (r) =>
-              r.side === side &&
-              r.transferGroup === family &&
-              r.status === "finished"
-          ).length
-          return (
-            <span key={side}>
-              <strong>{side === "human" ? "Human" : "Learner"}</strong> ·{" "}
-              {score.eligible
-                ? `action slope ${score.actionSlope?.toFixed(1)} per round${score.actionsFalling ? " · actions falling" : ""}`
-                : `${count}/3 completed transfer rounds`}
-            </span>
-          )
-        })}
-      </section>
-      <footer className="battle-page-footer">
-        <span>
-          We score the pattern they carried forward, not the puzzle class they
-          recognised.
-        </span>
-        <span>{source}</span>
+        ) : null}
       </footer>
+      {notice ? (
+        <div
+          role="status"
+          className="cursor-notice"
+          style={{ left: notice.x + 12, top: notice.y + 12 }}
+        >
+          {notice.text}
+        </div>
+      ) : null}
     </main>
   )
 }
