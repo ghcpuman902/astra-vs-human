@@ -3,14 +3,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { Lock, LockOpen, Play, RotateCcw, Undo2 } from "lucide-react"
 
-import { postcards } from "@/components/lovable/marks"
-import { PaperBoard } from "@/components/lovable/paper-board"
+import { BattleField } from "@/components/lovable/battle-field"
 import { verifyGame } from "@/lib/mini-game-rules/verifier"
 import {
   createBattleGround,
   scoreTransfer,
   type BattleRecord,
-  type Side,
 } from "@/lib/battle-ground-ui/controller"
 import {
   createGameLearnerRunner,
@@ -306,9 +304,9 @@ function Round({
     battle.getSnapshot
   )
   const [started, setStarted] = useState(false)
-  const [side, setSide] = useState<Side>("human")
   const [agentStatus, setAgentStatus] = useState("Ready")
   const [claim, setClaim] = useState("")
+  const [lastCell, setLastCell] = useState<number | null>(null)
   const finished =
     snapshot.attempts.human.status !== "playing" &&
     snapshot.attempts.learner.status !== "playing"
@@ -377,152 +375,73 @@ function Round({
     onLock(false)
     onEnd([...snapshot.records])
   }, [finished, memory, onEnd, onLock, snapshot.records])
-  const board = battle.boardProps(side)
-  const human = battle.actions("human")
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "z" ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      )
+        return
+      const target = event.target
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      )
+        return
+      const attempt = battle.getSnapshot().attempts.human
+      if (attempt.status !== "playing" || !attempt.state.history.length) return
+      battle.actions("human").undo()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [battle])
+  const humanBoard = battle.boardProps("human")
+  const learnerBoard = battle.boardProps("learner")
+  const humanAttempt = snapshot.attempts.human
+  const learnerAttempt = snapshot.attempts.learner
+  const report = verifyGame(
+    pack,
+    humanBoard.cells.map((cell) => (cell.visible ? cell.value : null))
+  )
+  const card = postcards[pack.category]
+  const handleStart = () => {
+    battle.start()
+    setStarted(true)
+    onLock(true)
+  }
+  const handleTap = (cell: number) => {
+    setLastCell(cell)
+    const actions = battle.actions("human")
+    actions.selectCell(cell)
+    actions.cycle()
+  }
   return (
-    <section className="round-layout" aria-label="Shared puzzle round">
-      <div className="play-column">
-        <div className="dual-clocks">
-          {(["human", "learner"] as const).map((player) => {
-            const attempt = snapshot.attempts[player]
-            return (
-              <div key={player} className="player-clock">
-                <strong>{player === "human" ? "HUMAN" : "AGENT · L0"}</strong>
-                <time aria-label={`${player} elapsed time`}>
-                  {clock(attempt.endedAtMs ?? cap - snapshot.remainingMs)}
-                </time>
-                <span>
-                  {attempt.state.actions} actions ·{" "}
-                  {started ? attempt.status : "ready"}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-        <Tabs value={side} onValueChange={(value) => setSide(value as Side)}>
-          <TabsList variant="line" aria-label="View player">
-            <TabsTrigger value="human">Human</TabsTrigger>
-            <TabsTrigger value="learner">Agent · read-only</TabsTrigger>
-          </TabsList>
-          <TabsContent value={side}>
-            {practice && (
-              <div className="practice-note">
-                <span>Practice · excluded from learning scores</span>
-                {!started && (
-                  <Button
-                    disabled={loading}
-                    onClick={() => {
-                      battle.start()
-                      setStarted(true)
-                      onLock(true)
-                    }}
-                  >
-                    <Play data-icon="inline-start" />
-                    Start both players
-                  </Button>
-                )}
-              </div>
-            )}
-            <div className="board-stage">
-              {started || practice ? (
-                <BattleBoard
-                  board={started ? board : { ...board, readOnly: true }}
-                  onSelectCycle={(cell) => {
-                    human.selectCell(cell)
-                    human.cycle()
-                  }}
-                />
-              ) : (
-                <div className="board-cover">
-                  <span className="cover-symbol" aria-hidden="true">
-                    ◩
-                  </span>
-                  <strong>Ready when you are.</strong>
-                  <p>Read the postcard, then start both clocks.</p>
-                  <Button
-                    disabled={loading}
-                    onClick={() => {
-                      battle.start()
-                      setStarted(true)
-                      onLock(true)
-                    }}
-                  >
-                    <Play data-icon="inline-start" />
-                    Start both players
-                  </Button>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
-        <div className="battle-toolbar">
-          <Button
-            variant="outline"
-            disabled={
-              !started ||
-              side !== "human" ||
-              board.status !== "playing" ||
-              !snapshot.attempts.human.state.history.length
-            }
-            onClick={human.undo}
-          >
-            <Undo2 data-icon="inline-start" />
-            Undo
-          </Button>
-          <Button
-            variant="outline"
-            disabled={
-              !started || side !== "human" || board.status !== "playing"
-            }
-            onClick={human.clear}
-          >
-            <RotateCcw data-icon="inline-start" />
-            Clear
-          </Button>
-          <Button
-            variant="ghost"
-            disabled
-            title="Hints are practice-only. This is a scored round."
-          >
-            Hint · practice only
-          </Button>
-        </div>
-        <div className="round-status">
-          <span>SHARED SEED {pack.seed}</span>
-          <span>
-            {started
-              ? `${clock(snapshot.remainingMs)} left`
-              : `Typical round ${pack.session.targetSeconds}s`}
-          </span>
-        </div>
-        {finished && (
-          <p role="status">
-            Both players ended. Respawn to carry the pattern forward.
-          </p>
-        )}
-      </div>
-      <aside className="postcard">
-        <p className="eyebrow">POSTCARD · {pack.mode}</p>
-        <h2>{pack.postcard.goal}</h2>
-        <ol>
-          {pack.postcard.rules.map((rule) => (
-            <li key={rule}>{rule}</li>
-          ))}
-        </ol>
-        <div className="agent-activity">
-          <p className="eyebrow">LEARNER · SAME FOUR CONTROLS</p>
-          <p aria-live="polite">
-            {snapshot.attempts.learner.status === "playing"
-              ? agentStatus
-              : snapshot.attempts.learner.status}
-          </p>
-          {finished && claim && <blockquote>{claim}</blockquote>}
-          <p className="fine-print">
-            The agent sees this board’s public clues and postcard. It selects,
-            cycles, undoes and clears. No answer or solver is supplied.
-          </p>
-        </div>
-      </aside>
-    </section>
+    <BattleField
+      pack={pack}
+      practice={practice}
+      loading={loading}
+      started={started}
+      finished={finished}
+      remainingMs={snapshot.remainingMs}
+      humanBoard={humanBoard}
+      learnerBoard={learnerBoard}
+      humanActions={humanAttempt.state.actions}
+      learnerActions={learnerAttempt.state.actions}
+      humanStatus={humanAttempt.status}
+      learnerStatus={learnerAttempt.status}
+      humanElapsedMs={humanAttempt.endedAtMs ?? (started ? cap - snapshot.remainingMs : 0)}
+      learnerElapsedMs={learnerAttempt.endedAtMs ?? (started ? cap - snapshot.remainingMs : 0)}
+      canUndo={humanAttempt.state.history.length > 0}
+      agentStatus={agentStatus}
+      claim={claim}
+      invalidIndex={!report.valid ? lastCell : null}
+      onStart={handleStart}
+      onTap={handleTap}
+      onUndo={() => battle.actions("human").undo()}
+      onClear={() => battle.actions("human").clear()}
+    />
   )
 }

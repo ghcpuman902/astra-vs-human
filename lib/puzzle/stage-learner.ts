@@ -41,6 +41,7 @@ export function createStageLearner(options: {
   }
   let decision: ModelLearnerResult | null = null
   let claimed = false
+  let unsubscribe = () => {}
   const publish = (
     status: StageLearnerState["status"],
     action = latest.lastAction,
@@ -93,6 +94,7 @@ export function createStageLearner(options: {
       if (options.stage.ended() || view.remainingMs <= 0) {
         publish("finished")
         running = false
+        unsubscribe()
         runner.dispose()
         return
       }
@@ -122,7 +124,7 @@ export function createStageLearner(options: {
       schedule()
     }
   }
-  const unsubscribe = options.stage.match.subscribe(() => {
+  unsubscribe = options.stage.match.subscribe(() => {
     runner.sync()
     const view = observeStage(options.stage, options.pack, options.publicMarks)
     if (view.status === "finished" && !claimed) {
@@ -132,6 +134,7 @@ export function createStageLearner(options: {
     if (options.stage.ended()) {
       running = false
       clearTimeout(timer)
+      unsubscribe()
       runner.dispose()
       publish("finished")
     }
