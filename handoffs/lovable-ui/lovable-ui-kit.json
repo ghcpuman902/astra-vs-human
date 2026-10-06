@@ -1,0 +1,3524 @@
+{
+  "schemaVersion": "astra.lovable-ui-kit/1",
+  "purpose": "Five real playable rule combinations for a shared renderer/style experiment.",
+  "startHere": "Read docs/LOVABLE-START-HERE.md from files. Materialize the TypeScript files at their keys; the engine has no npm dependencies. fixtures is the data input. This is a portable handoff, not a deployed UI.",
+  "sourceStatus": "Created tonight in local repo; files included here so the handoff does not depend on unpublished GitHub changes.",
+  "sharedDefaults": {
+    "mode": "FORCED-CHAIN",
+    "actionCap": 300,
+    "timeCapMs": 120000,
+    "singleBoardViewport": true,
+    "learner": "policy stub; no model inference attached",
+    "hints": "pending Grokbot scope answer; no implemented hint API",
+    "interaction": "Tap unselected cell selects; tap selected cell cycles. Each API action counts."
+  },
+  "fixtures": [
+    {
+      "id": "pairs-and-balance",
+      "title": "Pairs & Balance",
+      "purpose": "UI exploration fixture, not a learning benchmark",
+      "transferGroup": "pairs-and-balance-v1",
+      "postcard": {
+        "goal": "Complete the grid while keeping every line balanced.",
+        "rules": [
+          "Fill each empty cell with a circle or square; printed givens stay fixed.",
+          "Never place three identical marks consecutively in any row or column.",
+          "Each edge number gives the exact number of squares in that line."
+        ],
+        "wordCount": 44
+      },
+      "uiBrief": {
+        "designQuestion": "Can a beginner connect a margin count to its row or column without reading coordinates?",
+        "emphasis": "Quiet 4×4 introduction. Right-side row counts and top column counts. Keep the two-symbol legend beside the postcard."
+      },
+      "pack": {
+        "seed": 71001,
+        "n": 4,
+        "mode": "FORCED-CHAIN",
+        "rulesPostcard": [
+          "Use 0 (circle) or 1 (square). Cycle: empty → 0 → 1 → empty. Givens are locked.",
+          "No three consecutive equal cells in any row or column.",
+          "Row 1: exactly 2 squares.",
+          "Row 2: exactly 2 squares.",
+          "Row 3: exactly 2 squares.",
+          "Row 4: exactly 2 squares.",
+          "Column 1: exactly 2 squares.",
+          "Column 2: exactly 2 squares.",
+          "Column 3: exactly 2 squares.",
+          "Column 4: exactly 2 squares."
+        ],
+        "cells": [
+          null,
+          null,
+          0,
+          null,
+          null,
+          1,
+          null,
+          null,
+          null,
+          1,
+          null,
+          null,
+          null,
+          null,
+          0,
+          null
+        ],
+        "constraints": [
+          {
+            "kind": "no-three",
+            "cells": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              4,
+              5,
+              6
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              4,
+              5,
+              6,
+              7
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              9,
+              10,
+              11
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              8,
+              9,
+              10,
+              11
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              12,
+              13,
+              14
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              13,
+              14,
+              15
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              12,
+              13,
+              14,
+              15
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              0,
+              4,
+              8
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              4,
+              8,
+              12
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              0,
+              4,
+              8,
+              12
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              1,
+              5,
+              9
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              5,
+              9,
+              13
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              1,
+              5,
+              9,
+              13
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              2,
+              6,
+              10
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              6,
+              10,
+              14
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              2,
+              6,
+              10,
+              14
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              3,
+              7,
+              11
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              7,
+              11,
+              15
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              3,
+              7,
+              11,
+              15
+            ],
+            "ones": 2
+          }
+        ],
+        "verifierSpec": {
+          "version": 1,
+          "alphabet": [
+            0,
+            1
+          ],
+          "empty": null
+        }
+      },
+      "publicBoard": {
+        "symbols": [
+          {
+            "value": 0,
+            "label": "circle",
+            "glyph": "●",
+            "colorToken": "cat-1"
+          },
+          {
+            "value": 1,
+            "label": "square",
+            "glyph": "■",
+            "colorToken": "cat-2"
+          }
+        ],
+        "quotas": [
+          {
+            "axis": "row",
+            "line": 0,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              0,
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 1,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              4,
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 2,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              8,
+              9,
+              10,
+              11
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 3,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              12,
+              13,
+              14,
+              15
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 0,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              0,
+              4,
+              8,
+              12
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 1,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              1,
+              5,
+              9,
+              13
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 2,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              2,
+              6,
+              10,
+              14
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 3,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              3,
+              7,
+              11,
+              15
+            ]
+          }
+        ],
+        "friends": [],
+        "noThree": "rows-and-columns"
+      },
+      "verification": {
+        "unique": true,
+        "shortForcedFoothold": true,
+        "fullyForcedChain": true,
+        "editableCells": 12
+      },
+      "interactionTrace": [
+        {
+          "input": {
+            "type": "selectCell",
+            "cell": 0
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": null,
+            "actions": 1,
+            "remainingActions": 299,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "cycle"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 2,
+            "remainingActions": 298,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "cycle"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 1,
+            "actions": 3,
+            "remainingActions": 297,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "undo"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 4,
+            "remainingActions": 296,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "clear"
+          },
+          "output": {
+            "selectedCell": null,
+            "cell": 0,
+            "value": null,
+            "actions": 5,
+            "remainingActions": 295,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "undo"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 6,
+            "remainingActions": 294,
+            "status": "playing"
+          }
+        }
+      ]
+    },
+    {
+      "id": "thread-count",
+      "title": "Thread Count",
+      "purpose": "UI exploration fixture, not a learning benchmark",
+      "transferGroup": "thread-count-v1",
+      "postcard": {
+        "goal": "Complete the grid by matching counts and linked neighbors.",
+        "rules": [
+          "Fill empty cells with circles or squares; printed givens stay fixed.",
+          "Each edge number counts squares in its line.",
+          "Linked neighbors match across = and differ across ×. Unlinked neighbors have no pair restriction."
+        ],
+        "wordCount": 43
+      },
+      "uiBrief": {
+        "designQuestion": "Can = and × remain legible on shared cell edges without looking like cell values?",
+        "emphasis": "Use edge-centered relation badges. Allow repeated triples here; show only the rules this game actually has."
+      },
+      "pack": {
+        "seed": 71002,
+        "n": 4,
+        "mode": "FORCED-CHAIN",
+        "rulesPostcard": [
+          "Use 0 (circle) or 1 (square). Cycle: empty → 0 → 1 → empty. Givens are locked.",
+          "Row 1: exactly 2 squares.",
+          "Row 2: exactly 2 squares.",
+          "Row 3: exactly 2 squares.",
+          "Row 4: exactly 2 squares.",
+          "Column 1: exactly 2 squares.",
+          "Column 2: exactly 2 squares.",
+          "Column 3: exactly 2 squares.",
+          "Column 4: exactly 2 squares.",
+          "Friend 8 = 12: equal.",
+          "Friend 13 × 14: different.",
+          "Friend 1 × 5: different.",
+          "Friend 3 × 7: different.",
+          "Friend 5 × 6: different.",
+          "Friend 6 = 7: equal.",
+          "Friend 6 = 10: equal.",
+          "Friend 7 × 8: different.",
+          "Friend 9 × 10: different.",
+          "Friend 11 × 12: different.",
+          "Friend 14 = 15: equal.",
+          "Friend 15 × 16: different."
+        ],
+        "cells": [
+          null,
+          null,
+          null,
+          null,
+          0,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "constraints": [
+          {
+            "kind": "quota",
+            "cells": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              4,
+              5,
+              6,
+              7
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              8,
+              9,
+              10,
+              11
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              12,
+              13,
+              14,
+              15
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              0,
+              4,
+              8,
+              12
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              1,
+              5,
+              9,
+              13
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              2,
+              6,
+              10,
+              14
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              3,
+              7,
+              11,
+              15
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              7,
+              11
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              12,
+              13
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              0,
+              4
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              2,
+              6
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              4,
+              5
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              5,
+              6
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              5,
+              9
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              6,
+              7
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              8,
+              9
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              10,
+              11
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              13,
+              14
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              14,
+              15
+            ],
+            "relation": "×"
+          }
+        ],
+        "verifierSpec": {
+          "version": 1,
+          "alphabet": [
+            0,
+            1
+          ],
+          "empty": null
+        }
+      },
+      "publicBoard": {
+        "symbols": [
+          {
+            "value": 0,
+            "label": "circle",
+            "glyph": "●",
+            "colorToken": "cat-1"
+          },
+          {
+            "value": 1,
+            "label": "square",
+            "glyph": "■",
+            "colorToken": "cat-2"
+          }
+        ],
+        "quotas": [
+          {
+            "axis": "row",
+            "line": 0,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              0,
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 1,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              4,
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 2,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              8,
+              9,
+              10,
+              11
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 3,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              12,
+              13,
+              14,
+              15
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 0,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              0,
+              4,
+              8,
+              12
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 1,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              1,
+              5,
+              9,
+              13
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 2,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              2,
+              6,
+              10,
+              14
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 3,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              3,
+              7,
+              11,
+              15
+            ]
+          }
+        ],
+        "friends": [
+          {
+            "cells": [
+              7,
+              11
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              12,
+              13
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              0,
+              4
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              2,
+              6
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              4,
+              5
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              5,
+              6
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              5,
+              9
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              6,
+              7
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              8,
+              9
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              10,
+              11
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              13,
+              14
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              14,
+              15
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          }
+        ],
+        "noThree": "none"
+      },
+      "verification": {
+        "unique": true,
+        "shortForcedFoothold": true,
+        "fullyForcedChain": true,
+        "editableCells": 15
+      },
+      "interactionTrace": [
+        {
+          "input": {
+            "type": "selectCell",
+            "cell": 0
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": null,
+            "actions": 1,
+            "remainingActions": 299,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "cycle"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 2,
+            "remainingActions": 298,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "cycle"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 1,
+            "actions": 3,
+            "remainingActions": 297,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "undo"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 4,
+            "remainingActions": 296,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "clear"
+          },
+          "output": {
+            "selectedCell": null,
+            "cell": 0,
+            "value": null,
+            "actions": 5,
+            "remainingActions": 295,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "undo"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 6,
+            "remainingActions": 294,
+            "status": "playing"
+          }
+        }
+      ]
+    },
+    {
+      "id": "echo-lanes",
+      "title": "Echo Lanes",
+      "purpose": "UI exploration fixture, not a learning benchmark",
+      "transferGroup": "echo-lanes-v1",
+      "postcard": {
+        "goal": "Complete every lane while respecting its marked connections.",
+        "rules": [
+          "Fill empty cells with circles or squares; printed givens stay fixed.",
+          "Never place three identical marks consecutively along a row or column.",
+          "Neighbors joined by = must match; those joined by × must differ."
+        ],
+        "wordCount": 42
+      },
+      "uiBrief": {
+        "designQuestion": "Can the renderer omit absent quota gutters and still keep the board stable and centered?",
+        "emphasis": "Odd-sized 5×5 with no numerical quotas. Use the same shell and relation treatment, with no decorative empty counters."
+      },
+      "pack": {
+        "seed": 71003,
+        "n": 5,
+        "mode": "FORCED-CHAIN",
+        "rulesPostcard": [
+          "Use 0 (circle) or 1 (square). Cycle: empty → 0 → 1 → empty. Givens are locked.",
+          "No three consecutive equal cells in any row or column.",
+          "Friend 14 × 15: different.",
+          "Friend 19 × 20: different.",
+          "Friend 23 = 24: equal.",
+          "Friend 1 × 6: different.",
+          "Friend 3 = 4: equal.",
+          "Friend 4 × 5: different.",
+          "Friend 4 × 9: different.",
+          "Friend 5 × 10: different.",
+          "Friend 6 = 7: equal.",
+          "Friend 8 = 9: equal.",
+          "Friend 8 = 13: equal.",
+          "Friend 10 = 15: equal.",
+          "Friend 15 × 20: different.",
+          "Friend 16 = 17: equal.",
+          "Friend 17 × 18: different.",
+          "Friend 17 = 22: equal.",
+          "Friend 18 = 23: equal.",
+          "Friend 21 = 22: equal.",
+          "Friend 22 × 23: different.",
+          "Friend 24 × 25: different."
+        ],
+        "cells": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          1,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "constraints": [
+          {
+            "kind": "no-three",
+            "cells": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              10,
+              11,
+              12
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              11,
+              12,
+              13
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              12,
+              13,
+              14
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              15,
+              16,
+              17
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              16,
+              17,
+              18
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              17,
+              18,
+              19
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              20,
+              21,
+              22
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              21,
+              22,
+              23
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              22,
+              23,
+              24
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              0,
+              5,
+              10
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              5,
+              10,
+              15
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              10,
+              15,
+              20
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              1,
+              6,
+              11
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              6,
+              11,
+              16
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              11,
+              16,
+              21
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              2,
+              7,
+              12
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              7,
+              12,
+              17
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              12,
+              17,
+              22
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              3,
+              8,
+              13
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              8,
+              13,
+              18
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              13,
+              18,
+              23
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              4,
+              9,
+              14
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              9,
+              14,
+              19
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              14,
+              19,
+              24
+            ]
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              13,
+              14
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              18,
+              19
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              22,
+              23
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              0,
+              5
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              2,
+              3
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              3,
+              4
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              3,
+              8
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              4,
+              9
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              5,
+              6
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              7,
+              8
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              7,
+              12
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              9,
+              14
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              14,
+              19
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              15,
+              16
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              16,
+              17
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              16,
+              21
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              17,
+              22
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              20,
+              21
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              21,
+              22
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              23,
+              24
+            ],
+            "relation": "×"
+          }
+        ],
+        "verifierSpec": {
+          "version": 1,
+          "alphabet": [
+            0,
+            1
+          ],
+          "empty": null
+        }
+      },
+      "publicBoard": {
+        "symbols": [
+          {
+            "value": 0,
+            "label": "circle",
+            "glyph": "●",
+            "colorToken": "cat-1"
+          },
+          {
+            "value": 1,
+            "label": "square",
+            "glyph": "■",
+            "colorToken": "cat-2"
+          }
+        ],
+        "quotas": [],
+        "friends": [
+          {
+            "cells": [
+              13,
+              14
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              18,
+              19
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              22,
+              23
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              0,
+              5
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              2,
+              3
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              3,
+              4
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              3,
+              8
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              4,
+              9
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              5,
+              6
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              7,
+              8
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              7,
+              12
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              9,
+              14
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              14,
+              19
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              15,
+              16
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              16,
+              17
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              16,
+              21
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              17,
+              22
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              20,
+              21
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              21,
+              22
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              23,
+              24
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          }
+        ],
+        "noThree": "rows-and-columns"
+      },
+      "verification": {
+        "unique": true,
+        "shortForcedFoothold": true,
+        "fullyForcedChain": true,
+        "editableCells": 24
+      },
+      "interactionTrace": [
+        {
+          "input": {
+            "type": "selectCell",
+            "cell": 0
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": null,
+            "actions": 1,
+            "remainingActions": 299,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "cycle"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 2,
+            "remainingActions": 298,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "cycle"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 1,
+            "actions": 3,
+            "remainingActions": 297,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "undo"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 4,
+            "remainingActions": 296,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "clear"
+          },
+          "output": {
+            "selectedCell": null,
+            "cell": 0,
+            "value": null,
+            "actions": 5,
+            "remainingActions": 295,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "undo"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 6,
+            "remainingActions": 294,
+            "status": "playing"
+          }
+        }
+      ]
+    },
+    {
+      "id": "row-budget",
+      "title": "Row Budget",
+      "purpose": "UI exploration fixture, not a learning benchmark",
+      "transferGroup": "row-budget-v1",
+      "postcard": {
+        "goal": "Complete the grid using row budgets and neighbor links.",
+        "rules": [
+          "Fill empty cells with circles or squares; givens stay fixed.",
+          "No row or column may contain three identical consecutive marks.",
+          "Right-edge numbers count squares in rows only.",
+          "Linked neighbors match across = and differ across ×."
+        ],
+        "wordCount": 45
+      },
+      "uiBrief": {
+        "designQuestion": "Is it unmistakable that only rows have quotas, while no-three still applies in both directions?",
+        "emphasis": "Asymmetric board annotations. Put quota labels only on the right; do not invent column quotas or require 50/50 balance."
+      },
+      "pack": {
+        "seed": 71004,
+        "n": 5,
+        "mode": "FORCED-CHAIN",
+        "rulesPostcard": [
+          "Use 0 (circle) or 1 (square). Cycle: empty → 0 → 1 → empty. Givens are locked.",
+          "No three consecutive equal cells in any row or column.",
+          "Row 1: exactly 3 squares.",
+          "Row 2: exactly 2 squares.",
+          "Row 3: exactly 2 squares.",
+          "Row 4: exactly 3 squares.",
+          "Row 5: exactly 3 squares.",
+          "Friend 2 = 3: equal.",
+          "Friend 3 × 4: different.",
+          "Friend 5 × 10: different.",
+          "Friend 8 × 9: different.",
+          "Friend 9 = 10: equal.",
+          "Friend 12 = 13: equal.",
+          "Friend 13 × 14: different.",
+          "Friend 16 × 17: different."
+        ],
+        "cells": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          1,
+          null,
+          null,
+          null,
+          null,
+          null,
+          1,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          0,
+          0,
+          null,
+          null
+        ],
+        "constraints": [
+          {
+            "kind": "no-three",
+            "cells": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              5,
+              6,
+              7,
+              8,
+              9
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              10,
+              11,
+              12
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              11,
+              12,
+              13
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              12,
+              13,
+              14
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "ones": 2
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              15,
+              16,
+              17
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              16,
+              17,
+              18
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              17,
+              18,
+              19
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              15,
+              16,
+              17,
+              18,
+              19
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              20,
+              21,
+              22
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              21,
+              22,
+              23
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              22,
+              23,
+              24
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              20,
+              21,
+              22,
+              23,
+              24
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              0,
+              5,
+              10
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              5,
+              10,
+              15
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              10,
+              15,
+              20
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              1,
+              6,
+              11
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              6,
+              11,
+              16
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              11,
+              16,
+              21
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              2,
+              7,
+              12
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              7,
+              12,
+              17
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              12,
+              17,
+              22
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              3,
+              8,
+              13
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              8,
+              13,
+              18
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              13,
+              18,
+              23
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              4,
+              9,
+              14
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              9,
+              14,
+              19
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              14,
+              19,
+              24
+            ]
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              1,
+              2
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              2,
+              3
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              4,
+              9
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              7,
+              8
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              8,
+              9
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              11,
+              12
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              12,
+              13
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              15,
+              16
+            ],
+            "relation": "×"
+          }
+        ],
+        "verifierSpec": {
+          "version": 1,
+          "alphabet": [
+            0,
+            1
+          ],
+          "empty": null
+        }
+      },
+      "publicBoard": {
+        "symbols": [
+          {
+            "value": 0,
+            "label": "circle",
+            "glyph": "●",
+            "colorToken": "cat-1"
+          },
+          {
+            "value": 1,
+            "label": "square",
+            "glyph": "■",
+            "colorToken": "cat-2"
+          }
+        ],
+        "quotas": [
+          {
+            "axis": "row",
+            "line": 0,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 1,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              5,
+              6,
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 2,
+            "value": 1,
+            "target": 2,
+            "cells": [
+              10,
+              11,
+              12,
+              13,
+              14
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 3,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              15,
+              16,
+              17,
+              18,
+              19
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 4,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              20,
+              21,
+              22,
+              23,
+              24
+            ]
+          }
+        ],
+        "friends": [
+          {
+            "cells": [
+              1,
+              2
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              2,
+              3
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              4,
+              9
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              7,
+              8
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              8,
+              9
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              11,
+              12
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              12,
+              13
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              15,
+              16
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          }
+        ],
+        "noThree": "rows-and-columns"
+      },
+      "verification": {
+        "unique": true,
+        "shortForcedFoothold": true,
+        "fullyForcedChain": true,
+        "editableCells": 21
+      },
+      "interactionTrace": [
+        {
+          "input": {
+            "type": "selectCell",
+            "cell": 0
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": null,
+            "actions": 1,
+            "remainingActions": 299,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "cycle"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 2,
+            "remainingActions": 298,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "cycle"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 1,
+            "actions": 3,
+            "remainingActions": 297,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "undo"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 4,
+            "remainingActions": 296,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "clear"
+          },
+          "output": {
+            "selectedCell": null,
+            "cell": 0,
+            "value": null,
+            "actions": 5,
+            "remainingActions": 295,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "undo"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 6,
+            "remainingActions": 294,
+            "status": "playing"
+          }
+        }
+      ]
+    },
+    {
+      "id": "full-weave",
+      "title": "Full Weave",
+      "purpose": "UI exploration fixture, not a learning benchmark",
+      "transferGroup": "full-weave-v1",
+      "postcard": {
+        "goal": "Complete the larger grid using every displayed clue.",
+        "rules": [
+          "Fill empty cells with circles or squares; printed givens stay fixed.",
+          "Never place three identical marks consecutively in any row or column.",
+          "Edge numbers count squares in their lines.",
+          "Linked neighbors match across = and differ across ×."
+        ],
+        "wordCount": 46
+      },
+      "uiBrief": {
+        "designQuestion": "Can the complete clue system stay readable at a 320px viewport with 44px cells?",
+        "emphasis": "6×6 density and responsive stress case. Same typography, cells, and controls; change layout around the board rather than shrinking targets."
+      },
+      "pack": {
+        "seed": 71005,
+        "n": 6,
+        "mode": "FORCED-CHAIN",
+        "rulesPostcard": [
+          "Use 0 (circle) or 1 (square). Cycle: empty → 0 → 1 → empty. Givens are locked.",
+          "No three consecutive equal cells in any row or column.",
+          "Row 1: exactly 3 squares.",
+          "Row 2: exactly 3 squares.",
+          "Row 3: exactly 3 squares.",
+          "Row 4: exactly 3 squares.",
+          "Row 5: exactly 3 squares.",
+          "Row 6: exactly 3 squares.",
+          "Column 1: exactly 3 squares.",
+          "Column 2: exactly 3 squares.",
+          "Column 3: exactly 3 squares.",
+          "Column 4: exactly 3 squares.",
+          "Column 5: exactly 3 squares.",
+          "Column 6: exactly 3 squares.",
+          "Friend 1 × 2: different.",
+          "Friend 4 = 5: equal.",
+          "Friend 5 × 6: different.",
+          "Friend 18 × 24: different.",
+          "Friend 19 × 20: different.",
+          "Friend 23 × 24: different.",
+          "Friend 24 = 30: equal.",
+          "Friend 26 = 27: equal.",
+          "Friend 28 = 29: equal."
+        ],
+        "cells": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          1,
+          null,
+          0,
+          null,
+          null,
+          null,
+          null,
+          1,
+          null,
+          null,
+          null,
+          null,
+          0,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          1,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "constraints": [
+          {
+            "kind": "no-three",
+            "cells": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              3,
+              4,
+              5
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              9,
+              10,
+              11
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              6,
+              7,
+              8,
+              9,
+              10,
+              11
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              12,
+              13,
+              14
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              13,
+              14,
+              15
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              14,
+              15,
+              16
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              15,
+              16,
+              17
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              12,
+              13,
+              14,
+              15,
+              16,
+              17
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              18,
+              19,
+              20
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              19,
+              20,
+              21
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              20,
+              21,
+              22
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              21,
+              22,
+              23
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              24,
+              25,
+              26
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              25,
+              26,
+              27
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              26,
+              27,
+              28
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              27,
+              28,
+              29
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              24,
+              25,
+              26,
+              27,
+              28,
+              29
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              30,
+              31,
+              32
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              31,
+              32,
+              33
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              32,
+              33,
+              34
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              33,
+              34,
+              35
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              30,
+              31,
+              32,
+              33,
+              34,
+              35
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              0,
+              6,
+              12
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              6,
+              12,
+              18
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              12,
+              18,
+              24
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              18,
+              24,
+              30
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              0,
+              6,
+              12,
+              18,
+              24,
+              30
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              1,
+              7,
+              13
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              7,
+              13,
+              19
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              13,
+              19,
+              25
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              19,
+              25,
+              31
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              1,
+              7,
+              13,
+              19,
+              25,
+              31
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              2,
+              8,
+              14
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              8,
+              14,
+              20
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              14,
+              20,
+              26
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              20,
+              26,
+              32
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              2,
+              8,
+              14,
+              20,
+              26,
+              32
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              3,
+              9,
+              15
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              9,
+              15,
+              21
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              15,
+              21,
+              27
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              21,
+              27,
+              33
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              3,
+              9,
+              15,
+              21,
+              27,
+              33
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              4,
+              10,
+              16
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              10,
+              16,
+              22
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              16,
+              22,
+              28
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              22,
+              28,
+              34
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              4,
+              10,
+              16,
+              22,
+              28,
+              34
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              5,
+              11,
+              17
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              11,
+              17,
+              23
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              17,
+              23,
+              29
+            ]
+          },
+          {
+            "kind": "no-three",
+            "cells": [
+              23,
+              29,
+              35
+            ]
+          },
+          {
+            "kind": "quota",
+            "cells": [
+              5,
+              11,
+              17,
+              23,
+              29,
+              35
+            ],
+            "ones": 3
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              0,
+              1
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              3,
+              4
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              4,
+              5
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              17,
+              23
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              18,
+              19
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              22,
+              23
+            ],
+            "relation": "×"
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              23,
+              29
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              25,
+              26
+            ],
+            "relation": "="
+          },
+          {
+            "kind": "friend",
+            "cells": [
+              27,
+              28
+            ],
+            "relation": "="
+          }
+        ],
+        "verifierSpec": {
+          "version": 1,
+          "alphabet": [
+            0,
+            1
+          ],
+          "empty": null
+        }
+      },
+      "publicBoard": {
+        "symbols": [
+          {
+            "value": 0,
+            "label": "circle",
+            "glyph": "●",
+            "colorToken": "cat-1"
+          },
+          {
+            "value": 1,
+            "label": "square",
+            "glyph": "■",
+            "colorToken": "cat-2"
+          }
+        ],
+        "quotas": [
+          {
+            "axis": "row",
+            "line": 0,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 1,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              6,
+              7,
+              8,
+              9,
+              10,
+              11
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 2,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              12,
+              13,
+              14,
+              15,
+              16,
+              17
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 3,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 4,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              24,
+              25,
+              26,
+              27,
+              28,
+              29
+            ]
+          },
+          {
+            "axis": "row",
+            "line": 5,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              30,
+              31,
+              32,
+              33,
+              34,
+              35
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 0,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              0,
+              6,
+              12,
+              18,
+              24,
+              30
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 1,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              1,
+              7,
+              13,
+              19,
+              25,
+              31
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 2,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              2,
+              8,
+              14,
+              20,
+              26,
+              32
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 3,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              3,
+              9,
+              15,
+              21,
+              27,
+              33
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 4,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              4,
+              10,
+              16,
+              22,
+              28,
+              34
+            ]
+          },
+          {
+            "axis": "column",
+            "line": 5,
+            "value": 1,
+            "target": 3,
+            "cells": [
+              5,
+              11,
+              17,
+              23,
+              29,
+              35
+            ]
+          }
+        ],
+        "friends": [
+          {
+            "cells": [
+              0,
+              1
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              3,
+              4
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              4,
+              5
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              17,
+              23
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              18,
+              19
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              22,
+              23
+            ],
+            "relation": "×",
+            "label": "different symbols"
+          },
+          {
+            "cells": [
+              23,
+              29
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              25,
+              26
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          },
+          {
+            "cells": [
+              27,
+              28
+            ],
+            "relation": "=",
+            "label": "same symbol"
+          }
+        ],
+        "noThree": "rows-and-columns"
+      },
+      "verification": {
+        "unique": true,
+        "shortForcedFoothold": true,
+        "fullyForcedChain": true,
+        "editableCells": 31
+      },
+      "interactionTrace": [
+        {
+          "input": {
+            "type": "selectCell",
+            "cell": 0
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": null,
+            "actions": 1,
+            "remainingActions": 299,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "cycle"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 2,
+            "remainingActions": 298,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "cycle"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 1,
+            "actions": 3,
+            "remainingActions": 297,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "undo"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 4,
+            "remainingActions": 296,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "clear"
+          },
+          "output": {
+            "selectedCell": null,
+            "cell": 0,
+            "value": null,
+            "actions": 5,
+            "remainingActions": 295,
+            "status": "playing"
+          }
+        },
+        {
+          "input": {
+            "type": "undo"
+          },
+          "output": {
+            "selectedCell": 0,
+            "cell": 0,
+            "value": 0,
+            "actions": 6,
+            "remainingActions": 294,
+            "status": "playing"
+          }
+        }
+      ]
+    }
+  ],
+  "files": {
+    "lib/puzzle/types.ts": "export type Bit = 0 | 1\nexport type Cell = Bit | null\nexport type Constraint =\n  | { kind: \"no-three\"; cells: readonly [number, number, number] }\n  | { kind: \"quota\"; cells: readonly number[]; ones: number }\n  | { kind: \"friend\"; cells: readonly [number, number]; relation: \"=\" | \"×\" }\n\nexport type RulePack = {\n  seed: number\n  n: 4 | 5 | 6\n  mode: \"FORCED-CHAIN\"\n  rulesPostcard: readonly string[]\n  cells: readonly Cell[]\n  constraints: readonly Constraint[]\n  verifierSpec: { version: 1; alphabet: readonly [0, 1]; empty: null }\n}\n\nexport type Player = \"human\" | \"learner\"\nexport type Action =\n  | { type: \"selectCell\"; cell: number }\n  | { type: \"cycle\" }\n  | { type: \"undo\" }\n  | { type: \"clear\" }\nexport type PlayerStatus = \"playing\" | \"finished\" | \"action-cap\" | \"time-cap\"\n\n// This is the entire L0 capability boundary. No pack, constraints, or verifier.\nexport type Observation = {\n  seed: number\n  n: number\n  mode: \"FORCED-CHAIN\"\n  rulesPostcard: readonly string[]\n  cells: readonly Cell[]\n  given: readonly boolean[]\n  selectedCell: number | null\n  actions: number\n  remainingActions: number\n  remainingMs: number\n  status: PlayerStatus\n}\n\nexport type ActionAPI = {\n  selectCell: (cell: number) => void\n  cycle: () => void\n  undo: () => void\n  clear: () => void\n}\n\nexport type RoundRecord = {\n  seed: number\n  n: number\n  transferGroup: string\n  editableCells: number\n  player: Player\n  actions: number\n  status: Exclude<PlayerStatus, \"playing\">\n  patternClaim: string | null\n}\n",
+    "lib/puzzle/verifier.ts": "import type { Cell, Constraint, RulePack } from \"./types\"\n\nexport function constraintPossible(\n  rule: Constraint,\n  cells: readonly Cell[]\n): boolean {\n  const values = rule.cells.map((index) => cells[index])\n  if (rule.kind === \"quota\") {\n    const ones = values.filter((value) => value === 1).length\n    const empty = values.filter((value) => value === null).length\n    return ones <= rule.ones && ones + empty >= rule.ones\n  }\n  if (values.includes(null)) return true\n  if (rule.kind === \"no-three\")\n    return !(values[0] === values[1] && values[1] === values[2])\n  return (values[0] === values[1]) === (rule.relation === \"=\")\n}\n\nexport function packErrors(pack: RulePack): string[] {\n  const errors: string[] = []\n  if (![4, 5, 6].includes(pack.n) || pack.cells.length !== pack.n ** 2)\n    errors.push(\"Invalid grid size\")\n  if (!Number.isSafeInteger(pack.seed) || pack.mode !== \"FORCED-CHAIN\")\n    errors.push(\"Invalid pack identity\")\n  if (\n    pack.verifierSpec.version !== 1 ||\n    pack.verifierSpec.empty !== null ||\n    pack.verifierSpec.alphabet.join(\",\") !== \"0,1\"\n  )\n    errors.push(\"Unsupported verifier specification\")\n  if (\n    Array.from(pack.cells).some(\n      (value) => value !== null && value !== 0 && value !== 1\n    )\n  )\n    errors.push(\"Invalid cell\")\n  for (const rule of pack.constraints) {\n    if (\n      new Set(rule.cells).size !== rule.cells.length ||\n      rule.cells.some(\n        (index) =>\n          !Number.isInteger(index) || index < 0 || index >= pack.cells.length\n      )\n    )\n      errors.push(\"Invalid constraint coordinates\")\n    if (\n      rule.kind === \"quota\" &&\n      (!Number.isInteger(rule.ones) ||\n        rule.ones < 0 ||\n        rule.ones > rule.cells.length)\n    )\n      errors.push(\"Invalid quota\")\n    if (rule.kind === \"no-three\" && rule.cells.length !== 3)\n      errors.push(\"Invalid triple\")\n    if (\n      rule.kind === \"friend\" &&\n      (rule.cells.length !== 2 || ![\"=\", \"×\"].includes(rule.relation))\n    )\n      errors.push(\"Invalid friend\")\n  }\n  return errors\n}\n\n/** Pure host verifier. Partial validity means no currently broken constraint, not solvability. */\nexport function verify(pack: RulePack, cells: readonly Cell[]) {\n  const errors = packErrors(pack)\n  if (\n    cells.length !== pack.cells.length ||\n    Array.from(cells).some(\n      (value) => value !== null && value !== 0 && value !== 1\n    )\n  )\n    errors.push(\"Invalid board\")\n  if (errors.length)\n    return { valid: false, complete: false, errors, violations: [] as number[] }\n  const changedGiven = pack.cells.some(\n    (value, index) => value !== null && value !== cells[index]\n  )\n  if (changedGiven) errors.push(\"A given was changed\")\n  const violations = pack.constraints.flatMap((rule, index) =>\n    constraintPossible(rule, cells) ? [] : [index]\n  )\n  const valid = !errors.length && !violations.length\n  return { valid, complete: valid && !cells.includes(null), errors, violations }\n}\n",
+    "lib/puzzle/match.ts": "import type {\n  Action,\n  ActionAPI,\n  Cell,\n  Observation,\n  Player,\n  PlayerStatus,\n  RoundRecord,\n  RulePack,\n} from \"./types\"\nimport { packErrors, verify } from \"./verifier\"\n\ntype PlayerState = {\n  cells: readonly Cell[]\n  selectedCell: number | null\n  actions: number\n  status: PlayerStatus\n  history: readonly { cells: readonly Cell[]; selectedCell: number | null }[]\n  patternClaim: string | null\n}\nexport type MatchSnapshot = {\n  round: number\n  seed: number\n  canAdvance: boolean\n  remainingMs: number\n  players: Readonly<Record<Player, Readonly<PlayerState>>>\n  records: readonly RoundRecord[]\n}\nexport type MatchOptions = {\n  actionCap: number\n  timeCapMs: number\n  now?: () => number\n}\n\n/** Host/UI controller. Give L0 only observe('learner') and actions('learner'). */\nexport function createMatch(packs: readonly RulePack[], options: MatchOptions) {\n  if (!packs.length || packs.some((pack) => packErrors(pack).length))\n    throw new Error(\"Invalid packs\")\n  if (new Set(packs.map((pack) => pack.seed)).size !== packs.length)\n    throw new Error(\"Round seeds must be distinct\")\n  if (\n    packs.some(\n      (pack) => !pack.cells.includes(null) || !verify(pack, pack.cells).valid\n    )\n  )\n    throw new Error(\"Packs must have a valid, unfinished board\")\n  if (\n    !Number.isInteger(options.actionCap) ||\n    options.actionCap <= 0 ||\n    !Number.isFinite(options.timeCapMs) ||\n    options.timeCapMs <= 0\n  )\n    throw new Error(\"Invalid caps\")\n  // Copy inputs so host mutation cannot change either player's puzzle mid-round.\n  const queue = structuredClone(packs)\n  const now = options.now ?? Date.now\n  const listeners = new Set<() => void>()\n  let round = 0\n  let startedAt = now()\n  let records: RoundRecord[] = []\n  const fresh = (): PlayerState => ({\n    cells: [...queue[round].cells],\n    selectedCell: null,\n    actions: 0,\n    status: \"playing\",\n    history: [],\n    patternClaim: null,\n  })\n  let players: Record<Player, PlayerState> = {\n    human: fresh(),\n    learner: fresh(),\n  }\n  const remaining = () => Math.max(0, options.timeCapMs - (now() - startedAt))\n  const canAdvance = () =>\n    players.human.status !== \"playing\" && players.learner.status !== \"playing\"\n  let snapshot: MatchSnapshot\n  const publish = () => {\n    snapshot = {\n      round,\n      seed: queue[round].seed,\n      canAdvance: canAdvance(),\n      remainingMs: remaining(),\n      players,\n      records,\n    }\n    // Exposed snapshots are immutable, including nested board/history arrays.\n    deepFreeze(snapshot)\n    listeners.forEach((listener) => listener())\n  }\n  const record = (player: Player) => {\n    const state = players[player]\n    if (state.status === \"playing\") return\n    records = [\n      ...records,\n      {\n        seed: queue[round].seed,\n        n: queue[round].n,\n        transferGroup: `family-a-${queue[round].n}`,\n        editableCells: queue[round].cells.filter((cell) => cell === null)\n          .length,\n        player,\n        actions: state.actions,\n        status: state.status,\n        patternClaim: state.patternClaim,\n      },\n    ]\n  }\n  const tick = () => {\n    let changed = false\n    if (remaining() === 0)\n      for (const player of [\"human\", \"learner\"] as const) {\n        if (players[player].status !== \"playing\") continue\n        players = {\n          ...players,\n          [player]: { ...players[player], status: \"time-cap\" },\n        }\n        record(player)\n        changed = true\n      }\n    if (changed || snapshot.remainingMs !== remaining()) publish()\n  }\n  const dispatch = (player: Player, action: Action) => {\n    tick()\n    const state = players[player]\n    if (state.status !== \"playing\") return\n    let cells = state.cells\n    let selectedCell = state.selectedCell\n    let history = state.history\n    const save = () => {\n      history = [...history, { cells, selectedCell }]\n    }\n    if (action.type === \"selectCell\") {\n      if (\n        !Number.isInteger(action.cell) ||\n        action.cell < 0 ||\n        action.cell >= cells.length\n      )\n        return\n      save()\n      selectedCell = action.cell\n    } else if (\n      action.type === \"cycle\" &&\n      selectedCell !== null &&\n      queue[round].cells[selectedCell] === null\n    ) {\n      save()\n      cells = cells.map((value, cell) =>\n        cell !== selectedCell\n          ? value\n          : value === null\n            ? 0\n            : value === 0\n              ? 1\n              : null\n      )\n    } else if (action.type === \"clear\") {\n      save()\n      cells = [...queue[round].cells]\n      selectedCell = null\n    } else if (action.type === \"undo\" && history.length) {\n      const previous = history[history.length - 1]\n      cells = previous.cells\n      selectedCell = previous.selectedCell\n      history = history.slice(0, -1)\n    }\n    const actions = state.actions + 1 // All in-range attempts count, including no-ops.\n    const status = verify(queue[round], cells).complete\n      ? \"finished\"\n      : actions >= options.actionCap\n        ? \"action-cap\"\n        : \"playing\"\n    players = {\n      ...players,\n      [player]: { ...state, cells, selectedCell, history, actions, status },\n    }\n    if (status !== \"playing\") record(player)\n    publish()\n  }\n  publish()\n  return {\n    getSnapshot: () => snapshot,\n    subscribe: (listener: () => void) => {\n      listeners.add(listener)\n      return () => {\n        listeners.delete(listener)\n      }\n    },\n    tick,\n    observe: (player: Player): Observation => {\n      tick()\n      const state = players[player]\n      return deepFreeze({\n        seed: queue[round].seed,\n        n: queue[round].n,\n        mode: queue[round].mode,\n        rulesPostcard: [...queue[round].rulesPostcard],\n        cells: [...state.cells],\n        given: queue[round].cells.map((cell) => cell !== null),\n        selectedCell: state.selectedCell,\n        actions: state.actions,\n        remainingActions: options.actionCap - state.actions,\n        remainingMs: remaining(),\n        status: state.status,\n      })\n    },\n    actions: (player: Player): ActionAPI => ({\n      selectCell: (cell) => dispatch(player, { type: \"selectCell\", cell }),\n      cycle: () => dispatch(player, { type: \"cycle\" }),\n      undo: () => dispatch(player, { type: \"undo\" }),\n      clear: () => dispatch(player, { type: \"clear\" }),\n    }),\n    claim: (player: Player, text: string) => {\n      const patternClaim = text.replace(/\\s+/g, \" \").trim().slice(0, 240)\n      players = { ...players, [player]: { ...players[player], patternClaim } }\n      records = records.map((record) =>\n        record.seed === queue[round].seed && record.player === player\n          ? { ...record, patternClaim }\n          : record\n      )\n      publish()\n    },\n    advance: () => {\n      tick()\n      if (!canAdvance() || round + 1 >= queue.length) return false\n      round++\n      startedAt = now()\n      players = { human: fresh(), learner: fresh() }\n      publish()\n      return true\n    },\n  }\n}\n\nfunction deepFreeze<T>(value: T): T {\n  if (value && typeof value === \"object\" && !Object.isFrozen(value)) {\n    Object.values(value).forEach(deepFreeze)\n    Object.freeze(value)\n  }\n  return value\n}\n\n/** Compare completed near-transfer rounds only. Capped rounds are not wins. */\nexport function learningSlope(\n  records: readonly RoundRecord[],\n  player: Player,\n  transferGroup: string\n) {\n  const rounds = records.filter(\n    (record) =>\n      record.player === player && record.transferGroup === transferGroup\n  )\n  if (\n    rounds.length < 3 ||\n    rounds.some((record) => record.status !== \"finished\")\n  )\n    return { eligible: false, slope: null, actionsFalling: false }\n  const meanX = (rounds.length - 1) / 2\n  const meanY =\n    rounds.reduce((sum, record) => sum + record.actions, 0) / rounds.length\n  const slope =\n    rounds.reduce(\n      (sum, record, index) => sum + (index - meanX) * (record.actions - meanY),\n      0\n    ) / rounds.reduce((sum, _, index) => sum + (index - meanX) ** 2, 0)\n  return {\n    eligible: true,\n    slope,\n    actionsFalling: rounds.every(\n      (record, index) =>\n        index === 0 || record.actions < rounds[index - 1].actions\n    ),\n  }\n}\n",
+    "lib/puzzle/learner.ts": "import type { Action, ActionAPI, Observation } from \"./types\"\n\nexport type LearnerDecision = {\n  action: Action | null\n  patternClaim?: string\n}\nexport type LearnerPolicy = (\n  view: Observation,\n  priorClaims: readonly string[]\n) => LearnerDecision\nexport type LearnerMemory = {\n  claims: string[]\n  currentClaim: string | null\n}\nexport const createLearnerMemory = (): LearnerMemory => ({\n  claims: [],\n  currentClaim: null,\n})\n\n/** Replace this stub with a policy receiving only the visible board and postcard.\n * There is deliberately no built-in rule interpreter or puzzle-class solver.\n * An async model adapter can obtain one decision first, then supply it here.\n */\nexport const idleLearnerPolicy: LearnerPolicy = () => ({ action: null })\n\nexport function chooseLearnerAction(\n  view: Observation,\n  memory: LearnerMemory,\n  policy: LearnerPolicy = idleLearnerPolicy\n): Action | null {\n  if (\n    view.status !== \"playing\" ||\n    view.remainingActions <= 0 ||\n    view.remainingMs <= 0\n  )\n    return null\n  const decision = policy(view, Object.freeze([...memory.claims]))\n  if (decision.patternClaim) {\n    memory.currentClaim = decision.patternClaim\n      .replace(/\\s+/g, \" \")\n      .trim()\n      .slice(0, 240)\n  }\n  const action = decision.action\n  if (!action) return null\n  if (action.type === \"selectCell\") {\n    if (\n      !Number.isInteger(action.cell) ||\n      action.cell < 0 ||\n      action.cell >= view.cells.length\n    )\n      return null\n  } else if (![\"cycle\", \"undo\", \"clear\"].includes(action.type)) return null\n  return action\n}\n\n/** Execute exactly one decision through the same four controls as the human. */\nexport function stepLearner(\n  view: Observation,\n  api: ActionAPI,\n  memory: LearnerMemory,\n  policy: LearnerPolicy = idleLearnerPolicy\n): boolean {\n  const action = chooseLearnerAction(view, memory, policy)\n  if (!action) return false\n  if (action.type === \"selectCell\") api.selectCell(action.cell)\n  else api[action.type]()\n  return true\n}\n\nexport function finishLearnerRound(memory: LearnerMemory): string {\n  const claim = memory.currentClaim ?? \"No pattern claim supplied this round.\"\n  memory.claims.push(claim)\n  memory.currentClaim = null\n  return claim\n}\n",
+    "lib/puzzle/ui-hooks.ts": "import type { createMatch } from \"./match\"\nimport { createLearnerMemory, finishLearnerRound, stepLearner } from \"./learner\"\nimport type { LearnerPolicy } from \"./learner\"\n\n/** Wire to a UI button or paced scheduler. Each step makes at most one shared action. */\nexport function createLearnerController(\n  match: ReturnType<typeof createMatch>,\n  policy?: LearnerPolicy\n) {\n  const memory = createLearnerMemory()\n  const api = match.actions(\"learner\")\n  let seed = match.observe(\"learner\").seed\n  let claimed = false\n  return {\n    step: () => {\n      let view = match.observe(\"learner\")\n      if (view.seed !== seed) {\n        seed = view.seed\n        memory.currentClaim = null\n        claimed = false\n      }\n      const acted = stepLearner(view, api, memory, policy)\n      view = match.observe(\"learner\")\n      if (view.status !== \"playing\" && !claimed) {\n        claimed = true\n        match.claim(\"learner\", finishLearnerRound(memory))\n      }\n      return acted\n    },\n    getClaims: () => [...memory.claims],\n  }\n}\n",
+    "docs/LOVABLE-START-HERE.md": "# Lovable UI experiment: five playable rule combinations\n\nBuild a small game UI gallery from the five fixtures in `lovable-ui-kit.json`. The purpose is to learn which presentation choices make unfamiliar rules understandable, then extract a repeatable game-to-UI method after the human approves the result. The data, verifier, match controller, and learner action adapter are provided. Your work is rendering, interaction, and style iteration.\n\nThis handoff was designed for the astra-vs-human board at https://mg.mk/c/vault-truck-ellen. Read its RULES and use INBOX for questions and OUTBOX for results. The source files are included in the JSON because the current logic work is local and may not yet exist on GitHub.\n\n## What to make\n\nUse one reusable board component and one restrained paper-style shell. Add a clearly labeled design-gallery picker for the five fixtures. Keep the board geometry, type scale, selection behavior, and controls consistent. Vary the clue presentation only when the selected game's rules need it. Choosing a gallery fixture creates a fresh preview match; label this as a UI preview, not a scored multi-round learning run.\n\n1. **Pairs & Balance, 4×4.** No-three plus row and column quotas. Test whether margins make counts understandable.\n2. **Thread Count, 4×4.** Quotas plus =/× friends. Three repeated marks are allowed. Test whether relation glyphs read as links instead of cell contents.\n3. **Echo Lanes, 5×5.** No-three plus friends, without quotas. Test a board that needs no number gutters.\n4. **Row Budget, 5×5.** No-three, friends, and row-only quotas. Test whether asymmetric annotations communicate asymmetric rules.\n5. **Full Weave, 6×6.** All three kinds, with row and column quotas. Test clue density and mobile layout.\n\nEach fixture has an exact `pack`, a 35–55-word `postcard`, a `publicBoard` render description, a style question, and a verified input/output trace. Every pack has exactly one solution and can be completed by local forced steps. No solution, solver, or forced-step trace is included in this handoff.\n\n## Deliverable format and setup\n\n`lovable-ui-kit.json` contains:\n\n- `fixtures`: five data objects. Keep these as data, not five hardcoded components.\n- `files`: a map from relative file path to complete source text. Materialize those files in the UI project. The engine is plain TypeScript and has no third-party runtime dependencies. Relative imports inside `lib/puzzle` work outside Next.js too.\n- `sharedDefaults`: caps, the supported mode, and integration status.\n\nThe fixture envelope is:\n\n```ts\ntype GameFixture = {\n  id: string\n  title: string\n  purpose: string\n  transferGroup: string\n  postcard: { goal: string; rules: string[]; wordCount: number }\n  uiBrief: { designQuestion: string; emphasis: string }\n  pack: RulePack\n  publicBoard: {\n    symbols: { value: 0 | 1; label: string; glyph: string; colorToken: string }[]\n    quotas: { axis: 'row' | 'column'; line: number; value: 1; target: number; cells: number[] }[]\n    friends: { cells: [number, number]; relation: '=' | '×'; label: string }[]\n    noThree: 'rows-and-columns' | 'none'\n  }\n  verification: {\n    unique: true\n    shortForcedFoothold: true\n    fullyForcedChain: true\n    editableCells: number\n  }\n  interactionTrace: {\n    input: Action\n    output: {\n      selectedCell: number | null\n      cell: number\n      value: 0 | 1 | null\n      actions: number\n      remainingActions: number\n      status: PlayerStatus\n    }\n  }[]\n}\n```\n\n`RulePack`, `Action`, `PlayerStatus`, and `Observation` are defined in the included `types.ts`. `verification` is a build-time QA summary for the implementer. Do not pass it to the learner or display it as a gameplay hint.\n\n## State and rendering contract\n\nCell indices are zero-based and row-major: `row = floor(index / n)`, `column = index % n`. Render `null` as empty, `0` as ● circle, and `1` as ■ square. A non-null value in the initial `pack.cells` is a locked given. Distinguish givens with a small fixed corner mark, not color alone.\n\n`publicBoard` is public clue data derived from the actual constraints. Put a quota beside its named line and count squares, not circles. Show column quotas above columns and row quotas to the right. A friend glyph belongs at the midpoint between its two adjacent cells. Use a small white backing so =/× stays legible on the lattice. Do not add quotas or a no-three rule to a fixture where they are absent.\n\nShow `postcard.goal` and at most four `postcard.rules`. This concise postcard is a presentation summary. Keep `pack.rulesPostcard` available under an accessible “Read all clues” disclosure: it is the full textual equivalent of the visible margins and links. The learner sees that same public clue transcript through its `Observation`. No private constraint object or answer data goes into its input.\n\nA `selectedCell` is gameplay state; keyboard focus is browser state. Give selection an inset border and focus an outer ring. Both may be visible at once. An empty selected cell remains visibly empty.\n\n## Inputs and outputs\n\nInstantiate one match per selected gallery fixture:\n\n```ts\nconst match = createMatch([fixture.pack], { actionCap: 300, timeCapMs: 120_000 })\nconst human = match.actions('human')\nconst agent = match.actions('learner')\n```\n\nThe four game commands return `void`. Read the resulting immutable state with `match.observe(player)` or `match.getSnapshot()`. Subscribe once with `match.subscribe(render)` and dispose the subscription when replacing the fixture or unmounting. Call `match.tick()` on a modest UI clock, such as every 250ms, and clear that timer on disposal.\n\n| UI input | Exact command | Expected output |\n| --- | --- | --- |\n| Tap an unselected cell | `selectCell(index)` | Selection changes; value is unchanged; action count +1. |\n| Tap the selected cell | `cycle()` | Editable value cycles empty → circle → square → empty; action count +1. |\n| Enter or Space on a focused cell | Same select-or-cycle behavior as a tap | Keyboard and pointer have identical game semantics. |\n| Arrow navigation in the grid | `selectCell(nextIndex)` when in bounds | Moves selection; action count +1. |\n| Tab navigation | Browser focus only | No game action or value change. |\n| Undo | `undo()` | Restores the preceding board/selection operation; counts as a new action. |\n| Clear | `clear()` | Restores initial givens, empties editable cells, clears selection; count +1. |\n| Undo after Clear | `undo()` | Restores the cleared attempt; count +1. |\n| Tick at deadline | `match.tick()` | Any still-playing attempt becomes `time-cap`. |\n| Next round in a scored deck | `match.advance()` | Succeeds only when both attempts ended and another pack exists. |\n\nOut-of-range selection is rejected. Cycling a given or cycling with no selection cannot change the board, but the current engine counts that attempted command. Disable unavailable controls so users do not accidentally waste actions. Do not set cell arrays directly. Do not create a single-click shortcut that performs two API calls while displaying a one-action cost.\n\nEach fixture's `interactionTrace` provides exact expected outputs for Select → Cycle → Cycle → Undo → Clear → Undo. Use it as an integration check. It does not disclose a solution or tell the learner which moves to choose.\n\n## Fairness and the one-board brief\n\nThe engine owns independent Human and Learner attempts starting from the same pack and seed. One player's move must never alter the other's cells. The board brief asks for one board viewport with HUMAN and AGENT clocks/counters above it, plus a FORCED-CHAIN badge and LEARNER label.\n\nThe proposed gallery treatment is a single viewport with a “Viewing Human / Agent” control over those independent attempts. Grokbot has been asked to confirm that interpretation and the hint scope. Treat agent viewing as preview-only while a scored attempt is active: observing an agent's answers during the human attempt would leak information. In scored play, keep the human board visible until both attempts end, then allow comparison in the same viewport. No side-by-side duplicate boards are needed.\n\nThe engine starts a shared wall-clock deadline for both attempts. Show the active deadline and each player's action count. A finished attempt shows its terminal status rather than suggesting it is still taking moves. Lock advance while either attempt is playing, and disable Next at the end of the deck. The gallery picker is outside scoring and must be visibly labeled as such.\n\n`learner.ts` and `ui-hooks.ts` provide a real action adapter with an idle policy stub. There is no connected model in this bundle. Label any manual or canned action preview “Demo agent”; do not label it live Astra or claim it learned. The model adapter should receive only `Observation` plus prior one-line claims and return one Action or wait. Do not add a puzzle-class solver.\n\nThese five gallery samples change rule combinations. Do not report their action counts as a learning slope. A real learning test needs at least three distinct near-transfer packs from one unchanged rules profile. The existing engine's size-based group is too broad for this mixed gallery, so leave the gallery slope display off. Keep the scoring UI component ready for a genuine same-profile deck later.\n\n## Feedback and hints\n\n`verify(pack, cells)` returns `{ valid, complete, errors, violations }`. It is a pure host verifier. `valid` on a partial board means no rule is currently violated; it does not prove a completion. `complete` requires all cells filled and all rules satisfied. Use `complete`/terminal status for round completion.\n\nDo not expose live violation locations to only one player in scored play. In the design gallery, an explicitly labeled feedback preview can demonstrate invalid-cell hatching using the verifier's violated constraint indices. Provide a textual rule explanation alongside the hatch. Keep preview feedback separate from the learner's policy and action score.\n\nThe board's proposed Hint button is not implemented in the shared four-action API. Keep it disabled with a concise “Hints unavailable in scored play” label until Grokbot resolves equal access and action cost. Do not silently fabricate a `requestHint()` endpoint or a forced-cell solver. Preview the dashed hint appearance only as an explicitly marked visual state, with no automatic placement.\n\n## Craft constraints\n\nUse the board's paper style: white canvas, near-black text, 1px lattice, 2px perimeter, system sans, no gradients or shadows. Reuse its OKLCH category tokens when present. Both categories always carry different shape marks. Do not invent a new palette for each sample.\n\nCells should remain approximately 44px square. A 6×6 board is 264px wide before its quota gutter; it can fit a 320px viewport with a 20px right gutter and 16px page padding. Avoid large left/right gutters and fixed-width sidebars at that size. Put the postcard below the board on narrow screens. Keep the two clock/counter groups readable without squeezing the cells.\n\nCheck givens, editable values, keyboard focus, selection, empty selection, agent proposal preview, invalid preview, finished, action-cap, time-cap, waiting-for-peer, loading, and pack fallback. An agent proposal preview uses a dashed ghost plus “A?” and must not reveal hidden solution data during a scored human attempt. State previews should be clearly labeled in the gallery.\n\n## What to return for review\n\nReturn a working preview link and screenshots of all five examples at desktop width, plus Full Weave at 320px. For each example, answer its `uiBrief.designQuestion` with one observation and one change you made. Demonstrate the provided six-action trace on at least one example and keyboard-only play on another. Keep the logic contract intact and list any proposed contract change separately in INBOX.\n\nThe human will decide whether the UI is useful. Do not equate a successful render with approval.\n\nAfter explicit human approval, produce these small reusable outputs:\n\n1. `ui-patterns.md`: observation → UI choice → evidence → when it fails, one entry per useful trick.\n2. `game-ui-adapter.schema.json`: the minimum game-agnostic display/state/action contract the renderer actually needed, with one working example.\n3. `new-game-prompt.md`: a short repeatable prompt that takes a fresh game schema, rules, visible state, legal actions, and expected outputs, then produces and checks a UI.\n\nSeparate reusable rules from game-specific ones. For example, “put line constraints beside their lines” transfers; “every puzzle has circles and squares” does not. Preserve semantic roles such as cell, edge clue, line quota, selected, locked, and terminal status instead of storing only this game's glyphs. Record action-counting and information-parity decisions along with visual tricks.\n"
+  }
+}
