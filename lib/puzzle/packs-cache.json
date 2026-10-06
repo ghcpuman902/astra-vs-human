@@ -1,0 +1,1980 @@
+[
+  {
+    "seed": 4101,
+    "n": 4,
+    "mode": "FORCED-CHAIN",
+    "rulesPostcard": [
+      "Use 0 or 1. No three consecutive equal cells in any row or column.",
+      "Cycle: empty → 0 → 1 → empty. Givens are locked.",
+      "Row 1: exactly 2 ones.",
+      "Row 2: exactly 2 ones.",
+      "Row 3: exactly 2 ones.",
+      "Row 4: exactly 2 ones.",
+      "Column 1: exactly 2 ones.",
+      "Column 2: exactly 2 ones.",
+      "Column 3: exactly 2 ones.",
+      "Column 4: exactly 2 ones.",
+      "Friend 4 × 8: different.",
+      "Friend 7 × 8: different.",
+      "Friend 9 × 10: different."
+    ],
+    "cells": [
+      null,
+      null,
+      null,
+      1,
+      0,
+      null,
+      null,
+      null,
+      null,
+      1,
+      null,
+      null,
+      null,
+      null,
+      0,
+      null
+    ],
+    "constraints": [
+      {
+        "kind": "no-three",
+        "cells": [
+          0,
+          1,
+          2
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          4,
+          5,
+          6
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          8,
+          9,
+          10
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          9,
+          10,
+          11
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          8,
+          9,
+          10,
+          11
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          12,
+          13,
+          14
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          13,
+          14,
+          15
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          12,
+          13,
+          14,
+          15
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          0,
+          4,
+          8
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          1,
+          5,
+          9
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          5,
+          9,
+          13
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          1,
+          5,
+          9,
+          13
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          2,
+          6,
+          10
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          6,
+          10,
+          14
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          2,
+          6,
+          10,
+          14
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          3,
+          7,
+          11
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          7,
+          11,
+          15
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          3,
+          7,
+          11,
+          15
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          3,
+          7
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          6,
+          7
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          8,
+          9
+        ],
+        "relation": "×"
+      }
+    ],
+    "verifierSpec": {
+      "version": 1,
+      "alphabet": [
+        0,
+        1
+      ],
+      "empty": null
+    }
+  },
+  {
+    "seed": 4102,
+    "n": 4,
+    "mode": "FORCED-CHAIN",
+    "rulesPostcard": [
+      "Use 0 or 1. No three consecutive equal cells in any row or column.",
+      "Cycle: empty → 0 → 1 → empty. Givens are locked.",
+      "Row 1: exactly 2 ones.",
+      "Row 2: exactly 2 ones.",
+      "Row 3: exactly 2 ones.",
+      "Row 4: exactly 2 ones.",
+      "Column 1: exactly 2 ones.",
+      "Column 2: exactly 2 ones.",
+      "Column 3: exactly 2 ones.",
+      "Column 4: exactly 2 ones.",
+      "Friend 2 = 3: equal.",
+      "Friend 7 × 8: different."
+    ],
+    "cells": [
+      null,
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      0,
+      0,
+      null
+    ],
+    "constraints": [
+      {
+        "kind": "no-three",
+        "cells": [
+          0,
+          1,
+          2
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          4,
+          5,
+          6
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          8,
+          9,
+          10
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          9,
+          10,
+          11
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          8,
+          9,
+          10,
+          11
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          12,
+          13,
+          14
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          13,
+          14,
+          15
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          12,
+          13,
+          14,
+          15
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          0,
+          4,
+          8
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          1,
+          5,
+          9
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          5,
+          9,
+          13
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          1,
+          5,
+          9,
+          13
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          2,
+          6,
+          10
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          6,
+          10,
+          14
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          2,
+          6,
+          10,
+          14
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          3,
+          7,
+          11
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          7,
+          11,
+          15
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          3,
+          7,
+          11,
+          15
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          1,
+          2
+        ],
+        "relation": "="
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          6,
+          7
+        ],
+        "relation": "×"
+      }
+    ],
+    "verifierSpec": {
+      "version": 1,
+      "alphabet": [
+        0,
+        1
+      ],
+      "empty": null
+    }
+  },
+  {
+    "seed": 4103,
+    "n": 4,
+    "mode": "FORCED-CHAIN",
+    "rulesPostcard": [
+      "Use 0 or 1. No three consecutive equal cells in any row or column.",
+      "Cycle: empty → 0 → 1 → empty. Givens are locked.",
+      "Row 1: exactly 2 ones.",
+      "Row 2: exactly 2 ones.",
+      "Row 3: exactly 2 ones.",
+      "Row 4: exactly 2 ones.",
+      "Column 1: exactly 2 ones.",
+      "Column 2: exactly 2 ones.",
+      "Column 3: exactly 2 ones.",
+      "Column 4: exactly 2 ones.",
+      "Friend 11 × 12: different.",
+      "Friend 14 = 15: equal."
+    ],
+    "cells": [
+      null,
+      0,
+      null,
+      null,
+      0,
+      null,
+      null,
+      0,
+      null,
+      null,
+      1,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "constraints": [
+      {
+        "kind": "no-three",
+        "cells": [
+          0,
+          1,
+          2
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          4,
+          5,
+          6
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          8,
+          9,
+          10
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          9,
+          10,
+          11
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          8,
+          9,
+          10,
+          11
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          12,
+          13,
+          14
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          13,
+          14,
+          15
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          12,
+          13,
+          14,
+          15
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          0,
+          4,
+          8
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          4,
+          8,
+          12
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          1,
+          5,
+          9
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          5,
+          9,
+          13
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          1,
+          5,
+          9,
+          13
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          2,
+          6,
+          10
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          6,
+          10,
+          14
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          2,
+          6,
+          10,
+          14
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          3,
+          7,
+          11
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          7,
+          11,
+          15
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          3,
+          7,
+          11,
+          15
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          10,
+          11
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          13,
+          14
+        ],
+        "relation": "="
+      }
+    ],
+    "verifierSpec": {
+      "version": 1,
+      "alphabet": [
+        0,
+        1
+      ],
+      "empty": null
+    }
+  },
+  {
+    "seed": 5101,
+    "n": 5,
+    "mode": "FORCED-CHAIN",
+    "rulesPostcard": [
+      "Use 0 or 1. No three consecutive equal cells in any row or column.",
+      "Cycle: empty → 0 → 1 → empty. Givens are locked.",
+      "Row 1: exactly 2 ones.",
+      "Row 2: exactly 3 ones.",
+      "Row 3: exactly 3 ones.",
+      "Row 4: exactly 2 ones.",
+      "Row 5: exactly 2 ones.",
+      "Column 1: exactly 2 ones.",
+      "Column 2: exactly 3 ones.",
+      "Column 3: exactly 3 ones.",
+      "Column 4: exactly 2 ones.",
+      "Column 5: exactly 2 ones.",
+      "Friend 2 = 3: equal.",
+      "Friend 4 = 5: equal.",
+      "Friend 11 × 12: different.",
+      "Friend 13 × 14: different.",
+      "Friend 17 = 18: equal.",
+      "Friend 21 × 22: different.",
+      "Friend 24 = 25: equal."
+    ],
+    "cells": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      0
+    ],
+    "constraints": [
+      {
+        "kind": "no-three",
+        "cells": [
+          0,
+          1,
+          2
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          6,
+          7,
+          8
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          7,
+          8,
+          9
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          10,
+          11,
+          12
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          11,
+          12,
+          13
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          12,
+          13,
+          14
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          15,
+          16,
+          17
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          16,
+          17,
+          18
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          17,
+          18,
+          19
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          15,
+          16,
+          17,
+          18,
+          19
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          20,
+          21,
+          22
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          21,
+          22,
+          23
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          22,
+          23,
+          24
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          20,
+          21,
+          22,
+          23,
+          24
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          0,
+          5,
+          10
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          5,
+          10,
+          15
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          10,
+          15,
+          20
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          0,
+          5,
+          10,
+          15,
+          20
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          1,
+          6,
+          11
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          6,
+          11,
+          16
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          11,
+          16,
+          21
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          1,
+          6,
+          11,
+          16,
+          21
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          2,
+          7,
+          12
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          7,
+          12,
+          17
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          12,
+          17,
+          22
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          2,
+          7,
+          12,
+          17,
+          22
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          3,
+          8,
+          13
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          8,
+          13,
+          18
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          13,
+          18,
+          23
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          3,
+          8,
+          13,
+          18,
+          23
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          4,
+          9,
+          14
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          9,
+          14,
+          19
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          14,
+          19,
+          24
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          4,
+          9,
+          14,
+          19,
+          24
+        ],
+        "ones": 2
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          1,
+          2
+        ],
+        "relation": "="
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          3,
+          4
+        ],
+        "relation": "="
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          10,
+          11
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          12,
+          13
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          16,
+          17
+        ],
+        "relation": "="
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          20,
+          21
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          23,
+          24
+        ],
+        "relation": "="
+      }
+    ],
+    "verifierSpec": {
+      "version": 1,
+      "alphabet": [
+        0,
+        1
+      ],
+      "empty": null
+    }
+  },
+  {
+    "seed": 6101,
+    "n": 6,
+    "mode": "FORCED-CHAIN",
+    "rulesPostcard": [
+      "Use 0 or 1. No three consecutive equal cells in any row or column.",
+      "Cycle: empty → 0 → 1 → empty. Givens are locked.",
+      "Row 1: exactly 3 ones.",
+      "Row 2: exactly 3 ones.",
+      "Row 3: exactly 3 ones.",
+      "Row 4: exactly 3 ones.",
+      "Row 5: exactly 3 ones.",
+      "Row 6: exactly 3 ones.",
+      "Column 1: exactly 3 ones.",
+      "Column 2: exactly 3 ones.",
+      "Column 3: exactly 3 ones.",
+      "Column 4: exactly 3 ones.",
+      "Column 5: exactly 3 ones.",
+      "Column 6: exactly 3 ones.",
+      "Friend 4 = 5: equal.",
+      "Friend 5 × 6: different.",
+      "Friend 6 × 12: different.",
+      "Friend 7 × 8: different.",
+      "Friend 12 = 18: equal.",
+      "Friend 13 × 14: different.",
+      "Friend 14 = 15: equal.",
+      "Friend 15 × 16: different.",
+      "Friend 16 = 17: equal.",
+      "Friend 35 × 36: different."
+    ],
+    "cells": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      0,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      1,
+      1,
+      null,
+      null,
+      1,
+      null,
+      null
+    ],
+    "constraints": [
+      {
+        "kind": "no-three",
+        "cells": [
+          0,
+          1,
+          2
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          6,
+          7,
+          8
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          7,
+          8,
+          9
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          8,
+          9,
+          10
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          9,
+          10,
+          11
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          12,
+          13,
+          14
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          13,
+          14,
+          15
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          14,
+          15,
+          16
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          15,
+          16,
+          17
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          12,
+          13,
+          14,
+          15,
+          16,
+          17
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          18,
+          19,
+          20
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          19,
+          20,
+          21
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          20,
+          21,
+          22
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          21,
+          22,
+          23
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          24,
+          25,
+          26
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          25,
+          26,
+          27
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          26,
+          27,
+          28
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          27,
+          28,
+          29
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          30,
+          31,
+          32
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          31,
+          32,
+          33
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          32,
+          33,
+          34
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          33,
+          34,
+          35
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          30,
+          31,
+          32,
+          33,
+          34,
+          35
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          0,
+          6,
+          12
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          6,
+          12,
+          18
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          12,
+          18,
+          24
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          18,
+          24,
+          30
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          0,
+          6,
+          12,
+          18,
+          24,
+          30
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          1,
+          7,
+          13
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          7,
+          13,
+          19
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          13,
+          19,
+          25
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          19,
+          25,
+          31
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          1,
+          7,
+          13,
+          19,
+          25,
+          31
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          2,
+          8,
+          14
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          8,
+          14,
+          20
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          14,
+          20,
+          26
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          20,
+          26,
+          32
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          2,
+          8,
+          14,
+          20,
+          26,
+          32
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          3,
+          9,
+          15
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          9,
+          15,
+          21
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          15,
+          21,
+          27
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          21,
+          27,
+          33
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          3,
+          9,
+          15,
+          21,
+          27,
+          33
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          4,
+          10,
+          16
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          10,
+          16,
+          22
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          16,
+          22,
+          28
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          22,
+          28,
+          34
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          4,
+          10,
+          16,
+          22,
+          28,
+          34
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          5,
+          11,
+          17
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          11,
+          17,
+          23
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          17,
+          23,
+          29
+        ]
+      },
+      {
+        "kind": "no-three",
+        "cells": [
+          23,
+          29,
+          35
+        ]
+      },
+      {
+        "kind": "quota",
+        "cells": [
+          5,
+          11,
+          17,
+          23,
+          29,
+          35
+        ],
+        "ones": 3
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          3,
+          4
+        ],
+        "relation": "="
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          4,
+          5
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          5,
+          11
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          6,
+          7
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          11,
+          17
+        ],
+        "relation": "="
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          12,
+          13
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          13,
+          14
+        ],
+        "relation": "="
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          14,
+          15
+        ],
+        "relation": "×"
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          15,
+          16
+        ],
+        "relation": "="
+      },
+      {
+        "kind": "friend",
+        "cells": [
+          34,
+          35
+        ],
+        "relation": "×"
+      }
+    ],
+    "verifierSpec": {
+      "version": 1,
+      "alphabet": [
+        0,
+        1
+      ],
+      "empty": null
+    }
+  }
+]
