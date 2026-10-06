@@ -1,0 +1,538 @@
+// Author-only assembly. Never include PackAudit in a Learner observation or public response.
+import { authorPack, certify, forcedChain } from "../puzzle/author"
+import { neighbors, rotatePorts } from "./runtime"
+import {
+  assemblyRequestSchema,
+  packSchema,
+  type AssemblyRequest,
+  type GamePack,
+  type PackAudit,
+} from "./schema"
+import { verifyGame } from "./verifier"
+
+export type AssemblyOptions = { deadlineMs?: number; nodeCap?: number }
+function random(seed: number) {
+  let value = seed >>> 0
+  return () => {
+    value = (Math.imul(value, 1664525) + 1013904223) >>> 0
+    return value / 2 ** 32
+  }
+}
+function shuffle<T>(values: T[], rng: () => number) {
+  for (let i = values.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[values[i], values[j]] = [values[j], values[i]]
+  }
+  return values
+}
+
+/** Invents from seed and bounded knobs; no atlas or generated executable code. */
+export function assembleGamePack(
+  input: AssemblyRequest,
+  options: AssemblyOptions = {}
+): { pack: GamePack; audit: PackAudit } {
+  const request = assemblyRequestSchema.parse(input)
+  if (request.preferences?.visibility === "partial")
+    throw new Error(
+      "Partial visibility is typed but not certified by these initial assemblers"
+    )
+  const { n, seed, category } = request,
+    rng = random(seed),
+    count = n * n
+  const deadline = options.deadlineMs ?? Date.now() + 1500,
+    nodeCap = options.nodeCap ?? 100_000
+  let nodes = 0
+  const checkpoint = () => {
+    if (Date.now() >= deadline) throw new Error("Assembly deadline exceeded")
+    if (++nodes > nodeCap) throw new Error("Assembly node budget exceeded")
+  }
+  checkpoint()
+  const common = {
+    version: 1 as const,
+    seed,
+    n,
+    mode: "FORCED-CHAIN" as const,
+    visibility: { kind: "full" as const },
+    cells: Array.from({ length: count }, () => ({
+      value: null as number | null,
+      locked: false,
+    })),
+    actionSurface: {
+      actions: ["selectCell", "cycle", "undo", "clear"] as [
+        "selectCell",
+        "cycle",
+        "undo",
+        "clear",
+      ],
+      cycleValues: [null, 0, 1] as (number | null)[],
+      effect: "set-cell" as "set-cell" | "rotate-ports" | "toggle-cross",
+    },
+    transfer: {
+      family: category,
+      variant: request.variant ?? `seed-${seed}`,
+      friendPatterns: ["Carry a local deduction to the next board."],
+      minimumRounds: 3 as const,
+    },
+    session: {
+      targetSeconds: request.preferences?.targetSeconds ?? 60,
+      stretchSeconds: 600 as const,
+      hints: "practice-only" as const,
+    },
+  }
+  let pack: GamePack, audit: PackAudit
+  if (category === "binary_fill") {
+    const authored = authorPack(seed, n, checkpoint)
+    const chain = forcedChain(authored, checkpoint),
+      solution = [...authored.cells] as number[]
+    for (const step of chain.steps) solution[step.cell] = step.value
+    const density = request.preferences?.clueDensity ?? 0.2
+    const cells = authored.cells.map((value, id) => {
+      if (value === null && rng() < density / 2) value = solution[id] as 0 | 1
+      return { value, locked: value !== null }
+    })
+    pack = {
+      ...common,
+      category,
+      rules: {
+        constraints: authored.constraints.map((rule) => ({
+          ...rule,
+          cells: [...rule.cells],
+        })),
+      } as Extract<GamePack, { category: "binary_fill" }>["rules"],
+      cells,
+      winPredicate: "satisfy-binary-constraints",
+      postcard: {
+        goal: "Fill every cell with 0 or 1.",
+        rules: [
+          "No three consecutive equal cells in a row or column.",
+          "Each visible row or column quota gives its exact number of ones.",
+          "Friends marked = match. Friends marked × differ.",
+          "Cycle empty → 0 → 1 → empty. Givens stay fixed.",
+        ],
+      },
+      transfer: {
+        ...common.transfer,
+        family: "binary-friends",
+        friendPatterns: [
+          "AA_ forces the other bit.",
+          "A_A forces the other bit.",
+          "A filled quota forces all remaining cells.",
+        ],
+      },
+    }
+    const certificate = certify(
+      { ...authored, cells: cells.map((cell) => cell.value as 0 | 1 | null) },
+      nodeCap,
+      checkpoint
+    )
+    if (!certificate.unique || !certificate.foothold)
+      throw new Error("Binary pack lacks a certified foothold")
+    audit = {
+      certified: true,
+      solutionCount: 1,
+      solutionMeaning: "Completed binary assignments",
+      unique: true,
+      nodes,
+      foothold: {
+        ...certificate.foothold,
+        reason: "One visible local constraint allows only this value.",
+      },
+      solution,
+    }
+  } else if (category === "crown") {
+    const noDiagonalTouch = request.preferences?.noDiagonalTouch ?? true
+    const permutations: number[][] = []
+    const enumerate = (columns: number[]) => {
+      checkpoint()
+      if (columns.length === n) {
+        permutations.push(columns)
+        return
+      }
+      for (const col of shuffle(
+        Array.from({ length: n }, (_, i) => i),
+        rng
+      )) {
+        if (
+          columns.includes(col) ||
+          (noDiagonalTouch &&
+            columns.length > 0 &&
+            Math.abs(columns.at(-1)! - col) === 1)
+        )
+          continue
+        enumerate([...columns, col])
+      }
+    }
+    enumerate([])
+    const chosen = permutations[Math.floor(rng() * permutations.length)]
+    if (!chosen) throw new Error("No crown placement")
+    const solution = Array.from({ length: count }, (_, id) =>
+      chosen[Math.floor(id / n)] === id % n ? 1 : 0
+    )
+    const blocked = Array.from({ length: count }, (_, id) => id).filter(
+      (id) =>
+        solution[id] === 0 && rng() < (request.preferences?.clueDensity ?? 0.4)
+    )
+    const cells = common.cells.map((cell, id) =>
+      blocked.includes(id) ? { value: 0, locked: true } : cell
+    )
+    let legal = permutations.filter((cols) =>
+      cols.every((col, row) => !blocked.includes(row * n + col))
+    )
+    for (const row of shuffle(
+      Array.from({ length: n }, (_, i) => i),
+      rng
+    )) {
+      if (legal.length === 1) break
+      const id = row * n + chosen[row]
+      cells[id] = { value: 1, locked: true }
+      legal = legal.filter((cols) => cols[row] === chosen[row])
+    }
+    // Hide one forced crown if all rows were given during certification.
+    const fixedRows = cells.flatMap((cell, id) =>
+      cell.locked && cell.value === 1 ? [Math.floor(id / n)] : []
+    )
+    const row =
+      Array.from({ length: n }, (_, i) => i).find(
+        (i) => !fixedRows.includes(i)
+      ) ?? 0
+    const foothold = {
+      cell: row * n + chosen[row],
+      value: 1,
+      reason:
+        "Only one cell remains legal in this row after blocked cells and placed crowns.",
+    }
+    const rowCandidates = Array.from(
+      { length: n },
+      (_, col) => row * n + col
+    ).filter(
+      (id) =>
+        !blocked.includes(id) &&
+        !fixedRows.some(
+          (r) =>
+            chosen[r] === id % n ||
+            (noDiagonalTouch &&
+              Math.abs(r - row) === 1 &&
+              Math.abs(chosen[r] - (id % n)) === 1)
+        )
+    )
+    const forced = rowCandidates.length === 1
+    pack = {
+      ...common,
+      category,
+      mode: forced ? "FORCED-CHAIN" : "BRANCHY",
+      cells,
+      rules: { blocked, noDiagonalTouch },
+      winPredicate: "one-crown-per-row-column",
+      postcard: {
+        goal: "Place one crown in every row and column.",
+        rules: [
+          "Blocked cells cannot hold crowns.",
+          ...(noDiagonalTouch ? ["Crowns cannot touch diagonally."] : []),
+          "Cycle empty → mark empty → crown → empty. Givens stay fixed.",
+        ],
+      },
+      transfer: {
+        ...common.transfer,
+        family: noDiagonalTouch ? "crown-nontouch" : "crown-columns",
+        friendPatterns: [
+          "A placed crown removes its column from every other row.",
+          ...(noDiagonalTouch
+            ? ["A crown removes the two diagonal neighbor cells."]
+            : []),
+          "A row with one legal spot forces a crown.",
+        ],
+      },
+    }
+    audit = {
+      certified: true,
+      solutionCount: legal.length,
+      solutionMeaning: "Crown placements; empty pencil marks are ignored",
+      unique: legal.length === 1,
+      nodes,
+      foothold: forced ? foothold : null,
+      solution,
+    }
+  } else if (category === "path_cover") {
+    const length = request.preferences?.pathLength ?? Math.min(12, n * 2)
+    // A seeded self-avoiding walk defines the covered area; numbered checkpoints select a route.
+    const route = [Math.floor(rng() * count)]
+    while (route.length < length) {
+      checkpoint()
+      const next = shuffle(
+        neighbors(route.at(-1)!, n).filter((id) => !route.includes(id)),
+        rng
+      )[0]
+      if (next === undefined) break
+      route.push(next)
+    }
+    const active = [...route],
+      start = route[0],
+      end = route.at(-1)!,
+      checkpoints = [
+        { cell: start, order: 1 },
+        { cell: end, order: route.length },
+      ]
+    const findSolutions = () => {
+      const found: number[][] = []
+      const visit = (path: number[]) => {
+        checkpoint()
+        if (found.length >= 2) return
+        const id = path.at(-1)!
+        const clue = checkpoints.find((point) => point.cell === id)
+        if (clue && clue.order !== path.length) return
+        if (id === end) {
+          if (path.length === active.length) found.push(path)
+          return
+        }
+        for (const other of neighbors(id, n))
+          if (active.includes(other) && !path.includes(other))
+            visit([...path, other])
+      }
+      visit([start])
+      return found
+    }
+    let solutions = findSolutions()
+    for (const cell of shuffle(route.slice(1, -1), rng)) {
+      if (solutions.length === 1) break
+      checkpoints.push({ cell, order: route.indexOf(cell) + 1 })
+      solutions = findSolutions()
+    }
+    // Keep a visible one-step foothold when a branch remains beside the start.
+    const second = route[1]
+    const startChoices = neighbors(start, n).filter(
+      (id) =>
+        active.includes(id) &&
+        !checkpoints.some((point) => point.cell === id && point.order !== 2)
+    )
+    if (startChoices.length !== 1) {
+      for (const cell of startChoices.filter((id) => id !== second)) {
+        if (!checkpoints.some((point) => point.cell === cell))
+          checkpoints.push({ cell, order: route.indexOf(cell) + 1 })
+      }
+    }
+    const cells = common.cells.map((cell, id) => {
+      const point = checkpoints.find((p) => p.cell === id)
+      return point
+        ? { value: point.order, locked: true }
+        : active.includes(id)
+          ? cell
+          : { value: null, locked: true }
+    })
+    const solution = Array.from({ length: count }, (_, id) =>
+      active.includes(id) ? route.indexOf(id) + 1 : null
+    )
+    pack = {
+      ...common,
+      category,
+      cells,
+      actionSurface: {
+        ...common.actionSurface,
+        cycleValues: [
+          null,
+          ...Array.from({ length: route.length }, (_, i) => i + 1),
+        ],
+      },
+      rules: { active, start, end, checkpoints },
+      winPredicate: "orthogonal-numbered-path-cover",
+      postcard: {
+        goal: `Number the ${route.length} open cells into one path, from 1 to ${route.length}.`,
+        rules: [
+          "Consecutive numbers share an edge.",
+          "Use each number exactly once and cover every open cell.",
+          "Numbered checkpoints are fixed. Blocked cells stay empty.",
+          "Cycle an open cell through empty and the path numbers.",
+        ],
+      },
+      transfer: {
+        ...common.transfer,
+        family: "path-checkpoints",
+        friendPatterns: [
+          "A corner with only two open neighbors must connect both.",
+          "A checkpoint reserves its place in the sequence.",
+          "A dead end must be a path endpoint.",
+        ],
+      },
+    }
+    const forced = !cells[second].locked
+    audit = {
+      certified: true,
+      solutionCount: 1,
+      solutionMeaning: "Ordered paths over the open cells",
+      unique: true,
+      nodes,
+      foothold: forced
+        ? {
+            cell: second,
+            value: 2,
+            reason: "Only this neighbor of 1 can carry 2.",
+          }
+        : null,
+      solution,
+    }
+    if (!forced) pack = { ...pack, mode: "BRANCHY" }
+  } else if (category === "tile_rotate_connect") {
+    // An induced corridor has no hidden answer clues and a provably unique port arrangement.
+    const route = [Math.floor(rng() * count)]
+    while (route.length < Math.min(12, count)) {
+      checkpoint()
+      const choices = shuffle(
+        neighbors(route.at(-1)!, n).filter(
+          (id) =>
+            !route.includes(id) &&
+            neighbors(id, n).filter((other) => route.includes(other)).length ===
+              1
+        ),
+        rng
+      )
+      if (!choices.length) break
+      route.push(choices[0])
+    }
+    const solvedMasks = Array.from({ length: count }, () => 0)
+    for (let i = 0; i < route.length - 1; i++) {
+      const a = route[i],
+        b = route[i + 1],
+        direction = b === a - n ? 0 : b === a + 1 ? 1 : b === a + n ? 2 : 3
+      solvedMasks[a] |= 1 << direction
+      solvedMasks[b] |= 1 << ((direction + 2) % 4)
+    }
+    const rotations = Array.from({ length: count }, () => Math.floor(rng() * 4))
+    const ports = solvedMasks.map((mask, id) =>
+      rotatePorts(mask, rotations[id])
+    )
+    const solution = ports.map((mask, id) => {
+      for (let value = 0; value < 4; value++)
+        if (rotatePorts(mask, value) === solvedMasks[id]) return value
+      return 0
+    })
+    const cells = ports.map((mask) => ({ value: 0, locked: mask === 0 }))
+    if (
+      cells.every(
+        (cell, id) => rotatePorts(ports[id], cell.value) === solvedMasks[id]
+      )
+    ) {
+      const id = route[0]
+      ports[id] = rotatePorts(ports[id], 1)
+      solution[id] = (solution[id] + 3) % 4
+    }
+    pack = {
+      ...common,
+      category,
+      cells,
+      actionSurface: {
+        ...common.actionSurface,
+        cycleValues: [0, 1, 2, 3],
+        effect: "rotate-ports",
+      },
+      rules: { ports },
+      winPredicate: "all-ports-match-connected",
+      postcard: {
+        goal: "Rotate the pieces into one connected pipe.",
+        rules: [
+          "Every port must meet a matching port across an edge.",
+          "Ports cannot point into blank cells or outside the board.",
+          "Tap cycles the distinct orientations of that tile.",
+        ],
+      },
+      transfer: {
+        ...common.transfer,
+        family: "pipe-boundaries",
+        friendPatterns: [
+          "An endpoint beside one pipe must face that neighbor.",
+          "Boundary ports point inward.",
+          "A matched neighbor fixes the turn of a corner.",
+        ],
+      },
+    }
+    audit = {
+      certified: true,
+      solutionCount: 1,
+      solutionMeaning:
+        "Physical port configurations; equivalent rotations of straight pieces count once",
+      unique: true,
+      nodes,
+      foothold: {
+        cell: route[0],
+        value: solution[route[0]],
+        reason: "The endpoint has exactly one neighboring pipe tile.",
+      },
+      solution,
+    }
+  } else {
+    const initial = Array.from({ length: count }, () => 0),
+      presses = shuffle(
+        Array.from({ length: count }, (_, i) => i),
+        rng
+      ).slice(0, Math.max(2, Math.floor(n / 2)))
+    for (const cell of presses)
+      for (const id of [cell, ...neighbors(cell, n)]) initial[id] ^= 1
+    if (initial.every((value) => value === 0))
+      for (const id of [0, ...neighbors(0, n)]) initial[id] ^= 1
+    // Rank over GF(2). Invertible and nullspace cases are reported separately.
+    const matrix = Array.from({ length: count }, (_, row) =>
+      Array.from({ length: count }, (_, col) =>
+        Number(row === col || neighbors(col, n).includes(row))
+      )
+    )
+    let rank = 0
+    for (let col = 0; col < count; col++) {
+      checkpoint()
+      const pivot = matrix.findIndex((row, id) => id >= rank && row[col] === 1)
+      if (pivot < 0) continue
+      ;[matrix[rank], matrix[pivot]] = [matrix[pivot], matrix[rank]]
+      for (let row = 0; row < count; row++)
+        if (row !== rank && matrix[row][col])
+          for (let j = col; j < count; j++) matrix[row][j] ^= matrix[rank][j]
+      rank++
+    }
+    const solutionCount = 2 ** (count - rank)
+    pack = {
+      ...common,
+      category,
+      mode: solutionCount > 1 ? "MULTI" : "BRANCHY",
+      cells: initial.map((value) => ({ value, locked: false })),
+      actionSurface: {
+        ...common.actionSurface,
+        cycleValues: [0, 1],
+        effect: "toggle-cross",
+      },
+      rules: { neighborhood: "orthogonal-cross" },
+      winPredicate: "all-lights-off",
+      postcard: {
+        goal: "Switch every light off.",
+        rules: [
+          "Tap flips this light and its edge neighbors.",
+          "Pressing the same cell twice cancels both presses.",
+          "Undo reverses your last tap. Clear restores the starting lights.",
+        ],
+      },
+      transfer: {
+        ...common.transfer,
+        family: "lights-cross-cancellation",
+        friendPatterns: [
+          "Two taps on one cell cancel.",
+          "Shared neighbors flip twice and cancel.",
+          "Corner taps affect three lights; interior taps affect five.",
+        ],
+      },
+    }
+    audit = {
+      certified: true,
+      solutionCount,
+      solutionMeaning:
+        "Press-parity vectors over GF(2); move order and repeated cancelling taps are ignored. The all-off terminal board is unique.",
+      unique: solutionCount === 1,
+      nodes,
+      foothold: null,
+      solution: Array.from({ length: count }, () => 0),
+    }
+  }
+  checkpoint()
+  pack = packSchema.parse(pack)
+  if (!verifyGame(pack, audit.solution).complete)
+    throw new Error("Author solution failed public verifier")
+  if (!audit.unique && pack.mode !== "MULTI")
+    throw new Error("Multiple solutions require MULTI mode")
+  if (pack.mode === "FORCED-CHAIN" && !audit.foothold)
+    throw new Error("Forced pack lacks local foothold")
+  return { pack, audit: { ...audit, nodes } }
+}
