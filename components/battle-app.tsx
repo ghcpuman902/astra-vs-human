@@ -7,21 +7,28 @@ import { BattleField } from "@/components/lovable/battle-field"
 import { useLearnerModel } from "@/hooks/use-learner-model"
 import { useSideLearner } from "@/hooks/use-side-learner"
 import {
+  compareBlitz,
   createBattleGround,
   scoreTransfer,
+  tallyBlitz,
   transferGroup,
   type SideCursor,
 } from "@/lib/battle-ground-ui/controller"
 import {
   matchFamilies,
-  orderByFamily,
   type FamilyMarks,
 } from "@/lib/battle-ground-ui/family-bias"
 import {
   learnerModeIds,
   type LearnerMixId,
 } from "@/lib/battle-ground-ui/learner-mix"
-import type { MatchDeck } from "@/lib/battle-ground-ui/match-deck"
+import {
+  dealMatch,
+  DEFAULT_MATCH_LENGTH,
+  MATCH_LENGTHS,
+  type FamilyShelf,
+  type MatchLength,
+} from "@/lib/battle-ground-ui/match-deck"
 import { packSchema, type GamePack } from "@/lib/mini-game-rules/schema"
 import { verifyGame } from "@/lib/mini-game-rules/verifier"
 
@@ -38,50 +45,92 @@ type Generated = {
   meta: { source: string; contentHash: string; elapsedMs: number }
 }
 
-const roundText = (cursor: SideCursor, gameCount: number, roundsPerGame: number) =>
-  `Game ${cursor.game + 1} of ${gameCount} · Round ${cursor.round + 1} of ${roundsPerGame}`
+const LENGTH_COPY: Record<MatchLength, { label: string; hint: string }> = {
+  deep: {
+    label: "Deep",
+    hint: "One family, five boards.",
+  },
+  tour: {
+    label: "Tour",
+    hint: "One board from each family.",
+  },
+  blitz: {
+    label: "Blitz",
+    hint: "Your own 3:00. Boards count until it hits zero.",
+  },
+}
 
-const clock = (ms: number) => {
+const roundText = (
+  length: MatchLength,
+  cursor: SideCursor,
+  gameCount: number,
+  roundsPerGame: number
+) => {
+  if (length === "deep") return `Round ${cursor.round + 1} of ${roundsPerGame}`
+  if (length === "tour") return `Family ${cursor.game + 1} of ${gameCount}`
+  return `Board ${cursor.index + 1}`
+}
+
+const blitzLine = (
+  humanName: string,
+  learnerName: string,
+  human: ReturnType<typeof tallyBlitz>,
+  learner: ReturnType<typeof tallyBlitz>
+) => {
+  const winner = compareBlitz(human, learner)
+  const side = (name: string, tally: ReturnType<typeof tallyBlitz>) =>
+    `${name} ${tally.rounds} boards, ${tally.actions} taps`
+  const summary = `${side(humanName, human)}. ${side(learnerName, learner)}.`
+  if (winner === "tie") return `Tie. ${summary}`
+  return `${winner === "human" ? humanName : learnerName} ahead. ${summary}`
+}
+
+const formatClock = (ms: number) => {
   const seconds = Math.floor(Math.max(0, ms) / 1000)
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
 }
 
-export function BattleApp({ deck }: { deck: MatchDeck }) {
-  const [packs, setPacks] = useState<readonly GamePack[] | null>(null)
+export function BattleApp({ library }: { library: readonly FamilyShelf[] }) {
+  const [dealt, setDealt] = useState<ReturnType<typeof dealMatch> | null>(null)
   const [arena, setArena] = useState<"play" | "watch">("play")
   const [leftMix, setLeftMix] = useState<LearnerMixId>("astra")
   const [rightMix, setRightMix] = useState<LearnerMixId>("astra")
+  const [length, setLength] = useState<MatchLength>(DEFAULT_MATCH_LENGTH)
   const [cap, setCap] = useState(600000)
   const [practice, setPractice] = useState(false)
   const [session, setSession] = useState(0)
   const [source, setSource] = useState("verified starter")
   const [hash, setHash] = useState<string | undefined>()
-  if (!packs) {
+  if (!dealt) {
     return (
       <FamilyGate
         arena={arena}
         leftMix={leftMix}
         rightMix={rightMix}
+        length={length}
         onArena={setArena}
         onLeftMix={setLeftMix}
         onRightMix={setRightMix}
+        onLength={setLength}
         onPlay={(marks) => {
-          const games = orderByFamily(deck.games, marks)
-          setPacks(games.flatMap((game) => [...game.packs]))
+          setDealt(dealMatch(length, marks, library))
         }}
       />
     )
   }
+  const packs = dealt.packs
   return (
     <BattleSession
-      key={`${session}:${cap}:${practice}:${packs.map((pack) => pack.seed).join("-")}`}
+      key={`${session}:${dealt.length}:${cap}:${practice}:${packs.map((pack) => pack.seed).join("-")}`}
       packs={packs}
       arena={arena}
       leftMix={leftMix}
       rightMix={rightMix}
-      gameCount={deck.gameCount}
-      roundsPerGame={deck.roundsPerGame}
-      cap={cap}
+      length={dealt.length}
+      gameCount={dealt.gameCount}
+      roundsPerGame={dealt.roundsPerGame}
+      clock={dealt.clock}
+      cap={dealt.timeCapMs ?? cap}
       practice={practice}
       source={source}
       hash={hash}
@@ -90,8 +139,10 @@ export function BattleApp({ deck }: { deck: MatchDeck }) {
       onSource={setSource}
       onHash={setHash}
       onReplaceFirst={(pack) => {
-        setPacks((current) =>
-          current ? [pack, ...current.slice(1)] : current
+        setDealt((current) =>
+          current
+            ? { ...current, packs: [pack, ...current.packs.slice(1)] }
+            : current
         )
         setSession((value) => value + 1)
       }}
@@ -193,17 +244,21 @@ function FamilyGate({
   arena,
   leftMix,
   rightMix,
+  length,
   onArena,
   onLeftMix,
   onRightMix,
+  onLength,
   onPlay,
 }: {
   arena: "play" | "watch"
   leftMix: LearnerMixId
   rightMix: LearnerMixId
+  length: MatchLength
   onArena: (arena: "play" | "watch") => void
   onLeftMix: (mix: LearnerMixId) => void
   onRightMix: (mix: LearnerMixId) => void
+  onLength: (length: MatchLength) => void
   onPlay: (marks: FamilyMarks) => void
 }) {
   const families = matchFamilies()
@@ -268,8 +323,8 @@ function FamilyGate({
           <p className="wordmark">astra-vs-human</p>
           <h1>Same rules. Two clocks.</h1>
           <p>
-            Pick who plays. Mark families you have played or want less of.
-            Then start. New families come first. All five stay.
+            Pick who plays, then how long the match is. Mark families you
+            have played or want less of. New families come first.
           </p>
         </header>
         <fieldset className="variant-grid">
@@ -300,6 +355,22 @@ function FamilyGate({
             <strong>Agent vs Agent</strong>
             <span>You watch both clocks.</span>
           </button>
+        </fieldset>
+        <fieldset className="length-choices">
+          <legend>Match length</legend>
+          {MATCH_LENGTHS.map((id) => (
+            <div key={id} className="length-choice">
+              <button
+                type="button"
+                className="paper-button"
+                aria-pressed={length === id}
+                onClick={() => onLength(id)}
+              >
+                {LENGTH_COPY[id].label}
+              </button>
+              <p>{LENGTH_COPY[id].hint}</p>
+            </div>
+          ))}
         </fieldset>
         <fieldset className="family-block">
           <legend>2 · Families you already know</legend>
@@ -370,8 +441,10 @@ function BattleSession({
   arena,
   leftMix,
   rightMix,
+  length,
   gameCount,
   roundsPerGame,
+  clock,
   cap,
   practice,
   source,
@@ -386,8 +459,10 @@ function BattleSession({
   arena: "play" | "watch"
   leftMix: LearnerMixId
   rightMix: LearnerMixId
+  length: MatchLength
   gameCount: number
   roundsPerGame: number
+  clock: "attempt" | "side"
   cap: number
   practice: boolean
   source: string
@@ -404,6 +479,7 @@ function BattleSession({
       actionCap: 300,
       startPaused: true,
       roundsPerGame,
+      clock,
       practice,
     })
   )
@@ -427,7 +503,6 @@ function BattleSession({
   } | null>(null)
   const humanPack = packs[snapshot.cursors.human.index]
   const learnerPack = packs[snapshot.cursors.learner.index]
-  const humanCursor = snapshot.cursors.human
   const humanDone = started && snapshot.attempts.human.status !== "playing"
   const learnerPlaying =
     started && snapshot.attempts.learner.status === "playing"
@@ -469,6 +544,12 @@ function BattleSession({
     const timer = setInterval(battle.tick, 250)
     return () => clearInterval(timer)
   }, [battle, started])
+  useEffect(() => {
+    if (length !== "blitz" || !started || watching) return
+    if (snapshot.attempts.human.status === "playing") return
+    if (!snapshot.canAdvance.human) return
+    battle.advance("human")
+  }, [battle, length, snapshot, started, watching])
   useEffect(() => {
     if (!snapshot.matchComplete) return
     endRound(MATCH_ID)
@@ -570,11 +651,28 @@ function BattleSession({
   const handleNext = () => {
     if (!battle.advance("human")) return
   }
+  const blitzDone =
+    length === "blitz" &&
+    started &&
+    snapshot.attempts.human.status !== "playing" &&
+    snapshot.attempts.learner.status !== "playing" &&
+    !snapshot.canAdvance.human &&
+    !snapshot.canAdvance.learner
+  const blitzResult = blitzDone
+    ? blitzLine(
+        leftName,
+        rightName,
+        tallyBlitz(snapshot.records, "human", snapshot.remainingMs.human),
+        tallyBlitz(snapshot.records, "learner", snapshot.remainingMs.learner)
+      )
+    : null
   const nextLabel = !snapshot.hasNext.human
     ? "Match complete"
-    : humanCursor.round + 1 >= roundsPerGame
-      ? "Next game"
-      : "Next round"
+    : length === "tour"
+      ? "Next family"
+      : length === "blitz"
+        ? "Next board"
+        : "Next round"
   return (
     <main className="battle-ground">
       <a className="skip-link" href="#boards">
@@ -589,16 +687,29 @@ function BattleSession({
               <section key={side} className="match-side" aria-label={`${label} progress`}>
                 <header>
                   <strong>{label}</strong>
-                  <span className="match-clock">
-                    {clock(snapshot.remainingMs[side])}
+                  <span
+                    className="match-clock"
+                    aria-label={
+                      length === "blitz"
+                        ? `${label} 3 minute clock`
+                        : `${label} clock`
+                    }
+                  >
+                    {length === "blitz" ? (
+                      <span className="clock-tag">3 min</span>
+                    ) : null}
+                    <span className="clock-digits">
+                      {formatClock(snapshot.remainingMs[side])}
+                    </span>
                   </span>
                 </header>
                 <span className="match-ability">
                   {side === "human" ? leftAbility : rightAbility}
                 </span>
                 <span className="match-round">
-                  {roundText(cursor, gameCount, roundsPerGame)}
+                  {roundText(length, cursor, gameCount, roundsPerGame)}
                 </span>
+                {length === "blitz" ? null : (
                 <ol className="match-games">
                   {Array.from({ length: gameCount }, (_, game) => (
                     <li key={game} className="match-game">
@@ -636,6 +747,7 @@ function BattleSession({
                     </li>
                   ))}
                 </ol>
+                )}
               </section>
             )
           })}
@@ -664,18 +776,22 @@ function BattleSession({
               ))}
             </select>
           </label>
-          <label>
-            Cap{" "}
-            <select
-              aria-label="Per-attempt time cap"
-              value={cap}
-              disabled={armed || busy}
-              onChange={(event) => onCap(Number(event.target.value))}
-            >
-              <option value={120000}>2 minutes</option>
-              <option value={600000}>10 minutes, if stuck</option>
-            </select>
-          </label>
+          {length === "blitz" ? (
+            <span className="clock-tag">3 min each</span>
+          ) : (
+            <label>
+              Cap{" "}
+              <select
+                aria-label="Per-attempt time cap"
+                value={cap}
+                disabled={armed || busy}
+                onChange={(event) => onCap(Number(event.target.value))}
+              >
+                <option value={120000}>2 minutes</option>
+                <option value={600000}>10 minutes, if stuck</option>
+              </select>
+            </label>
+          )}
           <button
             type="button"
             className="paper-button"
@@ -738,13 +854,17 @@ function BattleSession({
                       ? "Start begins both agent clocks."
                       : "Start begins both clocks together."
                     : "Learner model is loading."
-                  : !humanDone
-                    ? "Next stays yours. The agent is not moved."
-                    : learnerPlaying
-                      ? "The agent is still on its round."
-                      : snapshot.canAdvance.human
-                        ? "Your next board. The agent keeps going."
-                        : "Both sides finished this match."}
+                  : blitzResult
+                    ? blitzResult
+                    : length === "blitz" && !humanDone
+                      ? "Your 3:00 keeps running. The agent is not moved."
+                      : !humanDone
+                        ? "Next stays yours. The agent is not moved."
+                        : learnerPlaying
+                          ? "The agent is still on its round."
+                          : snapshot.canAdvance.human
+                            ? "Your next board. The agent keeps going."
+                            : "Both sides finished this match."}
           </p>
         </div>
       </header>

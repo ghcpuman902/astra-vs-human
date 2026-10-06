@@ -128,11 +128,22 @@ body {
 }
 .match-clock {
   flex: none;
-  min-width: 5ch;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: var(--s-2);
   font: var(--t-clock);
   font-variant-numeric: tabular-nums;
   text-align: right;
   color: var(--ink);
+}
+.clock-digits {
+  min-width: 5ch;
+  font-variant-numeric: tabular-nums;
+}
+.clock-tag {
+  font: var(--t-badge);
+  color: var(--ink-secondary);
 }
 .match-ability {
   display: block;
@@ -207,22 +218,44 @@ body {
   font: var(--t-ui);
 }
 .variant-grid,
-.family-block {
+.family-block,
+.length-choices {
   display: grid;
   gap: var(--s-3);
   margin: 0;
   padding: 0;
   border: 0;
 }
+.length-choices {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.length-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.length-choice .paper-button {
+  width: 100%;
+  justify-content: center;
+}
+.length-choice p {
+  margin: 0;
+  color: var(--ink-secondary);
+  font: var(--t-badge);
+}
 .variant-grid {
   grid-template-columns: 1fr 1fr;
 }
 .variant-grid legend,
-.family-block legend {
+.family-block legend,
+.length-choices legend {
   grid-column: 1 / -1;
 }
 .variant-grid legend,
 .family-block legend,
+.length-choices legend,
 .choice-row legend {
   padding: 0;
   font: var(--t-ui);
@@ -984,7 +1017,8 @@ body {
     border-right: 0;
     border-bottom: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
   }
-  .variant-grid {
+  .variant-grid,
+  .length-choices {
     grid-template-columns: 1fr;
   }
   .family-row {

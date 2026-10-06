@@ -36,15 +36,18 @@ try {
   const { assembleGamePack } = await import(
     out + "/mini-game-rules/assembler.js"
   )
-  const { createBattleGround, scoreTransfer } = await import(
-    out + "/battle-ground-ui/controller.js"
-  )
+  const { createBattleGround, scoreTransfer, tallyBlitz, compareBlitz } =
+    await import(out + "/battle-ground-ui/controller.js")
   const { createGameLearnerRunner } = await import(
     out + "/battle-ground-ui/model-learner.js"
   )
-  const { buildMatchDeck } = await import(
-    out + "/battle-ground-ui/match-deck.js"
-  )
+  const {
+    buildMatchDeck,
+    dealMatch,
+    pickDeepFamily,
+    DEFAULT_MATCH_LENGTH,
+    BLITZ_MATCH_MS,
+  } = await import(out + "/battle-ground-ui/match-deck.js")
   const { matchFamilies, rankMatchFamilies, orderByFamily } = await import(
     out + "/battle-ground-ui/family-bias.js"
   )
@@ -259,6 +262,113 @@ try {
   assert.equal(
     ordered.flatMap((game) => game.packs).length,
     15
+  )
+
+  assert.equal(DEFAULT_MATCH_LENGTH, "deep")
+  const deep = dealMatch("deep")
+  assert.equal(deep.length, "deep")
+  assert.equal(deep.gameCount, 1)
+  assert.equal(deep.roundsPerGame, 5)
+  assert.equal(deep.packs.length, 5)
+  assert.equal(deep.clock, "attempt")
+  assert.equal(new Set(deep.packs.map((pack) => pack.category)).size, 1)
+  assert.equal(new Set(deep.packs.map((pack) => pack.seed)).size, 5)
+  assert.equal(deep.familyId, catalogue[0].id)
+  assert.equal(
+    pickDeepFamily({ played: [catalogue[0].id], disliked: [] }).id,
+    catalogue[1].id
+  )
+  assert.equal(
+    dealMatch("deep", { played: [catalogue[0].id], disliked: [] }).familyId,
+    catalogue[1].id
+  )
+  assert.equal(
+    dealMatch("deep", { played: [], disliked: [catalogue[0].id] }).familyId,
+    catalogue[1].id
+  )
+  assert.equal(
+    dealMatch("deep", {
+      played: [],
+      disliked: catalogue.map((family) => family.id),
+    }).familyId,
+    catalogue[0].id
+  )
+
+  const tour = dealMatch("tour")
+  assert.equal(tour.packs.length, 5)
+  assert.equal(tour.roundsPerGame, 1)
+  assert.equal(tour.gameCount, 5)
+  assert.equal(tour.clock, "attempt")
+  assert.equal(new Set(tour.packs.map((pack) => pack.category)).size, 5)
+
+  const blitzDeal = dealMatch("blitz")
+  assert.equal(blitzDeal.timeCapMs, BLITZ_MATCH_MS)
+  assert.equal(blitzDeal.timeCapMs, 180_000)
+  assert.equal(blitzDeal.clock, "side")
+  assert.equal(blitzDeal.gameCount, 1)
+  assert.equal(new Set(blitzDeal.packs.map((pack) => pack.category)).size, 5)
+  assert.notEqual(blitzDeal.packs[0].category, blitzDeal.packs[1].category)
+  assert.equal(blitzDeal.packs[0].category, blitzDeal.packs[5].category)
+  let blitzTime = 0
+  const blitz = createBattleGround(blitzDeal.packs, {
+    timeCapMs: BLITZ_MATCH_MS,
+    clock: "side",
+    roundsPerGame: blitzDeal.roundsPerGame,
+    actionCap: 1,
+    now: () => blitzTime,
+  })
+  assert.equal(blitz.getSnapshot().remainingMs.human, 180_000)
+  assert.equal(blitz.getSnapshot().remainingMs.learner, 180_000)
+  const blitzCell = blitz
+    .boardProps("human")
+    .cells.find((cell) => cell.visible && !cell.locked)
+  assert.ok(blitzCell)
+  blitz.actions("human").selectCell(blitzCell.index)
+  assert.equal(blitz.getSnapshot().attempts.human.status, "action-cap")
+  assert.equal(blitz.getSnapshot().attempts.learner.status, "playing")
+  assert.equal(blitz.advance("human"), true)
+  assert.equal(blitz.getSnapshot().cursors.human.index, 1)
+  assert.equal(blitz.getSnapshot().cursors.learner.index, 0)
+  blitzTime = 30_000
+  blitz.tick()
+  assert.equal(blitz.getSnapshot().remainingMs.human, 150_000)
+  assert.equal(blitz.getSnapshot().remainingMs.learner, 150_000)
+  assert.equal(blitz.getSnapshot().attempts.learner.status, "playing")
+  assert.equal(blitz.getSnapshot().cursors.learner.index, 0)
+  blitzTime = 180_000
+  blitz.tick()
+  assert.equal(blitz.getSnapshot().attempts.human.status, "time-cap")
+  assert.equal(blitz.getSnapshot().attempts.learner.status, "time-cap")
+  assert.equal(blitz.getSnapshot().cursors.human.index, 1)
+  assert.equal(blitz.getSnapshot().cursors.learner.index, 0)
+  assert.equal(blitz.advance("learner"), false)
+  const humanBlitz = tallyBlitz(
+    blitz.getSnapshot().records,
+    "human",
+    blitz.getSnapshot().remainingMs.human
+  )
+  const learnerBlitz = tallyBlitz(
+    blitz.getSnapshot().records,
+    "learner",
+    blitz.getSnapshot().remainingMs.learner
+  )
+  assert.equal(humanBlitz.rounds, 1)
+  assert.equal(learnerBlitz.rounds, 0)
+  assert.equal(humanBlitz.leftoverMs, 0)
+  assert.equal(compareBlitz(humanBlitz, learnerBlitz), "human")
+  assert.equal(
+    compareBlitz(
+      { rounds: 2, actions: 10, leftoverMs: 0 },
+      { rounds: 2, actions: 8, leftoverMs: 0 }
+    ),
+    "learner"
+  )
+  assert.equal(
+    compareBlitz(
+      { rounds: 2, actions: 8, leftoverMs: 1_000 },
+      { rounds: 2, actions: 8, leftoverMs: 5_000 }
+    ),
+    "learner"
   )
 
   // Click path without a browser: family marks order the deck, Start is paused
@@ -509,8 +619,15 @@ try {
   assert.match(sideLearnerSource, /fetchGameLearnerDecision/)
   assert.match(appSource, /useSideLearner/)
   assert.match(appSource, /label: "Code"/)
+  assert.match(appSource, /Match length/)
+  assert.match(appSource, /useState<MatchLength>\(DEFAULT_MATCH_LENGTH\)/)
+  assert.match(appSource, /label: "Deep"/)
+  assert.match(appSource, /label: "Tour"/)
+  assert.match(appSource, /label: "Blitz"/)
+  assert.match(appSource, /3 min/)
+  assert.doesNotMatch(appSource, /5 × 3|5×3/)
   console.log(
-    "Battle bridge verified: setup marks, paused start, dual boards, human Next leaves the agent thinking, Code policy steps, shared-rules scroll, mix labels, five games, independent clocks."
+    "Battle bridge verified: Deep 1×5 default, Tour 5×1, Blitz 3:00 independent clocks, human Next leaves the agent thinking, Code policy steps, shared-rules scroll."
   )
 } finally {
   await rm(out, { recursive: true, force: true })

@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 import { BattleApp } from "@/components/battle-app"
-import { buildMatchDeck } from "@/lib/battle-ground-ui/match-deck"
+import { buildFamilyLibrary } from "@/lib/battle-ground-ui/match-deck"
 
 export const metadata: Metadata = {
   title: "astra-vs-human · Same board, same taps",
@@ -10,6 +10,6 @@ export const metadata: Metadata = {
 }
 
 export default function Page() {
-  const deck = buildMatchDeck()
-  return <BattleApp deck={deck} />
+  const library = buildFamilyLibrary()
+  return <BattleApp library={library} />
 }

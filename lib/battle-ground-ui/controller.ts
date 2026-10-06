@@ -86,6 +86,11 @@ export type BattleOptions = {
   now?: () => number
   /** Packs are grouped into games of this many rounds. Defaults to one game. */
   roundsPerGame?: number
+  /**
+   * `attempt` resets the cap on each round.
+   * `side` is one clock per player. Advancing does not reset it or stop the other side.
+   */
+  clock?: "attempt" | "side"
 }
 const SIDES = ["human", "learner"] as const
 
@@ -133,11 +138,14 @@ export function createBattleGround(
   )
     throw new Error("Invalid caps")
   const now = options.now ?? (() => performance.now())
+  const clock = options.clock ?? "attempt"
   const listeners = new Set<() => void>()
   let cursor: Record<Side, number> = { human: 0, learner: 0 }
   let running = !options.startPaused
   let records: BattleRecord[] = []
   const openedAt = running ? now() : null
+  let origin: Record<Side, number | null> = { human: openedAt, learner: openedAt }
+  let stoppedAt: Record<Side, number | null> = { human: null, learner: null }
   const fresh = (side: Side, startedAt: number | null): Attempt => ({
     state: initialGameState(packs[cursor[side]]),
     status: "playing",
@@ -155,18 +163,27 @@ export function createBattleGround(
     game: Math.floor(index / roundsPerGame),
     round: index % roundsPerGame,
   })
-  const elapsedMs = (side: Side) => {
+  const attemptElapsed = (side: Side) => {
     const attempt = attempts[side]
     if (attempt.startedAt == null) return 0
     if (attempt.status !== "playing") return attempt.endedAtMs ?? 0
     return Math.max(0, now() - attempt.startedAt)
   }
+  const matchElapsed = (side: Side) => {
+    if (stoppedAt[side] != null) return stoppedAt[side]!
+    if (origin[side] == null) return 0
+    return Math.max(0, now() - origin[side]!)
+  }
   const remaining = (side: Side) =>
-    Math.max(0, timeCapMs - elapsedMs(side))
+    Math.max(
+      0,
+      timeCapMs - (clock === "side" ? matchElapsed(side) : attemptElapsed(side))
+    )
   const sideCanAdvance = (side: Side) =>
     running &&
     attempts[side].status !== "playing" &&
-    cursor[side] + 1 < packs.length
+    cursor[side] + 1 < packs.length &&
+    !(clock === "side" && remaining(side) <= 0)
   const publish = () => {
     snapshot = freeze({
       gameCount,
@@ -190,10 +207,12 @@ export function createBattleGround(
         learner: cursor.learner + 1 < packs.length,
       },
       records,
-      matchComplete: SIDES.every(
-        (side) =>
-          attempts[side].status !== "playing" && cursor[side] + 1 >= packs.length
-      ),
+      matchComplete: SIDES.every((side) => {
+        if (attempts[side].status === "playing") return false
+        if (clock === "side")
+          return remaining(side) <= 0 || cursor[side] + 1 >= packs.length
+        return cursor[side] + 1 >= packs.length
+      }),
     })
     listeners.forEach((listener) => listener())
   }
@@ -209,7 +228,7 @@ export function createBattleGround(
         transferGroup: transferGroup(pack),
         status: attempt.status,
         actions: attempt.state.actions,
-        elapsedMs: attempt.endedAtMs ?? elapsedMs(side),
+        elapsedMs: attempt.endedAtMs ?? attemptElapsed(side),
         claim: attempt.claim,
       },
     ]
@@ -218,6 +237,32 @@ export function createBattleGround(
     if (running)
       for (const side of SIDES) {
         const attempt = attempts[side]
+        if (clock === "side") {
+          const elapsed =
+            origin[side] == null ? 0 : Math.max(0, now() - origin[side]!)
+          if (stoppedAt[side] == null && elapsed >= timeCapMs) {
+            if (attempt.status === "playing") {
+              attempts = {
+                ...attempts,
+                [side]: {
+                  ...attempt,
+                  status: "time-cap",
+                  endedAtMs: attemptElapsed(side),
+                },
+              }
+              record(side)
+            }
+            stoppedAt = { ...stoppedAt, [side]: timeCapMs }
+          } else if (
+            stoppedAt[side] == null &&
+            origin[side] != null &&
+            attempts[side].status !== "playing" &&
+            cursor[side] + 1 >= packs.length
+          ) {
+            stoppedAt = { ...stoppedAt, [side]: elapsed }
+          }
+          continue
+        }
         if (
           attempt.status !== "playing" ||
           attempt.startedAt == null ||
@@ -269,10 +314,22 @@ export function createBattleGround(
         ...current,
         state,
         status,
-        endedAtMs: status === "playing" ? null : elapsedMs(side),
+        endedAtMs: status === "playing" ? null : attemptElapsed(side),
       },
     }
     if (status !== "playing") record(side)
+    if (
+      clock === "side" &&
+      status !== "playing" &&
+      stoppedAt[side] == null &&
+      origin[side] != null &&
+      cursor[side] + 1 >= packs.length
+    ) {
+      stoppedAt = {
+        ...stoppedAt,
+        [side]: Math.max(0, now() - origin[side]!),
+      }
+    }
     publish()
   }
   publish()
@@ -282,6 +339,7 @@ export function createBattleGround(
       if (running) return false
       running = true
       const startedAt = now()
+      origin = { human: startedAt, learner: startedAt }
       attempts = {
         human: { ...attempts.human, startedAt },
         learner: { ...attempts.learner, startedAt },
@@ -388,6 +446,42 @@ export function scoreTransfer(
         index === 0 || record.actions < rounds[index - 1].actions
     ),
   }
+}
+
+export type BlitzTally = {
+  rounds: number
+  actions: number
+  leftoverMs: number
+}
+
+/** Rounds that ended before this side's clock hit zero. */
+export function tallyBlitz(
+  records: readonly BattleRecord[],
+  side: Side,
+  leftoverMs: number
+): BlitzTally {
+  const done = records.filter(
+    (record) => record.side === side && record.status !== "time-cap"
+  )
+  return {
+    rounds: done.length,
+    actions: done.reduce((sum, record) => sum + record.actions, 0),
+    leftoverMs,
+  }
+}
+
+/** More rounds, then fewer actions, then more time left. */
+export function compareBlitz(
+  human: BlitzTally,
+  learner: BlitzTally
+): "human" | "learner" | "tie" {
+  if (human.rounds !== learner.rounds)
+    return human.rounds > learner.rounds ? "human" : "learner"
+  if (human.actions !== learner.actions)
+    return human.actions < learner.actions ? "human" : "learner"
+  if (human.leftoverMs !== learner.leftoverMs)
+    return human.leftoverMs > learner.leftoverMs ? "human" : "learner"
+  return "tie"
 }
 function freeze<T>(value: T): T {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
