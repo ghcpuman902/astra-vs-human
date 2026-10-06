@@ -63,6 +63,17 @@ try {
     assert.equal(battle.getSnapshot().attempts.human.state.actions, 2)
     assert.deepEqual(battle.getSnapshot().attempts.learner.state.cells, before)
     assert.equal(battle.advance(), false)
+    let reads = 0
+    const unsubscribe = battle.subscribe(() => reads++)
+    time += 1
+    battle.boardProps("human")
+    battle.boardProps("learner")
+    assert.equal(
+      reads,
+      0,
+      "Reading board props must not publish during React rendering"
+    )
+    unsubscribe()
     time = 121000
     battle.tick()
     assert.equal(battle.getSnapshot().attempts.learner.status, "playing")
@@ -75,6 +86,32 @@ try {
     assert.equal(battle.getSnapshot().attempts.human.status, "time-cap")
     assert.equal(battle.getSnapshot().attempts.learner.status, "time-cap")
   }
+  let readingClock = 0
+  const pausedPack = assembleGamePack({
+    category: "binary_fill",
+    seed: 934,
+    n: 4,
+  }).pack
+  const paused = createBattleGround([pausedPack], {
+    startPaused: true,
+    timeCapMs: 120000,
+    now: () => readingClock,
+  })
+  readingClock = 200000
+  paused.tick()
+  paused.actions("human").selectCell(0)
+  assert.equal(paused.getSnapshot().remainingMs, 120000)
+  assert.equal(paused.getSnapshot().attempts.human.state.actions, 0)
+  assert.equal(paused.start(), true)
+  assert.equal(paused.start(), false)
+  readingClock += 1000
+  paused.tick()
+  assert.equal(paused.getSnapshot().remainingMs, 119000)
+  readingClock += 120000
+  paused.tick()
+  assert.equal(paused.getSnapshot().attempts.human.status, "time-cap")
+  assert.equal(paused.getSnapshot().attempts.learner.status, "time-cap")
+
   const records = [12, 9, 7].map((actions, index) => ({
     seed: index,
     side: "human",

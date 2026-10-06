@@ -71,6 +71,7 @@ export type BattleOptions = {
   actionCap?: number
   timeCapMs?: number
   practice?: boolean
+  startPaused?: boolean
   now?: () => number
 }
 
@@ -99,6 +100,7 @@ export function createBattleGround(
   const listeners = new Set<() => void>()
   let round = 0
   let started = now()
+  let running = !options.startPaused
   let records: BattleRecord[] = []
   const fresh = (): Attempt => ({
     state: initialGameState(packs[round]),
@@ -108,7 +110,18 @@ export function createBattleGround(
   })
   let attempts: Record<Side, Attempt> = { human: fresh(), learner: fresh() }
   let snapshot: BattleSnapshot
-  const remaining = () => Math.max(0, timeCapMs - (now() - started))
+  const remaining = () => {
+    if (!running) return timeCapMs
+    const elapsed =
+      attempts.human.status !== "playing" &&
+      attempts.learner.status !== "playing"
+        ? Math.max(
+            attempts.human.endedAtMs ?? 0,
+            attempts.learner.endedAtMs ?? 0
+          )
+        : now() - started
+    return Math.max(0, timeCapMs - elapsed)
+  }
   const bothEnded = () =>
     attempts.human.status !== "playing" && attempts.learner.status !== "playing"
   const publish = () => {
@@ -148,7 +161,7 @@ export function createBattleGround(
     ]
   }
   const tick = () => {
-    if (remaining() === 0)
+    if (running && remaining() === 0)
       for (const side of ["human", "learner"] as const) {
         if (attempts[side].status !== "playing") continue
         attempts = {
@@ -165,6 +178,7 @@ export function createBattleGround(
       publish()
   }
   const dispatch = (side: Side, action: GameAction) => {
+    if (!running) return
     tick()
     const current = attempts[side]
     if (current.status !== "playing") return
@@ -197,6 +211,13 @@ export function createBattleGround(
   publish()
   return {
     getSnapshot: () => snapshot,
+    start: () => {
+      if (running) return false
+      running = true
+      started = now()
+      publish()
+      return true
+    },
     subscribe: (listener: () => void) => {
       listeners.add(listener)
       return () => {
@@ -211,7 +232,6 @@ export function createBattleGround(
       clear: () => dispatch(side, { type: "clear" }),
     }),
     boardProps: (side: Side): BoardProps => {
-      tick()
       const pack = packs[round],
         attempt = attempts[side]
       return freeze({
@@ -238,7 +258,7 @@ export function createBattleGround(
         }),
         actions: attempt.state.actions,
         remainingActions: actionCap - attempt.state.actions,
-        remainingMs: remaining(),
+        remainingMs: snapshot.remainingMs,
         status: attempt.status,
         readOnly: side === "learner" || attempt.status !== "playing",
         hints: "practice-only",

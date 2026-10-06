@@ -179,6 +179,12 @@ export const gameLearnerBoardSchema = z
 export const gameLearnerRequestSchema = z.strictObject({
   board: gameLearnerBoardSchema,
   priorClaims: z.array(z.string().max(240)).max(30),
+  model: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/)
+    .optional(),
 })
 export type GameLearnerRequest = z.infer<typeof gameLearnerRequestSchema>
 export type GameDecisionProvider = (
@@ -294,14 +300,17 @@ export function createGameLearnerRunner(options: {
   api: SharedActions
   memory: LearnerMemory
   decide?: typeof fetchGameLearnerDecision
+  model?: () => string | undefined
 }) {
   let pending: AbortController | null = null
   let pendingRevision: string | null = null
+  let pendingModel: string | undefined
   let disposed = false
   const sync = () => {
     if (
       pending &&
       (revision(options.observe()) !== pendingRevision ||
+        options.model?.() !== pendingModel ||
         options.observe().remainingMs <= 0)
     )
       pending.abort()
@@ -319,6 +328,7 @@ export function createGameLearnerRunner(options: {
       const parsed = gameLearnerRequestSchema.safeParse({
         board: options.observe(),
         priorClaims: options.memory.claims.slice(-30),
+        model: options.model?.(),
       })
       if (
         !parsed.success ||
@@ -330,6 +340,7 @@ export function createGameLearnerRunner(options: {
       const controller = new AbortController()
       pending = controller
       pendingRevision = revision(parsed.data.board)
+      pendingModel = parsed.data.model
       const timer = setTimeout(
         () => controller.abort(),
         Math.min(8_000, parsed.data.board.remainingMs)
@@ -344,6 +355,7 @@ export function createGameLearnerRunner(options: {
           disposed ||
           controller.signal.aborted ||
           revision(live) !== pendingRevision ||
+          options.model?.() !== pendingModel ||
           live.remainingMs <= 0
         )
           return false

@@ -16,7 +16,24 @@ const verifierArtifact = new URL(
   "../_agent/check-learner-verifier.mjs",
   import.meta.url
 )
+const configArtifact = new URL(
+  "../_agent/check-learner-config.mjs",
+  import.meta.url
+)
 try {
+  const configSource = await readFile(
+    new URL("../lib/learner-models.ts", import.meta.url),
+    "utf8"
+  )
+  await writeFile(
+    configArtifact,
+    ts.transpileModule(configSource, {
+      compilerOptions: {
+        target: ts.ScriptTarget.ES2022,
+        module: ts.ModuleKind.ES2022,
+      },
+    }).outputText
+  )
   const source = await readFile(
     new URL("../lib/puzzle/model-learner.ts", import.meta.url),
     "utf8"
@@ -257,9 +274,10 @@ try {
         },
       })
       .outputText.replace(
-        '"@/lib/puzzle/model-learner"',
-        '"./check-model-learner.mjs"'
+        '"@/lib/learner-models"',
+        '"./check-learner-config.mjs"'
       )
+      .replace('"@/lib/puzzle/model-learner"', '"./check-model-learner.mjs"')
   )
   const { POST } = await import(routeArtifact.href)
   const send = (body) =>
@@ -302,4 +320,5 @@ try {
   await rm(routeArtifact, { force: true })
   await rm(matchArtifact, { force: true })
   await rm(verifierArtifact, { force: true })
+  await rm(configArtifact, { force: true })
 }

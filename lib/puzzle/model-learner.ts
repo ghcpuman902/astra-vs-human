@@ -72,6 +72,12 @@ export const observationSchema = z
 export const learnerRequestSchema = z.strictObject({
   observation: observationSchema,
   priorClaims: z.array(z.string().max(240)).max(30),
+  model: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/)
+    .optional(),
 })
 
 export const learnerDecisionSchema = z.strictObject({
@@ -219,14 +225,17 @@ export function createModelLearnerRunner(options: {
   api: ActionAPI
   memory: LearnerMemory
   decide?: typeof fetchLearnerDecision
+  model?: () => string | undefined
 }) {
   let pending: AbortController | null = null
   let pendingRevision: string | null = null
+  let pendingModel: string | undefined
   let disposed = false
   const sync = () => {
     if (
       pending &&
       (revision(options.observe()) !== pendingRevision ||
+        options.model?.() !== pendingModel ||
         options.observe().remainingMs <= 0)
     )
       pending.abort()
@@ -244,6 +253,7 @@ export function createModelLearnerRunner(options: {
       const parsed = learnerRequestSchema.safeParse({
         observation: options.observe(),
         priorClaims: options.memory.claims.slice(-30),
+        model: options.model?.(),
       })
       if (!parsed.success) return false
       const view = parsed.data.observation
@@ -256,13 +266,14 @@ export function createModelLearnerRunner(options: {
       const controller = new AbortController()
       pending = controller
       pendingRevision = revision(view)
+      pendingModel = parsed.data.model
       const timer = setTimeout(
         () => controller.abort(),
         Math.min(8_000, view.remainingMs)
       )
       try {
         const result = await (options.decide ?? fetchLearnerDecision)(
-          { observation: view, priorClaims: options.memory.claims.slice(-30) },
+          parsed.data,
           controller.signal
         )
         const current = options.observe()
@@ -270,6 +281,7 @@ export function createModelLearnerRunner(options: {
           disposed ||
           controller.signal.aborted ||
           revision(current) !== pendingRevision ||
+          options.model?.() !== pendingModel ||
           current.remainingMs <= 0
         )
           return false

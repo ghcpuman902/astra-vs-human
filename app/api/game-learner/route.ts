@@ -1,6 +1,7 @@
 import { learnerDecisionSchema } from "@/lib/puzzle/model-learner"
 import { createOpenAI } from "@ai-sdk/openai"
 import { generateText, Output } from "ai"
+import { allowedLearnerModel } from "@/lib/learner-models"
 
 import {
   decideGameLearner,
@@ -53,6 +54,12 @@ export async function POST(request: Request) {
       { error: "Expected public board and priorClaims only" },
       { status: 400, headers }
     )
+  const selectedModel = allowedLearnerModel(parsed.data.model)
+  if (!selectedModel)
+    return Response.json(
+      { error: "Model is not allowed" },
+      { status: 400, headers }
+    )
   const result = await decideGameLearner(
     {
       ...parsed.data,
@@ -71,10 +78,13 @@ export async function POST(request: Request) {
         organization: process.env.OPENAI_ORG_ID,
       })
       const { output } = await generateText({
-        model: openai.responses(process.env.OPENAI_MODEL ?? "gpt-6-astra"),
+        model: openai.responses(selectedModel),
         output: Output.object({ schema: learnerDecisionSchema }),
         system: gameLearnerSystemPrompt,
-        prompt: JSON.stringify(visible),
+        prompt: JSON.stringify({
+          board: visible.board,
+          priorClaims: visible.priorClaims,
+        }),
         abortSignal: signal,
         maxRetries: 0,
         providerOptions: { openai: { store: false, reasoningEffort: "low" } },
