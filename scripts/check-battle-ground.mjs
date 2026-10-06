@@ -355,6 +355,98 @@ try {
   unsubscribeSmoke()
   runner.dispose()
 
+  // LinkedIn / share path without keys: Code mix returns a policy; the UI hook
+  // expands it with interpretPolicy into counted steps. Human Next still must
+  // not abort or move the agent while that policy is thinking.
+  const { interpretPolicy } = await import(out + "/battle-ground-ui/learner-mix.js")
+  let codeTime = 0
+  const codeBattle = createBattleGround(
+    ordered.flatMap((game) => game.packs),
+    {
+      roundsPerGame: 3,
+      actionCap: 1,
+      timeCapMs: 120000,
+      startPaused: true,
+      now: () => codeTime,
+    }
+  )
+  assert.equal(codeBattle.start(), true)
+  codeTime += 500
+  codeBattle.tick()
+  const codeCell = codeBattle
+    .boardProps("learner")
+    .cells.find((cell) => cell.visible && !cell.locked)
+  assert.ok(codeCell)
+  const codeHumanCell = codeBattle
+    .boardProps("human")
+    .cells.find((cell) => cell.visible && !cell.locked)
+  assert.ok(codeHumanCell)
+  const codeSeed = codeBattle.boardProps("learner").seed
+  const codeCells = codeBattle.getSnapshot().attempts.learner.state.cells.slice()
+  let codeSignal
+  let finishCode
+  const codeRunner = createGameLearnerRunner({
+    observe: () => codeBattle.boardProps("learner"),
+    api: codeBattle.actions("learner"),
+    memory: { claims: [], currentClaim: null },
+    mix: "code",
+    decide: async (_request, signal) => {
+      codeSignal = signal
+      return new Promise((done) => {
+        finishCode = done
+      })
+    },
+  })
+  const unsubCode = codeBattle.subscribe(codeRunner.sync)
+  const pendingCode = codeRunner.step()
+  assert.equal(codeSignal.aborted, false)
+  codeBattle.actions("human").selectCell(codeHumanCell.index)
+  assert.equal(codeBattle.advance("human"), true)
+  assert.equal(codeBattle.getSnapshot().cursors.human.index, 1)
+  assert.equal(codeBattle.getSnapshot().cursors.learner.index, 0)
+  assert.equal(codeBattle.boardProps("learner").seed, codeSeed)
+  assert.deepEqual(
+    codeBattle.getSnapshot().attempts.learner.state.cells,
+    codeCells
+  )
+  assert.equal(
+    codeSignal.aborted,
+    false,
+    "Human Next must not abort Code-mode thinking"
+  )
+  const codePolicy = {
+    rule: "named-cells",
+    cells: [codeCell.index],
+    cycles: 1,
+    note: "Code policy on the public board.",
+  }
+  const codeSteps = interpretPolicy(
+    codePolicy,
+    codeBattle.boardProps("learner").cells
+  )
+  assert.deepEqual(codeSteps, [
+    { type: "selectCell", cell: codeCell.index },
+    { type: "cycle" },
+  ])
+  finishCode({
+    action: null,
+    state: "decision",
+    patternClaim: codePolicy.note,
+    policy: codePolicy,
+    steps: codeSteps,
+  })
+  assert.equal(await pendingCode, true)
+  assert.equal(codeBattle.getSnapshot().cursors.learner.index, 0)
+  assert.equal(
+    codeBattle.getSnapshot().attempts.learner.state.actions,
+    1,
+    "Code steps apply at least the first counted tap under the action cap"
+  )
+  assert.equal(codeBattle.getSnapshot().attempts.learner.status, "action-cap")
+  assert.equal(codeBattle.getSnapshot().cursors.human.index, 1)
+  unsubCode()
+  codeRunner.dispose()
+
   const appSource = await readFile(
     new URL("../components/battle-app.tsx", import.meta.url),
     "utf8"
@@ -405,8 +497,20 @@ try {
   )
   assert.match(layoutSource, /display: "swap"/)
   assert.match(layoutSource, /adjustFontFallback: true/)
+  assert.match(shellSource, /\.shared-rules/)
+  assert.match(shellSource, /max-height:\s*min\(12rem,\s*32svh\)/)
+  assert.match(shellSource, /overflow:\s*auto/)
+  const sideLearnerSource = await readFile(
+    new URL("../hooks/use-side-learner.ts", import.meta.url),
+    "utf8"
+  )
+  assert.match(sideLearnerSource, /interpretPolicy\(result\.policy/)
+  assert.match(sideLearnerSource, /mix/)
+  assert.match(sideLearnerSource, /fetchGameLearnerDecision/)
+  assert.match(appSource, /useSideLearner/)
+  assert.match(appSource, /label: "Code"/)
   console.log(
-    "Battle bridge verified: setup marks, paused start, dual boards, human Next leaves the agent thinking, mix labels, five games, independent clocks."
+    "Battle bridge verified: setup marks, paused start, dual boards, human Next leaves the agent thinking, Code policy steps, shared-rules scroll, mix labels, five games, independent clocks."
   )
 } finally {
   await rm(out, { recursive: true, force: true })
