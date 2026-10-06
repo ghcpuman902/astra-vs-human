@@ -34,6 +34,9 @@ try {
     gameLearnerRequestSchema,
     decideGameLearner,
     createGameLearnerRunner,
+    jevActionRequest,
+    openAIDecisionsRequest,
+    assertLearnerBackendWired,
   } = await import(join(output, "battle-ground-ui/model-learner.js"))
   for (const category of [
     "binary_fill",
@@ -135,6 +138,22 @@ try {
       ).reason,
       "unavailable"
     )
+    const jev = jevActionRequest(board, ["A local neighbour settles the next cell."])
+    const decisions = openAIDecisionsRequest(board, [])
+    assert.equal(jev.model, "typesafe/jev-1.13")
+    assert.equal(decisions.model, "gpt-6-luna")
+    assert.equal(JSON.parse(jev.state).seed, board.seed)
+    assert.equal("transfer" in JSON.parse(jev.state), false)
+    assert.equal("solution" in JSON.parse(decisions.input), false)
+    assert.throws(
+      () => assertLearnerBackendWired("typesafe-jev"),
+      /No request was sent/
+    )
+    assert.throws(
+      () => assertLearnerBackendWired("openai-decisions"),
+      /No request was sent/
+    )
+    assertLearnerBackendWired("openai-generate-text")
   }
   console.log(
     "All five public board contracts, hidden-field rejection, deadlines, failure waits, stale cancellation and shared counted actions passed."

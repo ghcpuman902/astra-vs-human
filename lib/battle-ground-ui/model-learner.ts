@@ -389,3 +389,98 @@ export function createGameLearnerRunner(options: {
     },
   }
 }
+
+/**
+ * Decision backends for the Learner.
+ * The live route uses `openai-generate-text` (structured generateText).
+ * TypeSafe Jev and the OpenAI Decisions API are seams only: builders return
+ * plain request objects and the unwired backends throw before any fetch.
+ * Do not add keys or call these from a route until a real client exists.
+ */
+export type LearnerDecisionBackendId =
+  | "openai-generate-text"
+  | "typesafe-jev"
+  | "openai-decisions"
+
+export type LearnerDecisionBackend = {
+  id: LearnerDecisionBackendId
+  /** True only when a route already performs this call. */
+  wired: boolean
+}
+
+export const learnerDecisionBackends: readonly LearnerDecisionBackend[] = [
+  { id: "openai-generate-text", wired: true },
+  { id: "typesafe-jev", wired: false },
+  { id: "openai-decisions", wired: false },
+]
+
+export type JevChoiceQuestion = {
+  id: string
+  prompt: string
+  options: readonly string[]
+}
+
+/** TypeSafe Jev Choice over text state. Model id is the public OpenRouter id. */
+export type TypeSafeJevRequest = {
+  model: "typesafe/jev-1.13"
+  state: string
+  questions: readonly JevChoiceQuestion[]
+}
+
+/**
+ * Placeholder for the OpenAI Decisions preview (Luna, text or images).
+ * OpenAI has not published a stable request schema; do not POST this object.
+ */
+export type OpenAIDecisionsRequest = {
+  model: "gpt-6-luna"
+  input: string
+  questions: readonly JevChoiceQuestion[]
+}
+
+const publicState = (board: BoardProps, priorClaims: readonly string[]) =>
+  JSON.stringify({
+    seed: board.seed,
+    category: board.category,
+    postcard: board.postcard,
+    clues: board.clues,
+    cells: board.cells.map((cell) => ({
+      index: cell.index,
+      value: cell.visible ? cell.value : null,
+      locked: cell.visible && cell.locked,
+      selected: cell.visible && cell.selected,
+    })),
+    priorClaims: priorClaims.slice(-30),
+  })
+
+const actionQuestion = {
+  id: "next-control",
+  prompt: "Which one counted control should the Learner take next?",
+  options: ["selectCell", "cycle", "undo", "clear", "wait"],
+} as const
+
+/** Maps the public board into a Jev Choice. No network. */
+export const jevActionRequest = (
+  board: BoardProps,
+  priorClaims: readonly string[]
+): TypeSafeJevRequest => ({
+  model: "typesafe/jev-1.13",
+  state: publicState(board, priorClaims),
+  questions: [actionQuestion],
+})
+
+/** Maps the public board into the Decisions placeholder. No network. */
+export const openAIDecisionsRequest = (
+  board: BoardProps,
+  priorClaims: readonly string[]
+): OpenAIDecisionsRequest => ({
+  model: "gpt-6-luna",
+  input: publicState(board, priorClaims),
+  questions: [actionQuestion],
+})
+
+/** Refuses unwired backends so a caller cannot accidentally send a request. */
+export const assertLearnerBackendWired = (id: LearnerDecisionBackendId) => {
+  const backend = learnerDecisionBackends.find((item) => item.id === id)
+  if (!backend?.wired)
+    throw new Error(`${id} is a seam only. No request was sent.`)
+}

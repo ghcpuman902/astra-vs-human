@@ -12,6 +12,9 @@ import {
 export const runtime = "nodejs"
 export const maxDuration = 15
 
+// Live provider is OpenAI generateText structured output.
+// TypeSafe Jev and the OpenAI Decisions API stay unwired seams in
+// lib/battle-ground-ui/model-learner.ts. Do not call them from this route.
 export async function POST(request: Request) {
   const started = performance.now()
   const headers = { "cache-control": "no-store" }

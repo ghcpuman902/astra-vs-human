@@ -98,7 +98,7 @@ The model receives the visible board, given marks, selected cell, postcard, coun
 
 `Observation.publicMarks` optionally carries the public clues drawn for both players: `{ quotas: { cells, count }[], friends: { cells: [a, b], relation: '=' | '×' }[] }`. Quota counts refer to cells valued `1`; all references are zero-indexed. The match constructor supplies these marks. Legacy observations can omit them, which means no extra displayed marks were supplied. Render these same marks for the human; never add private clues for the model. Marks accept only these visible fields, with bounded cell indexes and counts. The postcard cap is 32 lines and 1,800 characters including line breaks.
 
-Keep the game engine and hackathon chrome separate. Wire this adapter to the agent attempt, irrespective of the active Human|Agent display tab. The two attempts start from the same seed and reveal moment. A standalone round advances after both attempts finish or reach its cap. In the authoritative Lovable timed stage, each side can repeat its own attempts until the shared stage deadline; retain the chosen model for that full stage. Hints are practice-only.
+Keep the game engine and hackathon chrome separate. Wire this adapter to the agent attempt, irrespective of the active Human|Agent display tab. The two attempts start from the same seed and reveal moment. In the scored battle, each side then keeps its own clock and calls `advance` only for itself. In the authoritative Lovable timed stage, each side can repeat its own attempts until the shared stage deadline; retain the chosen model for that full stage. Hints are practice-only.
 
 ```ts
 import { createLearnerMemory, finishLearnerRound } from "@/lib/puzzle/learner"
@@ -129,3 +129,12 @@ The runner makes at most one request at a time and rechecks the live board befor
 We score the pattern they carried forward, not the puzzle class they recognised.
 
 The SDK implementation follows the installed AI SDK structured output docs. The model and output format are described in the official [GPT-6 Astra model page](https://developers.openai.com/api/docs/models/gpt-6-astra) and [structured output guide](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses).
+
+## Decision backends
+
+The live Learner path is `openai-generate-text` through `/api/game-learner`. Two later backends are typed and unwired in `lib/battle-ground-ui/model-learner.ts`:
+
+- **TypeSafe Jev** (`typesafe/jev-1.13`): a Choice question over the public board. `jevActionRequest` builds the object and does not send it.
+- **OpenAI Decisions API**: preview only, no stable public schema. `openAIDecisionsRequest` is a placeholder and does not send it.
+
+`assertLearnerBackendWired` throws for both seams. `useLearnerDecisionBackend` reports the active backend as `openai-generate-text`. Do not add keys or call either seam from a route.
