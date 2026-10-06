@@ -1,7 +1,8 @@
 import { learnerDecisionSchema } from "@/lib/puzzle/model-learner"
 import { createOpenAI } from "@ai-sdk/openai"
-import { generateText, Output } from "ai"
+import { gateway, generateText, Output } from "ai"
 import { allowedLearnerModel } from "@/lib/learner-models"
+import { planLearnerMix } from "@/lib/battle-ground-ui/learner-providers"
 
 import {
   decideGameLearner,
@@ -63,6 +64,31 @@ export async function POST(request: Request) {
       { error: "Model is not allowed" },
       { status: 400, headers }
     )
+  const mix = parsed.data.mix ?? "astra"
+  if (mix !== "astra") {
+    const planned = await decideGameLearner(
+      {
+        ...parsed.data,
+        board: {
+          ...parsed.data.board,
+          remainingMs: Math.max(
+            0,
+            parsed.data.board.remainingMs - (performance.now() - started)
+          ),
+        },
+      },
+      async (visible, signal) => {
+        const plan = await planLearnerMix(visible, mix, signal)
+        return {
+          action: null,
+          patternClaim: plan.patternClaim,
+          placements: plan.placements,
+        }
+      },
+      request.signal
+    )
+    return Response.json(planned, { headers })
+  }
   const result = await decideGameLearner(
     {
       ...parsed.data,
@@ -75,24 +101,40 @@ export async function POST(request: Request) {
       },
     },
     async (visible, signal) => {
-      if (!process.env.OPENAI_API_KEY) throw new Error("Unconfigured")
-      const openai = createOpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        organization: process.env.OPENAI_ORG_ID,
+      const prompt = JSON.stringify({
+        board: visible.board,
+        priorClaims: visible.priorClaims,
       })
-      const { output } = await generateText({
-        model: openai.responses(selectedModel),
-        output: Output.object({ schema: learnerDecisionSchema }),
-        system: gameLearnerSystemPrompt,
-        prompt: JSON.stringify({
-          board: visible.board,
-          priorClaims: visible.priorClaims,
-        }),
-        abortSignal: signal,
-        maxRetries: 0,
-        providerOptions: { openai: { store: false, reasoningEffort: "low" } },
-      })
-      return output
+      if (process.env.OPENAI_API_KEY) {
+        const openai = createOpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+          organization: process.env.OPENAI_ORG_ID,
+        })
+        const { output } = await generateText({
+          model: openai.responses(selectedModel),
+          output: Output.object({ schema: learnerDecisionSchema }),
+          system: gameLearnerSystemPrompt,
+          prompt,
+          abortSignal: signal,
+          maxRetries: 0,
+          providerOptions: { openai: { store: false, reasoningEffort: "low" } },
+        })
+        return output
+      }
+      if (process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN) {
+        const { output } = await generateText({
+          model: gateway.languageModel(
+            selectedModel.includes("/") ? selectedModel : `openai/${selectedModel}`
+          ),
+          output: Output.object({ schema: learnerDecisionSchema }),
+          system: gameLearnerSystemPrompt,
+          prompt,
+          abortSignal: signal,
+          maxRetries: 0,
+        })
+        return output
+      }
+      throw new Error("Unconfigured")
     },
     request.signal
   )

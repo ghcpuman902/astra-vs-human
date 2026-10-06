@@ -8,7 +8,7 @@ try {
   for (const [folder, files] of Object.entries({
     puzzle: ["author", "types", "verifier", "model-learner"],
     "mini-game-rules": ["schema", "runtime", "verifier", "assembler"],
-    "battle-ground-ui": ["controller", "model-learner"],
+    "battle-ground-ui": ["controller", "learner-mix", "model-learner"],
   })) {
     await mkdir(join(output, folder))
     for (const file of files) {
@@ -38,6 +38,8 @@ try {
     openAIDecisionsRequest,
     assertLearnerBackendWired,
   } = await import(join(output, "battle-ground-ui/model-learner.js"))
+  const { expandPlacements, jevCommitBody, readJevCommit, applyCommit } =
+    await import(join(output, "battle-ground-ui/learner-mix.js"))
   for (const category of [
     "binary_fill",
     "crown",
@@ -146,9 +148,45 @@ try {
     assert.equal("transfer" in JSON.parse(jev.state), false)
     assert.equal("solution" in JSON.parse(decisions.input), false)
     assert.throws(
-      () => assertLearnerBackendWired("typesafe-jev"),
+      () => assertLearnerBackendWired("typesafe-jev", {}),
       /No request was sent/
     )
+    assert.doesNotThrow(() =>
+      assertLearnerBackendWired("typesafe-jev", { TYPESAFE_API_KEY: "present" })
+    )
+    const commit = jevCommitBody("public board only")
+    assert.equal(commit.model, "jev-1.13.0")
+    assert.equal(commit.state.includes("solution"), false)
+    assert.equal(readJevCommit({ answers: { commit: { choice: "one" } } }), "one")
+    assert.equal(applyCommit([1, 2, 3], "one").length, 1)
+    assert.equal(applyCommit([1, 2], "wait").length, 0)
+    assert.equal(applyCommit([1, 2], null).length, 2)
+    const expanded = expandPlacements(
+      [{ cell, cycles: 1 }],
+      board.cells.map((entry) => ({
+        visible: entry.visible,
+        locked: entry.locked,
+      }))
+    )
+    assert.deepEqual(expanded, [
+      { type: "selectCell", cell },
+      { type: "cycle" },
+    ])
+    const batch = createBattleGround([pack], { now: () => 0 })
+    const batchRunner = createGameLearnerRunner({
+      observe: () => batch.boardProps("learner"),
+      api: batch.actions("learner"),
+      memory: { claims: [], currentClaim: null },
+      decide: async () => ({
+        action: null,
+        patternClaim: null,
+        state: "decision",
+        placements: [{ cell, cycles: 1 }],
+      }),
+    })
+    assert.equal(await batchRunner.step(), true)
+    assert.equal(batch.boardProps("learner").actions, 2)
+    batchRunner.dispose()
     assert.throws(
       () => assertLearnerBackendWired("openai-decisions"),
       /No request was sent/

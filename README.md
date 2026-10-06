@@ -59,6 +59,21 @@ A rules pack supplies props to the frame. It does not set layout or colours. Cat
 - **Lovable / Cursor** — paper-craft UI. Cursor ports the Mac craft export. This lane does not restyle tokens.
 - **Codex** — packs, verifiers, and `/api/pack` plus `/api/game-pack`.
 - **Astra Learner** — `/api/learner` and `/api/game-learner`. Same eyes as the human. Default model `gpt-6-astra`.
+- **Learner mix** — One tap (Astra), Astra + Jev, or a batch plan played in the browser. Jev runs only when `TYPESAFE_API_KEY` or an AI Gateway credential is set.
+- **Agent vs Agent** — two learners, independent clocks. The human watches.
+
+## Learner credentials
+
+Set these in Vercel or `.env.local`. This repo does not ship values.
+
+| Name | Used for |
+| --- | --- |
+| `OPENAI_API_KEY` | Astra through OpenAI (`OPENAI_MODEL`, `OPENAI_ORG_ID` optional) |
+| `AI_GATEWAY_API_KEY` | Astra and Jev through the Vercel AI Gateway / AI SDK |
+| `VERCEL_OIDC_TOKEN` | Gateway auth on Vercel when the API key is unset |
+| `TYPESAFE_API_KEY` | Jev direct `POST /v1/systemone` (`TYPESAFE_BASE_URL` optional) |
+
+`GET /api/learner-mix` reports only whether each credential is present.
 - **Vercel** — [astra-vs-human.vercel.app](https://astra-vs-human.vercel.app)
 
 Next.js 16.3 (App Router) · React 19.3 · TypeScript · Tailwind 4 · shadcn/ui · pnpm 11.

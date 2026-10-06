@@ -5,6 +5,7 @@ import { Lock, LockOpen, Play } from "lucide-react"
 
 import { BattleField } from "@/components/lovable/battle-field"
 import { useLearnerModel } from "@/hooks/use-learner-model"
+import { useSideLearner } from "@/hooks/use-side-learner"
 import {
   createBattleGround,
   scoreTransfer,
@@ -12,18 +13,14 @@ import {
   type SideCursor,
 } from "@/lib/battle-ground-ui/controller"
 import {
-  createGameLearnerRunner,
-  fetchGameLearnerDecision,
-} from "@/lib/battle-ground-ui/model-learner"
-import {
   matchFamilies,
   orderByFamily,
   type FamilyMarks,
 } from "@/lib/battle-ground-ui/family-bias"
+import type { LearnerMixId } from "@/lib/battle-ground-ui/learner-mix"
 import type { MatchDeck } from "@/lib/battle-ground-ui/match-deck"
 import { packSchema, type GamePack } from "@/lib/mini-game-rules/schema"
 import { verifyGame } from "@/lib/mini-game-rules/verifier"
-import { createLearnerMemory, type LearnerMemory } from "@/lib/puzzle/learner"
 
 const MATCH_ID = "match"
 const names: Record<GamePack["category"], string> = {
@@ -48,6 +45,8 @@ const clock = (ms: number) => {
 
 export function BattleApp({ deck }: { deck: MatchDeck }) {
   const [packs, setPacks] = useState<readonly GamePack[] | null>(null)
+  const [arena, setArena] = useState<"play" | "watch">("play")
+  const [mix, setMix] = useState<LearnerMixId>("astra")
   const [cap, setCap] = useState(600000)
   const [practice, setPractice] = useState(false)
   const [session, setSession] = useState(0)
@@ -56,6 +55,10 @@ export function BattleApp({ deck }: { deck: MatchDeck }) {
   if (!packs) {
     return (
       <FamilyGate
+        arena={arena}
+        mix={mix}
+        onArena={setArena}
+        onMix={setMix}
         onPlay={(marks) => {
           const games = orderByFamily(deck.games, marks)
           setPacks(games.flatMap((game) => [...game.packs]))
@@ -67,6 +70,8 @@ export function BattleApp({ deck }: { deck: MatchDeck }) {
     <BattleSession
       key={`${session}:${cap}:${practice}:${packs.map((pack) => pack.seed).join("-")}`}
       packs={packs}
+      arena={arena}
+      mix={mix}
       gameCount={deck.gameCount}
       roundsPerGame={deck.roundsPerGame}
       cap={cap}
@@ -87,10 +92,59 @@ export function BattleApp({ deck }: { deck: MatchDeck }) {
   )
 }
 
-function FamilyGate({ onPlay }: { onPlay: (marks: FamilyMarks) => void }) {
+const mixCopy: Record<LearnerMixId, { label: string; detail: string }> = {
+  astra: {
+    label: "One tap",
+    detail: "Astra chooses a single control, then waits.",
+  },
+  "astra-jev": {
+    label: "Astra + Jev",
+    detail: "Astra drafts a short plan. Jev commits it when the server has a credential.",
+  },
+  "astra-hybrid": {
+    label: "Batch plan",
+    detail: "Astra names several cells. This browser plays that plan in one burst.",
+  },
+}
+
+function FamilyGate({
+  arena,
+  mix,
+  onArena,
+  onMix,
+  onPlay,
+}: {
+  arena: "play" | "watch"
+  mix: LearnerMixId
+  onArena: (arena: "play" | "watch") => void
+  onMix: (mix: LearnerMixId) => void
+  onPlay: (marks: FamilyMarks) => void
+}) {
   const families = matchFamilies()
   const [played, setPlayed] = useState<readonly string[]>([])
   const [disliked, setDisliked] = useState<readonly string[]>([])
+  const [servers, setServers] = useState<{
+    openai: boolean
+    gateway: boolean
+    jev: boolean
+  } | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/learner-mix")
+      .then((response) => response.json())
+      .then((body: { openai?: unknown; gateway?: unknown; jev?: unknown }) => {
+        if (cancelled) return
+        setServers({
+          openai: body.openai === true,
+          gateway: body.gateway === true,
+          jev: body.jev === true,
+        })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
   const toggle = (
     id: string,
     selected: readonly string[],
@@ -115,8 +169,55 @@ function FamilyGate({ onPlay }: { onPlay: (marks: FamilyMarks) => void }) {
         <h1>What have you played?</h1>
         <p>
           New families come first. Ones you want less of move later. All five
-          still appear.
+          still appear. Then pick who plays, and how the learner plans.
         </p>
+        <fieldset className="choice-row">
+          <legend>Who plays</legend>
+          <button
+            type="button"
+            className="paper-button"
+            aria-pressed={arena === "play"}
+            onClick={() => onArena("play")}
+          >
+            You vs Agent
+          </button>
+          <button
+            type="button"
+            className="paper-button"
+            aria-pressed={arena === "watch"}
+            onClick={() => onArena("watch")}
+          >
+            Agent vs Agent
+          </button>
+        </fieldset>
+        <fieldset className="choice-row">
+          <legend>Learner</legend>
+          {(Object.keys(mixCopy) as LearnerMixId[]).map((id) => (
+            <button
+              key={id}
+              type="button"
+              className="paper-button"
+              aria-pressed={mix === id}
+              onClick={() => onMix(id)}
+            >
+              {mixCopy[id].label}
+            </button>
+          ))}
+          <p>{mixCopy[mix].detail}</p>
+          <p>
+            {arena === "watch"
+              ? "You watch both boards. Each agent keeps its own clock."
+              : "You play the left board. The agent plays the right."}
+            {servers
+              ? servers.jev
+                ? " Jev can run on this server."
+                : " Jev is not configured here. Astra still plays."
+              : ""}
+            {servers && !servers.openai && !servers.gateway
+              ? " No model credential is set, so the agent will wait."
+              : ""}
+          </p>
+        </fieldset>
         <ul className="family-list" aria-label="Puzzle families">
           {families.map((family) => (
             <li key={family.id} className="family-row">
@@ -157,6 +258,8 @@ function FamilyGate({ onPlay }: { onPlay: (marks: FamilyMarks) => void }) {
 
 function BattleSession({
   packs,
+  arena,
+  mix,
   gameCount,
   roundsPerGame,
   cap,
@@ -170,6 +273,8 @@ function BattleSession({
   onReplaceFirst,
 }: {
   packs: readonly GamePack[]
+  arena: "play" | "watch"
+  mix: LearnerMixId
   gameCount: number
   roundsPerGame: number
   cap: number
@@ -200,8 +305,7 @@ function BattleSession({
   const { getModel, endRound, startRound } = models
   const [started, setStarted] = useState(false)
   const [rulesShown, setRulesShown] = useState(false)
-  const [agentStatus, setAgentStatus] = useState("Ready")
-  const [claim, setClaim] = useState("")
+  const watching = arena === "watch"
   const [lastCell, setLastCell] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -217,6 +321,28 @@ function BattleSession({
   const learnerPlaying =
     started && snapshot.attempts.learner.status === "playing"
   const armed = started && !snapshot.matchComplete
+  const leftLearner = useSideLearner({
+    enabled: watching,
+    side: "human",
+    battle,
+    packs,
+    started,
+    mix,
+    getModel,
+  })
+  const rightLearner = useSideLearner({
+    enabled: true,
+    side: "learner",
+    battle,
+    packs,
+    started,
+    mix,
+    getModel,
+  })
+  const agentStatus = rightLearner.status
+  const claim = rightLearner.claim
+  const leftName = watching ? "Agent A" : "Human"
+  const rightName = watching ? "Agent B" : "Agent"
 
   useEffect(() => {
     if (!notice) return
@@ -233,99 +359,8 @@ function BattleSession({
     endRound(MATCH_ID)
   }, [endRound, snapshot.matchComplete])
   useEffect(() => {
-    if (!started) return
-    let disposed = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const memory = createLearnerMemory()
-    const memories: Record<string, LearnerMemory> = {}
-    const closed = new Set<number>()
-    let family: string | null = null
-    const syncMemory = () => {
-      const pack = packs[battle.getSnapshot().cursors.learner.index]
-      const nextFamily = transferGroup(pack)
-      if (family === nextFamily) return
-      if (family === null) {
-        family = nextFamily
-        memories[nextFamily] = {
-          claims: [...memory.claims],
-          currentClaim: null,
-        }
-        memory.currentClaim = null
-        return
-      }
-      memories[family] = {
-        claims: [...memory.claims],
-        currentClaim: memory.currentClaim,
-      }
-      family = nextFamily
-      const stored = memories[nextFamily] ?? createLearnerMemory()
-      memories[nextFamily] = stored
-      memory.claims = [...stored.claims]
-      memory.currentClaim = null
-    }
-    const runner = createGameLearnerRunner({
-      observe: () => battle.boardProps("learner"),
-      api: battle.actions("learner"),
-      memory,
-      model: getModel,
-      decide: async (request, signal) => {
-        if (!disposed) setAgentStatus("Thinking")
-        const result = await fetchGameLearnerDecision(request, signal)
-        if (!disposed) {
-          setAgentStatus(
-            result.state === "decision"
-              ? `Playing · ${result.action?.type ?? "wait"}`
-              : result.reason === "deadline"
-                ? "Thinking took too long; retrying"
-                : result.reason === "unavailable"
-                  ? "Connection unavailable; retrying"
-                  : "Considering next move"
-          )
-          if (result.patternClaim) setClaim(result.patternClaim)
-        }
-        return result
-      },
-    })
-    const unsubscribe = battle.subscribe(runner.sync)
-    const closeRound = () => {
-      const snap = battle.getSnapshot()
-      const seed = snap.seeds.learner
-      if (snap.attempts.learner.status === "playing" || closed.has(seed)) return
-      closed.add(seed)
-      const line = memory.currentClaim
-      if (line && !memory.claims.includes(line)) memory.claims.push(line)
-      if (line) battle.claim("learner", line)
-      memory.currentClaim = null
-    }
-    async function loop() {
-      if (disposed) return
-      const snap = battle.getSnapshot()
-      if (snap.attempts.learner.status !== "playing") {
-        closeRound()
-        if (!battle.advance("learner")) {
-          if (!disposed) setAgentStatus(snap.attempts.learner.status)
-          return
-        }
-        if (!disposed) setClaim("")
-        syncMemory()
-      }
-      try {
-        await runner.step()
-      } catch {
-        if (!disposed) setAgentStatus("Connection interrupted; retrying")
-      }
-      if (!disposed) timer = setTimeout(() => void loop(), 500)
-    }
-    void loop()
-    return () => {
-      disposed = true
-      if (timer) clearTimeout(timer)
-      unsubscribe()
-      runner.dispose()
-    }
-  }, [battle, getModel, packs, started])
-  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (watching) return
       if (
         event.key.toLowerCase() !== "z" ||
         event.metaKey ||
@@ -346,7 +381,7 @@ function BattleSession({
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [battle])
+  }, [battle, watching])
 
   async function generate(transfer: boolean) {
     if (busy || armed) {
@@ -411,6 +446,7 @@ function BattleSession({
     setStarted(true)
   }
   const handleTap = (cell: number) => {
+    if (watching) return
     setLastCell(cell)
     const actions = battle.actions("human")
     actions.selectCell(cell)
@@ -430,7 +466,7 @@ function BattleSession({
         <div className="match-progress" aria-label="Human and Agent match progress">
           {(["human", "learner"] as const).map((side) => {
             const cursor = snapshot.cursors[side]
-            const label = side === "human" ? "Human" : "Agent"
+            const label = side === "human" ? leftName : rightName
             return (
               <section key={side} className="match-side" aria-label={`${label} progress`}>
                 <header>
@@ -484,7 +520,9 @@ function BattleSession({
         <div className="brand-block">
           <div className="wordmark">astra-vs-human</div>
           <p className="match-lede">
-            You play the left board. The agent plays the right, on its own clock.
+            {watching
+              ? "Two agents, two clocks. You watch. Next does not move either of them."
+              : "You play the left board. The agent plays the right, on its own clock."}
           </p>
         </div>
         <div className="battle-settings">
@@ -538,6 +576,7 @@ function BattleSession({
             data-slot="match-next"
             disabled={
               busy ||
+              (watching && started) ||
               (!rulesShown
                 ? false
                 : !started
@@ -557,22 +596,32 @@ function BattleSession({
             }}
           >
             <Play />
-            {!rulesShown ? "Show rules" : !started ? "Start both" : nextLabel}
+            {!rulesShown
+              ? "Show rules"
+              : !started
+                ? "Start both"
+                : watching
+                  ? "Watching"
+                  : nextLabel}
           </button>
           <p className="match-hint">
-            {!rulesShown
-              ? "Rules are the same for both players."
-              : !started
-                ? models.status === "ready"
-                  ? "Start begins both clocks together."
-                  : "Learner model is loading."
-                : !humanDone
-                  ? "Next stays yours. The agent is not moved."
-                  : learnerPlaying
-                    ? "The agent is still on its round."
-                    : snapshot.canAdvance.human
-                      ? "Your next board. The agent keeps going."
-                      : "Both sides finished this match."}
+            {watching && started
+              ? "You are watching. Each agent keeps its own clock."
+              : !rulesShown
+                ? "Rules are the same for both players."
+                : !started
+                  ? models.status === "ready"
+                    ? watching
+                      ? "Start begins both agent clocks."
+                      : "Start begins both clocks together."
+                    : "Learner model is loading."
+                  : !humanDone
+                    ? "Next stays yours. The agent is not moved."
+                    : learnerPlaying
+                      ? "The agent is still on its round."
+                      : snapshot.canAdvance.human
+                        ? "Your next board. The agent keeps going."
+                        : "Both sides finished this match."}
           </p>
         </div>
       </header>
@@ -592,7 +641,12 @@ function BattleSession({
         learnerBoard={learnerBoard}
         humanActions={humanAttempt.state.actions}
         learnerActions={learnerAttempt.state.actions}
-        humanStatus={humanAttempt.status}
+        humanTitle={leftName}
+        learnerTitle={rightName}
+        humanInteractive={!watching}
+        humanStatus={
+          watching && started ? leftLearner.status : humanAttempt.status
+        }
         learnerStatus={learnerAttempt.status}
         canUndo={humanAttempt.state.history.length > 0}
         agentStatus={agentStatus}
@@ -600,7 +654,7 @@ function BattleSession({
         invalidIndex={showInvalid ? lastCell : null}
         rulesShown={rulesShown}
         humanDone={humanDone}
-        agentWorking={humanDone && learnerPlaying}
+        agentWorking={!watching && humanDone && learnerPlaying}
         splitBoards={snapshot.seeds.human !== snapshot.seeds.learner}
         onTap={handleTap}
         onUndo={() => battle.actions("human").undo()}
@@ -648,7 +702,7 @@ function BattleSession({
               ).length
               return (
                 <span key={side}>
-                  <strong>{side === "human" ? "Human" : "Agent"}</strong> ·{" "}
+                  <strong>{side === "human" ? leftName : rightName}</strong> ·{" "}
                   {names[packs[cursor.index].category]} ·{" "}
                   {score.eligible
                     ? `action slope ${score.actionSlope?.toFixed(1)} per round${score.actionsFalling ? " · actions falling" : ""}`

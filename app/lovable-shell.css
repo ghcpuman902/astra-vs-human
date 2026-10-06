@@ -151,10 +151,30 @@
   flex: none;
   gap: var(--s-1);
 }
-.family-row button[aria-pressed="true"] {
+.family-row button[aria-pressed="true"],
+.choice-row button[aria-pressed="true"] {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--canvas);
+}
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.choice-row legend {
+  flex-basis: 100%;
+  font: var(--t-ui);
+}
+.choice-row p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ink-secondary);
+  font: var(--t-badge);
 }
 .match-progress {
   grid-area: progress;

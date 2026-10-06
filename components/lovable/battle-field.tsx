@@ -8,6 +8,9 @@ import type { GamePack } from "@/lib/mini-game-rules/schema"
 type BattleFieldProps = {
   pack: GamePack
   practice: boolean
+  humanTitle?: string
+  learnerTitle?: string
+  humanInteractive?: boolean
   started: boolean
   finished: boolean
   humanBoard: BoardProps
@@ -32,6 +35,9 @@ type BattleFieldProps = {
 export const BattleField = ({
   pack,
   practice,
+  humanTitle = "Human",
+  learnerTitle = "Agent",
+  humanInteractive = true,
   started,
   finished,
   humanBoard,
@@ -53,7 +59,7 @@ export const BattleField = ({
   onClear,
 }: BattleFieldProps) => {
   const card = postcards[pack.category]
-  const playing = started && humanBoard.status === "playing"
+  const playing = started && humanInteractive && humanBoard.status === "playing"
   return (
     <div className="battle-field">
       <section
@@ -64,7 +70,7 @@ export const BattleField = ({
       >
         <header className="arena-header">
           <strong>
-            HUMAN
+            {humanTitle}
             {humanDone ? <em className="done-mark">Done</em> : null}
           </strong>
           <span>
@@ -83,7 +89,11 @@ export const BattleField = ({
             />
           ) : (
             <div className="puzzle-cover">
-              <span>Your board. Rules are shared, then both clocks start.</span>
+              <span>
+                {humanInteractive
+                  ? "Your board. Rules are shared, then both clocks start."
+                  : "Agent A. It plays this board on its own clock."}
+              </span>
             </div>
           )}
         </div>
@@ -155,7 +165,7 @@ export const BattleField = ({
       >
         <header className="arena-header">
           <strong>
-            AGENT
+            {learnerTitle}
             {agentWorking ? <em className="behind-mark">Still here</em> : null}
           </strong>
           <span>

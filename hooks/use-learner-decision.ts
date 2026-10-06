@@ -9,8 +9,8 @@ import {
 
 /**
  * The scored Learner still calls `/api/game-learner`.
- * `typesafe-jev` and `openai-decisions` are listed so a later switch stays typed.
- * This hook does not fetch either seam.
+ * Jev is reached from that route only when a server credential is set.
+ * This hook does not fetch Jev or the Decisions seam.
  */
 export const useLearnerDecisionBackend = () =>
   useMemo(
