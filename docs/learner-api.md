@@ -1,5 +1,34 @@
 # L0 live Learner
 
+## Cursor's exported stage
+
+The authoritative Lovable `createStage` exposes `match.getSnapshot`, `match.subscribe`, `started`, `ended`, and `actions(side)`. It has no `observe` method. Use this single headless hook call inside Cursor's stage shell:
+
+```ts
+import { useStageLearner } from "@/hooks/use-stage-learner"
+import { displayedMarks } from "@/lib/puzzle/stage-observation"
+import { useMemo } from "react"
+
+// Keep stage, pack, publicMarks, and memory stable across ordinary renders.
+// publicMarks must be derived from the exact clue props rendered for the human.
+const publicMarks = useMemo(() => displayedMarks(pack.n, publicBoard), [pack.n, publicBoard])
+const learner = useStageLearner({
+  stage,
+  pack,
+  publicMarks,
+  memory,
+  model: frozenRoundModel,
+  running: agentEnabled,
+})
+// learner.status: idle | thinking | playing | wait | finished | error
+// learner.lastAction: last counted action, or null
+// learner.waitReason: deadline | unavailable | invalid-decision | inactive
+```
+
+Memoize `displayedMarks` from stable public-board props before passing it to the hook. The hook waits for the existing Start control, then makes serial real `/api/learner` decisions every 250 ms after the preceding response. It uses the stage's Learner action controls and never writes to the human attempt. UI clock updates should continue calling the existing `stage.match.tick`; inference never pauses either clock. Replacing the stage or seed disposes pending work. Stopping `running`, stage expiry, and component teardown cancel inference. The hook waits through same-seed stage respawns, discards decisions from the previous attempt, and retains one-line claims in the supplied memory.
+
+No page, grid, Start control, picker, or layout is supplied by this hook. Cursor owns those components. The observation adapter bounds the exported stage's effectively unlimited action counter to the public request limits, and sends the displayed quota/friend marks without sending pack constraints or verifier data. The fixture test reads and transpiles the exported stage source only, using an injected policy. Run `node scripts/check-stage-learner.mjs /absolute/path/to/export/src/lib/puzzle` to check a new export.
+
 ## Cursor model picker wiring
 
 `GET /api/learner-models` returns `{ models: [{ id, label }], defaultModel }`. Verified default choices are `gpt-6-astra`, `gpt-6.1-sol`, and `gpt-6-luna`, listed in the official [OpenAI model catalogue](https://developers.openai.com/api/docs/models). `OPENAI_MODEL` sets the preferred default. Server `LEARNER_MODELS` can supply a comma-separated replacement allowlist. If that list excludes the preferred default, its first allowed model is the default. Configured identifiers still require API access in the hosting account; the catalogue is not a live access probe.
