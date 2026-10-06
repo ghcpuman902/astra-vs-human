@@ -84,8 +84,83 @@
   border-bottom: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
 }
 .battle-top .wordmark {
-  grid-area: brand;
   font: var(--t-ui);
+}
+.brand-block {
+  grid-area: brand;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+}
+.round-marks {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.large-round {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 2px solid var(--border-strong);
+  background: var(--canvas);
+  color: var(--ink);
+  line-height: 1;
+}
+.large-round strong {
+  font: var(--t-title);
+}
+.large-round span {
+  font: var(--t-badge);
+  color: var(--ink-secondary);
+}
+.small-rounds {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.small-round {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--ink-secondary);
+  background: var(--canvas);
+  color: var(--ink);
+  font: var(--t-badge);
+}
+.small-round[data-current="true"] {
+  border: 2px solid var(--border-strong);
+}
+.small-round[data-done="true"] {
+  background: var(--ink);
+  color: var(--canvas);
+  border-color: var(--ink);
+}
+.small-round[data-agent="true"] {
+  outline: 2px dashed var(--ink-secondary);
+  outline-offset: 2px;
+}
+.done-mark,
+.behind-mark {
+  margin-left: var(--s-2);
+  font: var(--t-badge);
+  font-style: normal;
+}
+.done-mark {
+  color: var(--ink);
+}
+.behind-mark {
+  color: var(--ink-secondary);
+}
+.battle-arena[data-done="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+.battle-arena[data-behind="true"] {
+  outline: 2px dashed var(--ink-secondary);
+  outline-offset: -2px;
 }
 .battle-settings {
   grid-area: settings;

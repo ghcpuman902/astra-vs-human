@@ -25,7 +25,11 @@ type BattleFieldProps = {
   claim: string
   invalidIndex: number | null
   rulesShown: boolean
+  humanDone: boolean
+  agentWorking: boolean
+  nextLabel: string
   onReveal: () => void
+  onNext: () => void
   onStart: () => void
   onTap: (cell: number) => void
   onUndo: () => void
@@ -57,7 +61,11 @@ export const BattleField = ({
   claim,
   invalidIndex,
   rulesShown,
+  humanDone,
+  agentWorking,
+  nextLabel,
   onReveal,
+  onNext,
   onStart,
   onTap,
   onUndo,
@@ -70,10 +78,14 @@ export const BattleField = ({
       <section
         className="battle-arena"
         data-player="human"
+        data-done={humanDone || undefined}
         aria-label="Human game"
       >
         <header className="arena-header">
-          <strong>HUMAN</strong>
+          <strong>
+            HUMAN
+            {humanDone ? <em className="done-mark">Done</em> : null}
+          </strong>
           <span>
             {clock(humanElapsedMs)} · {humanActions} actions ·{" "}
             {started ? humanStatus : "ready"}
@@ -141,10 +153,11 @@ export const BattleField = ({
           <button
             type="button"
             className="primary-button"
-            disabled={loading || started}
+            disabled={loading || (started && !humanDone)}
             onClick={() => {
               if (!rulesShown) onReveal()
               else if (!started) onStart()
+              else if (humanDone) onNext()
             }}
           >
             <Play />
@@ -152,14 +165,18 @@ export const BattleField = ({
               ? "Show rules"
               : !started
                 ? "Start both"
-                : finished
-                  ? "Both finished"
+                : humanDone
+                  ? nextLabel
                   : clock(remainingMs)}
           </button>
           <span className="stage-progress">
-            {practice
-              ? "Practice · excluded from scores"
-              : `Typical ${pack.session.targetSeconds}s · LEARNER`}
+            {agentWorking
+              ? "Agent still on this puzzle. You can move on."
+              : practice
+                ? "Practice · excluded from scores"
+                : humanDone
+                  ? "This puzzle is done."
+                  : `Typical ${pack.session.targetSeconds}s · LEARNER`}
           </span>
         </div>
         {rulesShown ? (
@@ -188,10 +205,14 @@ export const BattleField = ({
       <section
         className="battle-arena"
         data-player="learner"
+        data-behind={agentWorking || undefined}
         aria-label="Agent game"
       >
         <header className="arena-header">
-          <strong>AGENT</strong>
+          <strong>
+            AGENT
+            {agentWorking ? <em className="behind-mark">Still here</em> : null}
+          </strong>
           <span>
             {clock(learnerElapsedMs)} · {learnerActions} actions · LEARNER
             {started ? ` · ${learnerStatus}` : " · ready"}

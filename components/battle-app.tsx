@@ -48,9 +48,12 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
   const [records, setRecords] = useState<BattleRecord[]>([])
   const [cap, setCap] = useState(600000)
   const [memory, setMemory] = useState(createLearnerMemory)
+  const [largeRound, setLargeRound] = useState(1)
+  const [smallDone, setSmallDone] = useState<number[]>([])
+  const [agentBehind, setAgentBehind] = useState(false)
   const memories = useRef<Record<string, LearnerMemory>>({})
   const models = useLearnerModel()
-  const roundId = `${pack.seed}:${revision}`
+  const roundId = `large-${largeRound}`
   const family = `${pack.category}:${pack.n}:${pack.mode}:${pack.visibility.kind}:${pack.transfer.family}`
 
   async function generate(transfer: boolean) {
@@ -87,6 +90,8 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
       setSource(
         `${result.meta.source} · ${(result.meta.elapsedMs / 1000).toFixed(1)}s`
       )
+      setSmallDone((current) => current.filter((index) => index !== selected))
+      setAgentBehind(false)
       setRevision((v) => v + 1)
     } catch (cause) {
       setError(
@@ -101,9 +106,13 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
     const timer = setTimeout(() => setNotice(null), 1600)
     return () => clearTimeout(timer)
   }, [notice])
-  function pick(index: number, event?: { clientX: number; clientY: number }) {
+  function pick(
+    index: number,
+    event?: { clientX: number; clientY: number },
+    force = false
+  ) {
     if (index === selected) return
-    if (locked || busy) {
+    if (!force && (locked || busy)) {
       setNotice({
         x: event?.clientX ?? 24,
         y: event?.clientY ?? 24,
@@ -122,13 +131,57 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
     setRevision((v) => v + 1)
     setError(null)
   }
-  const roundNumber =
-    records.filter((record) => record.side === "human" && record.seed !== pack.seed)
-      .length + 1
+  function goNext() {
+    const next = selected + 1
+    if (next >= fixtures.length) {
+      models.endRound(roundId)
+      setLargeRound((current) => current + 1)
+      setSmallDone([])
+      setAgentBehind(false)
+      pick(0, undefined, true)
+      return
+    }
+    pick(next, undefined, true)
+  }
   return (
     <main className="battle-ground">
       <header className="battle-top">
-        <div className="wordmark">astra-vs-human · Round {roundNumber}</div>
+        <div className="brand-block">
+          <div className="wordmark">astra-vs-human</div>
+          <div
+            className="round-marks"
+            aria-label={`Large round ${largeRound}, puzzle ${selected + 1} of ${fixtures.length}`}
+          >
+            <div className="large-round">
+              <strong>{largeRound}</strong>
+              <span>Round</span>
+            </div>
+            <div className="small-rounds">
+              {fixtures.map((fixture, index) => (
+                <span
+                  key={fixture.category}
+                  className="small-round"
+                  data-current={index === selected || undefined}
+                  data-done={smallDone.includes(index) || undefined}
+                  data-agent={
+                    index === selected && agentBehind ? true : undefined
+                  }
+                  aria-label={
+                    index === selected && agentBehind
+                      ? `Puzzle ${index + 1}, you are done, agent still here`
+                      : smallDone.includes(index)
+                        ? `Puzzle ${index + 1}, done`
+                        : index === selected
+                          ? `Puzzle ${index + 1}, current`
+                          : `Puzzle ${index + 1}`
+                  }
+                >
+                  {index + 1}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
         <div className="battle-settings">
           <label>
             Learner{" "}
@@ -210,7 +263,7 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
         </span>
       </div>
       <Round
-        key={`${pack.seed}:${revision}:${cap}:${practice}`}
+        key={`${largeRound}:${pack.seed}:${revision}:${cap}:${practice}`}
         pack={pack}
         cap={cap}
         practice={practice}
@@ -219,10 +272,18 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
         modelsReady={models.status === "ready"}
         getModel={models.getModel}
         onBegin={() => models.startRound(roundId)}
-        onFinish={() => {
-          models.endRound(roundId)
-        }}
         onLock={(value) => setLocked(value && !practice)}
+        onHumanDone={() => {
+          setLocked(false)
+          setSmallDone((current) =>
+            current.includes(selected) ? current : [...current, selected]
+          )
+        }}
+        onAgentBehind={setAgentBehind}
+        onNext={goNext}
+        nextLabel={
+          selected + 1 >= fixtures.length ? "Next round" : "Next puzzle"
+        }
         onEnd={(roundRecords) =>
           !practice &&
           setRecords((previous) => [
@@ -307,9 +368,12 @@ function Round({
   modelsReady,
   getModel,
   onBegin,
-  onFinish,
   onLock,
   onEnd,
+  onHumanDone,
+  onAgentBehind,
+  onNext,
+  nextLabel,
 }: {
   pack: GamePack
   cap: number
@@ -319,9 +383,12 @@ function Round({
   modelsReady: boolean
   getModel: () => string | undefined
   onBegin: () => string | undefined
-  onFinish: () => void
   onLock: (locked: boolean) => void
   onEnd: (records: BattleRecord[]) => void
+  onHumanDone: () => void
+  onAgentBehind: (behind: boolean) => void
+  onNext: () => void
+  nextLabel: string
 }) {
   const [battle] = useState(() =>
     createBattleGround([pack], {
@@ -340,10 +407,11 @@ function Round({
   const [agentStatus, setAgentStatus] = useState("Ready")
   const [claim, setClaim] = useState("")
   const [lastCell, setLastCell] = useState<number | null>(null)
-  const finished =
-    snapshot.attempts.human.status !== "playing" &&
-    snapshot.attempts.learner.status !== "playing"
+  const humanDone = started && snapshot.attempts.human.status !== "playing"
+  const agentWorking = started && snapshot.attempts.learner.status === "playing"
+  const finished = humanDone && !agentWorking
   const ended = useRef(false)
+  const humanReleased = useRef(false)
   useEffect(() => {
     if (!started) return
     const timer = setInterval(battle.tick, 250)
@@ -402,14 +470,22 @@ function Round({
     }
   }, [battle, getModel, memory, started])
   useEffect(() => {
+    if (!humanDone || humanReleased.current) return
+    humanReleased.current = true
+    onLock(false)
+    onHumanDone()
+    onEnd([...snapshot.records])
+  }, [humanDone, onEnd, onHumanDone, onLock, snapshot.records])
+  useEffect(() => {
+    onAgentBehind(humanDone && agentWorking)
+  }, [agentWorking, humanDone, onAgentBehind])
+  useEffect(() => {
     if (!finished || ended.current) return
     ended.current = true
     if (memory.currentClaim && !memory.claims.includes(memory.currentClaim))
       memory.claims.push(memory.currentClaim)
-    onLock(false)
-    onFinish()
     onEnd([...snapshot.records])
-  }, [finished, memory, onEnd, onFinish, onLock, snapshot.records])
+  }, [finished, memory, onEnd, snapshot.records])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (
@@ -478,7 +554,11 @@ function Round({
       claim={claim}
       invalidIndex={showInvalid ? lastCell : null}
       rulesShown={rulesShown}
+      humanDone={humanDone}
+      agentWorking={humanDone && agentWorking}
+      nextLabel={nextLabel}
       onReveal={() => setRulesShown(true)}
+      onNext={onNext}
       onStart={handleStart}
       onTap={handleTap}
       onUndo={() => battle.actions("human").undo()}
