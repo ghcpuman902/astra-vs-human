@@ -1,5 +1,38 @@
 # L0 live Learner
 
+## Cursor model picker wiring
+
+`GET /api/learner-models` returns `{ models: [{ id, label }], defaultModel }`. Verified default choices are `gpt-6-astra`, `gpt-6.1-sol`, and `gpt-6-luna`, listed in the official [OpenAI model catalogue](https://developers.openai.com/api/docs/models). `OPENAI_MODEL` sets the preferred default. Server `LEARNER_MODELS` can supply a comma-separated replacement allowlist. If that list excludes the preferred default, its first allowed model is the default. Configured identifiers still require API access in the hosting account; the catalogue is not a live access probe.
+
+Both `/api/learner` and `/api/game-learner` accept optional top-level `model`. The server rejects a model outside the allowlist with HTTP 400 before invoking OpenAI. Omitting `model` preserves the server default. Model selection changes only the provider model and is excluded from the puzzle prompt.
+
+Use the typed hook in Cursor's shell. It fetches model choices and freezes selection for a round, without providing UI components.
+
+```ts
+import { useLearnerModel } from "@/hooks/use-learner-model"
+
+const learnerModel = useLearnerModel()
+// Build the picker from learnerModel.models and learnerModel.selectedModel.
+// Disable it until status === 'ready' and whenever isFrozen is true.
+// Its change handler calls learnerModel.selectModel(id).
+// Before starting a round, freeze and record the chosen model:
+const roundModel = learnerModel.startRound(seed)
+if (!roundModel) return // choices still loading or another round remains frozen
+
+const runner = createGameLearnerRunner({
+  observe: () => battle.boardProps("learner"),
+  api: battle.actions("learner"),
+  memory,
+  model: learnerModel.getModel,
+})
+// Keep that same runner and model for the full round.
+// After both sides finish or hit a cap, cancel pending inference before unlocking:
+runner.cancel()
+learnerModel.endRound(seed)
+```
+
+`selectModel` returns false during a round or for an unavailable ID. `startRound` is idempotent for the same round ID and rejects a different active round. `endRound` only unlocks its matching ID. `getModel` is stable and returns the frozen selection. Both runner types accept `model: () => string | undefined`; a changed model cancels and discards pending decisions. The API stays stateless, so freezing scored rounds is the shell's responsibility. Do not recreate a runner or change the chosen model during an active attempt.
+
 The five-category demo uses `POST /api/game-learner` with `{ board: BoardProps, priorClaims }`. This endpoint accepts only the public board contract from `battle.boardProps("learner")`. It validates binary clues, crown exclusions, path checkpoints, tile port marks, or the lights neighbourhood according to `category`. Full pack records, transfer patterns, audit data, solutions, and win-predicate internals are rejected. A hidden cell must have `value: null` and no selected or locked flag. The response uses the same single-action/wait shape and deadline as the binary adapter below.
 
 ```ts
