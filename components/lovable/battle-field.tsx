@@ -61,7 +61,7 @@ export const BattleField = ({
   const card = postcards[pack.category]
   const playing = started && humanInteractive && humanBoard.status === "playing"
   return (
-    <div className="battle-field">
+    <div className="battle-field" id="boards">
       <section
         className="battle-arena"
         data-player="human"

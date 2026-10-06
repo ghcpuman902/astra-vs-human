@@ -254,6 +254,9 @@ function FamilyGate({
   const watching = arena === "watch"
   return (
     <main className="battle-ground is-setup">
+      <a className="skip-link" href="#start-match">
+        Skip to start
+      </a>
       <form
         className="family-gate"
         onSubmit={(event) => {
@@ -354,7 +357,7 @@ function FamilyGate({
             onMix={onRightMix}
           />
         )}
-        <button type="submit" className="primary-button">
+        <button id="start-match" type="submit" className="primary-button">
           Start
         </button>
       </form>
@@ -451,10 +454,10 @@ function BattleSession({
   const claim = rightLearner.claim
   const modeName = (mix: LearnerMixId) =>
     mixCopy[mix as (typeof learnerModeIds)[number]]?.label ?? "Astra"
-  const leftName = watching ? `Agent A · ${modeName(leftMix)}` : "Human"
-  const rightName = watching
-    ? `Agent B · ${modeName(rightMix)}`
-    : `Agent · ${modeName(rightMix)}`
+  const leftName = watching ? "Agent A" : "Human"
+  const rightName = watching ? "Agent B" : "Agent"
+  const leftAbility = watching ? modeName(leftMix) : "Your taps"
+  const rightAbility = modeName(rightMix)
 
   useEffect(() => {
     if (!notice) return
@@ -574,6 +577,9 @@ function BattleSession({
       : "Next round"
   return (
     <main className="battle-ground">
+      <a className="skip-link" href="#boards">
+        Skip to boards
+      </a>
       <header className="battle-top">
         <div className="match-progress" aria-label="Human and Agent match progress">
           {(["human", "learner"] as const).map((side) => {
@@ -587,6 +593,9 @@ function BattleSession({
                     {clock(snapshot.remainingMs[side])}
                   </span>
                 </header>
+                <span className="match-ability">
+                  {side === "human" ? leftAbility : rightAbility}
+                </span>
                 <span className="match-round">
                   {roundText(cursor, gameCount, roundsPerGame)}
                 </span>
