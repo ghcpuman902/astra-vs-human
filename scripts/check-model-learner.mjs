@@ -8,6 +8,14 @@ const routeArtifact = new URL(
   "../_agent/check-learner-route.mjs",
   import.meta.url
 )
+const matchArtifact = new URL(
+  "../_agent/check-learner-match.mjs",
+  import.meta.url
+)
+const verifierArtifact = new URL(
+  "../_agent/check-learner-verifier.mjs",
+  import.meta.url
+)
 try {
   const source = await readFile(
     new URL("../lib/puzzle/model-learner.ts", import.meta.url),
@@ -41,6 +49,80 @@ try {
     observation: view,
     priorClaims: ["ABA may force the middle friend."],
   }
+  for (const [file, target] of [
+    ["match", matchArtifact],
+    ["verifier", verifierArtifact],
+  ]) {
+    const moduleSource = await readFile(
+      new URL(`../lib/puzzle/${file}.ts`, import.meta.url),
+      "utf8"
+    )
+    await writeFile(
+      target,
+      ts
+        .transpileModule(moduleSource, {
+          compilerOptions: {
+            target: ts.ScriptTarget.ES2022,
+            module: ts.ModuleKind.ES2022,
+          },
+        })
+        .outputText.replace('"./verifier"', '"./check-learner-verifier.mjs"')
+    )
+  }
+  const { createMatch } = await import(matchArtifact.href)
+  const cached = JSON.parse(
+    await readFile(
+      new URL("../lib/puzzle/packs-cache.json", import.meta.url),
+      "utf8"
+    )
+  )
+  for (const pack of cached) {
+    const match = createMatch([pack], {
+      now: () => 0,
+      actionCap: 300,
+      timeCapMs: 60_000,
+    })
+    assert.equal(
+      learnerRequestSchema.safeParse({
+        observation: match.observe("learner"),
+        priorClaims: [],
+      }).success,
+      true,
+      `Cached pack ${pack.seed} must reach the live Learner`
+    )
+    const learnerMarks = match.observe("learner").publicMarks
+    assert.deepEqual(learnerMarks, match.observe("human").publicMarks)
+    assert.deepEqual(learnerMarks, {
+      quotas: pack.constraints
+        .filter((rule) => rule.kind === "quota")
+        .map((rule) => ({ cells: rule.cells, count: rule.ones })),
+      friends: pack.constraints
+        .filter((rule) => rule.kind === "friend")
+        .map((rule) => ({ cells: rule.cells, relation: rule.relation })),
+    })
+  }
+  for (const publicMarks of [
+    { quotas: [{ cells: [0, 1], count: 3 }], friends: [] },
+    { quotas: [], friends: [{ cells: [0, 35], relation: "=" }] },
+    { quotas: [], friends: [], verifierSpec: {} },
+  ])
+    assert.equal(
+      learnerRequestSchema.safeParse({
+        ...input,
+        observation: { ...view, publicMarks },
+      }).success,
+      false
+    )
+  assert.equal(
+    learnerRequestSchema.safeParse({
+      ...input,
+      observation: {
+        ...view,
+        rulesPostcard: ["x".repeat(1000), "y".repeat(1000)],
+      },
+    }).success,
+    false
+  )
   for (const bad of [
     { ...input, answer: [] },
     { ...input, observation: { ...view, constraints: [] } },
@@ -146,6 +228,21 @@ try {
   resolve({ action: { type: "cycle" }, state: "decision" })
   assert.equal(await afterDispose, false)
   assert.equal(await runner.step(), false)
+  const malformedRunner = createModelLearnerRunner({
+    observe: () => ({ ...view, n: 9 }),
+    api: {
+      selectCell: () => {},
+      cycle: () => {},
+      undo: () => {},
+      clear: () => {},
+    },
+    memory: { claims: [], currentClaim: null },
+  })
+  assert.equal(
+    await malformedRunner.step(),
+    false,
+    "Malformed view waits without throwing into UI"
+  )
   const routeSource = await readFile(
     new URL("../app/api/learner/route.ts", import.meta.url),
     "utf8"
@@ -203,4 +300,6 @@ try {
 } finally {
   await rm(artifact, { force: true })
   await rm(routeArtifact, { force: true })
+  await rm(matchArtifact, { force: true })
+  await rm(verifierArtifact, { force: true })
 }

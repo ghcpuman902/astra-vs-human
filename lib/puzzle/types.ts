@@ -23,12 +23,22 @@ export type Action =
   | { type: "clear" }
 export type PlayerStatus = "playing" | "finished" | "action-cap" | "time-cap"
 
+/** Clues drawn on the human board, with zero-indexed cell references. */
+export type PublicBoardMarks = {
+  quotas: readonly { cells: readonly number[]; count: number }[]
+  friends: readonly {
+    cells: readonly [number, number]
+    relation: "=" | "×"
+  }[]
+}
+
 // This is the entire L0 capability boundary. No pack, constraints, or verifier.
 export type Observation = {
   seed: number
   n: number
   mode: "FORCED-CHAIN"
   rulesPostcard: readonly string[]
+  publicMarks?: PublicBoardMarks
   cells: readonly Cell[]
   given: readonly boolean[]
   selectedCell: number | null

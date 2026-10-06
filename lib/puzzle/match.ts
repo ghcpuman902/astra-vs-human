@@ -194,6 +194,23 @@ export function createMatch(packs: readonly RulePack[], options: MatchOptions) {
         n: queue[round].n,
         mode: queue[round].mode,
         rulesPostcard: [...queue[round].rulesPostcard],
+        publicMarks: {
+          quotas: queue[round].constraints.flatMap((rule) =>
+            rule.kind === "quota"
+              ? [{ cells: [...rule.cells], count: rule.ones }]
+              : []
+          ),
+          friends: queue[round].constraints.flatMap((rule) =>
+            rule.kind === "friend"
+              ? [
+                  {
+                    cells: [...rule.cells] as [number, number],
+                    relation: rule.relation,
+                  },
+                ]
+              : []
+          ),
+        },
         cells: [...state.cells],
         given: queue[round].cells.map((cell) => cell !== null),
         selectedCell: state.selectedCell,

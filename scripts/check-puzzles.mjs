@@ -192,6 +192,7 @@ try {
       "n",
       "mode",
       "rulesPostcard",
+      "publicMarks",
       "cells",
       "given",
       "selectedCell",
