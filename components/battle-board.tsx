@@ -149,12 +149,12 @@ export function BattleBoard({ board, onSelectCycle }: BattleBoardProps) {
       <div
         className="mx-auto w-full max-w-[380px]"
         style={{
-          minWidth: board.n * 44 + (board.n - 1) * 4 + (hasQuotas ? 24 : 0),
+          minWidth: board.n * 44 + 4 + (hasQuotas ? 24 : 0),
         }}
       >
         {hasQuotas ? (
           <div
-            className="mb-2 grid gap-1 pr-6 text-center font-mono text-xs text-muted-foreground"
+            className="mb-2 grid pr-6 text-center font-mono text-xs text-muted-foreground"
             style={gridStyle}
             aria-label="Column quotas, exact number of ones"
           >
@@ -170,10 +170,10 @@ export function BattleBoard({ board, onSelectCycle }: BattleBoardProps) {
         ) : null}
         <div className="flex items-stretch gap-2">
           <div
-            className="relative grid flex-1 gap-1"
-            style={gridStyle}
+            className="relative grid flex-1 border-2"
+            style={{ ...gridStyle, borderColor: ink }}
             role="group"
-            aria-label={`${board.readOnly ? "Learner" : "Human"} ${board.n} by ${board.n} ${board.category.replaceAll("_", " ")} board`}
+            aria-label={`${board.n} by ${board.n} ${board.category.replaceAll("_", " ")} board`}
           >
             {pathSegments.length > 0 ? (
               <svg
@@ -257,16 +257,21 @@ export function BattleBoard({ board, onSelectCycle }: BattleBoardProps) {
                   ? "oklch(0.955 0.004 260)"
                   : isLit
                     ? "oklch(0.97 0.035 90)"
-                    : fixed
-                      ? "oklch(0.975 0.008 260)"
-                      : "oklch(1 0 0)",
-                borderColor: cell.selected
-                  ? blue
-                  : lightCross?.has(cell.index)
-                    ? "oklch(0.8 0.085 85)"
-                    : "oklch(0.88 0.01 260)",
+                    : lightCross?.has(cell.index)
+                      ? "oklch(0.98 0.02 90)"
+                      : fixed
+                        ? "oklch(0.975 0.008 260)"
+                        : "oklch(1 0 0)",
+                borderColor: ink,
+                borderWidth: 0,
+                borderRightWidth: cell.column < board.n - 1 ? 1 : 0,
+                borderBottomWidth: cell.row < board.n - 1 ? 1 : 0,
+                backgroundImage:
+                  isBlocked && board.category === "crown"
+                    ? "repeating-linear-gradient(135deg, transparent 0px, transparent 5px, oklch(0.3 0.01 260 / 0.1) 5px, oklch(0.3 0.01 260 / 0.1) 6px)"
+                    : undefined,
                 boxShadow: cell.selected
-                  ? `inset 0 0 0 1px ${blue}`
+                  ? `inset 0 0 0 2px ${blue}`
                   : undefined,
               }
               return (
@@ -277,7 +282,7 @@ export function BattleBoard({ board, onSelectCycle }: BattleBoardProps) {
                   onClick={() => onSelectCycle(cell.index)}
                   aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}: ${isBlocked ? "blocked" : valueDescription(board, cell)}${fixed ? ", locked given" : ""}`}
                   aria-pressed={cell.selected}
-                  className="relative flex aspect-square min-h-11 min-w-11 items-center justify-center overflow-hidden rounded-[10px] border outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-default"
+                  className="relative flex aspect-square min-h-11 min-w-11 items-center justify-center overflow-hidden rounded-none border outline-none focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-foreground disabled:cursor-default"
                   style={style}
                 >
                   {mark}
@@ -319,7 +324,7 @@ export function BattleBoard({ board, onSelectCycle }: BattleBoardProps) {
           </div>
           {hasQuotas ? (
             <div
-              className="grid w-4 shrink-0 gap-1 text-center font-mono text-xs text-muted-foreground"
+              className="grid w-4 shrink-0 text-center font-mono text-xs text-muted-foreground"
               style={{ gridTemplateRows: `repeat(${board.n}, 1fr)` }}
               aria-label="Row quotas, exact number of ones"
             >
@@ -337,7 +342,28 @@ export function BattleBoard({ board, onSelectCycle }: BattleBoardProps) {
         </div>
         {board.category === "binary_fill" ? (
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Moon = 0 · Sun = 1 · edge numbers count suns
+            0 = moon · 1 = sun · edge numbers count suns
+          </p>
+        ) : null}
+        {board.category === "crown" ? (
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            Dot = marked empty · crown = 1 · hatch = blocked
+          </p>
+        ) : null}
+        {board.category === "lights_toggle" ? (
+          <p className="mt-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <span
+              aria-hidden="true"
+              className="h-3 w-3 rounded-full border-[3px]"
+              style={{ borderColor: gold }}
+            />{" "}
+            Bright ring = on
+            <span
+              aria-hidden="true"
+              className="ml-2 h-2.5 w-2.5 rounded-full border"
+              style={{ borderColor: ink }}
+            />{" "}
+            Small ring = off
           </p>
         ) : null}
         {board.category === "path_cover" && selected && !selected.locked ? (
