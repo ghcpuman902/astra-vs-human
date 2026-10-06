@@ -447,24 +447,26 @@ export function createGameLearnerRunner(options: {
 /**
  * Decision backends for the Learner.
  * The live route uses `openai-generate-text` (structured generateText).
- * TypeSafe Jev and the OpenAI Decisions API are seams only: builders return
- * plain request objects and the unwired backends throw before any fetch.
- * Do not add keys or call these from a route until a real client exists.
+ * Jev and Laya commit a public plan only when their own credentials are set.
+ * OpenAI Decisions stays a local placeholder. It is not a live Decisions API
+ * call, and its builder must not be posted.
  */
 export type LearnerDecisionBackendId =
   | "openai-generate-text"
   | "typesafe-jev"
+  | "convai-laya"
   | "openai-decisions"
 
 export type LearnerDecisionBackend = {
   id: LearnerDecisionBackendId
-  /** True only when a route already performs this call. */
+  /** True only when a route already performs this call without extra credentials. */
   wired: boolean
 }
 
 export const learnerDecisionBackends: readonly LearnerDecisionBackend[] = [
   { id: "openai-generate-text", wired: true },
   { id: "typesafe-jev", wired: false },
+  { id: "convai-laya", wired: false },
   { id: "openai-decisions", wired: false },
 ]
 
@@ -482,12 +484,19 @@ export type TypeSafeJevRequest = {
 }
 
 /**
- * Placeholder for the OpenAI Decisions preview (Luna, text or images).
- * OpenAI has not published a stable request schema; do not POST this object.
+ * Placeholder for a local OpenAI Decisions client.
+ * This is not the OpenAI Decisions API and must not be posted.
  */
 export type OpenAIDecisionsRequest = {
   model: "gpt-6-luna"
   input: string
+  questions: readonly JevChoiceQuestion[]
+}
+
+/** Convai Laya Choice over text state. Model id is the public System One id. */
+export type LayaSystemOneRequest = {
+  model: "convaiinnovations/laya"
+  state: string
   questions: readonly JevChoiceQuestion[]
 }
 
@@ -532,17 +541,35 @@ export const openAIDecisionsRequest = (
   questions: [actionQuestion],
 })
 
+/** Maps the public board into a Laya Choice. No network. */
+export const layaActionRequest = (
+  board: BoardProps,
+  priorClaims: readonly string[]
+): LayaSystemOneRequest => ({
+  model: "convaiinnovations/laya",
+  state: publicState(board, priorClaims),
+  questions: [actionQuestion],
+})
+
 /**
  * Refuses a backend that would send a request without credentials.
- * Jev is wired only when `TYPESAFE_API_KEY` or an AI Gateway credential is set.
+ * Jev is allowed when `TYPESAFE_API_KEY` or an AI Gateway credential is set.
+ * Laya is allowed when `LAYA_API_KEY`, `IMPOSSIBL_API_KEY`, or `LAYA_BASE_URL` is set.
+ * OpenAI Decisions stays refused until a local client exists.
  * This function does not call the network.
  */
 export const assertLearnerBackendWired = (
   id: LearnerDecisionBackendId,
   env?: NodeJS.ProcessEnv
 ) => {
+  const credentials = learnerCredentials(env ?? process.env)
   if (id === "typesafe-jev") {
-    if (!learnerCredentials(env ?? process.env).jev)
+    if (!credentials.jev)
+      throw new Error(`${id} is a seam only. No request was sent.`)
+    return
+  }
+  if (id === "convai-laya") {
+    if (!credentials.laya)
       throw new Error(`${id} is a seam only. No request was sent.`)
     return
   }

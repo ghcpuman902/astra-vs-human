@@ -10,6 +10,7 @@ export function GET() {
       openai: credentials.openAI,
       gateway: credentials.gateway,
       jev: credentials.jev,
+      laya: credentials.laya,
     },
     { headers: { "cache-control": "no-store" } }
   )

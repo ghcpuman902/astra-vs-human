@@ -59,7 +59,7 @@ A rules pack supplies props to the frame. It does not set layout or colours. Cat
 - **Lovable / Cursor** — paper-craft UI. Cursor ports the Mac craft export. This lane does not restyle tokens.
 - **Codex** — packs, verifiers, and `/api/pack` plus `/api/game-pack`.
 - **Astra Learner** — `/api/learner` and `/api/game-learner`. Same eyes as the human. Default model `gpt-6-astra`.
-- **Learner mix** — One tap (Astra), Astra + Jev, or a batch plan played in the browser. Jev runs only when `TYPESAFE_API_KEY` or an AI Gateway credential is set.
+- **Learner mix** — One tap (Astra), Astra + Jev, Astra + Laya, or a batch plan played in the browser. Jev runs only when `TYPESAFE_API_KEY` or an AI Gateway credential is set. Laya runs only when `LAYA_API_KEY`, `IMPOSSIBL_API_KEY`, or `LAYA_BASE_URL` is set. OpenAI Decisions stays a local placeholder.
 - **Agent vs Agent** — two learners, independent clocks. The human watches.
 
 ## Learner credentials
@@ -72,6 +72,9 @@ Set these in Vercel or `.env.local`. This repo does not ship values.
 | `AI_GATEWAY_API_KEY` | Astra and Jev through the Vercel AI Gateway / AI SDK |
 | `VERCEL_OIDC_TOKEN` | Gateway auth on Vercel when the API key is unset |
 | `TYPESAFE_API_KEY` | Jev direct `POST /v1/systemone` (`TYPESAFE_BASE_URL` optional) |
+| `LAYA_API_KEY` | Laya direct `POST /v1/systemone` (Laya Studio unless `LAYA_BASE_URL` is set) |
+| `IMPOSSIBL_API_KEY` | Laya on `https://api.impossibl.com` with model `convaiinnovations/laya` |
+| `LAYA_BASE_URL` | Optional Laya origin. Overrides the default host |
 
 `GET /api/learner-mix` reports only whether each credential is present.
 - **Vercel** — [astra-vs-human.vercel.app](https://astra-vs-human.vercel.app)

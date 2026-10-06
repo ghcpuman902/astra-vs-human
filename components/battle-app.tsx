@@ -101,6 +101,10 @@ const mixCopy: Record<LearnerMixId, { label: string; detail: string }> = {
     label: "Astra + Jev",
     detail: "Astra drafts a short plan. Jev commits it when the server has a credential.",
   },
+  "astra-laya": {
+    label: "Astra + Laya",
+    detail: "Astra drafts a short plan. Laya commits it when a Laya credential is set.",
+  },
   "astra-hybrid": {
     label: "Batch plan",
     detail: "Astra names several cells. This browser plays that plan in one burst.",
@@ -127,19 +131,28 @@ function FamilyGate({
     openai: boolean
     gateway: boolean
     jev: boolean
+    laya: boolean
   } | null>(null)
   useEffect(() => {
     let cancelled = false
     fetch("/api/learner-mix")
       .then((response) => response.json())
-      .then((body: { openai?: unknown; gateway?: unknown; jev?: unknown }) => {
-        if (cancelled) return
-        setServers({
-          openai: body.openai === true,
-          gateway: body.gateway === true,
-          jev: body.jev === true,
-        })
-      })
+      .then(
+        (body: {
+          openai?: unknown
+          gateway?: unknown
+          jev?: unknown
+          laya?: unknown
+        }) => {
+          if (cancelled) return
+          setServers({
+            openai: body.openai === true,
+            gateway: body.gateway === true,
+            jev: body.jev === true,
+            laya: body.laya === true,
+          })
+        }
+      )
       .catch(() => {})
     return () => {
       cancelled = true
@@ -160,9 +173,15 @@ function FamilyGate({
     ? ""
     : !servers.openai && !servers.gateway
       ? "No model credential is set, so the agent will wait."
-      : servers.jev
-        ? "Jev can run on this server."
-        : "Jev is not configured here. Astra still plays."
+      : mix === "astra-laya"
+        ? servers.laya
+          ? "Laya can run on this server."
+          : "Laya is not configured here. Astra still plays."
+        : mix === "astra-jev"
+          ? servers.jev
+            ? "Jev can run on this server."
+            : "Jev is not configured here. Astra still plays."
+          : ""
   return (
     <main className="battle-ground is-setup">
       <form

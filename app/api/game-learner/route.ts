@@ -14,8 +14,9 @@ export const runtime = "nodejs"
 export const maxDuration = 15
 
 // Live provider is OpenAI generateText structured output.
-// TypeSafe Jev and the OpenAI Decisions API stay unwired seams in
-// lib/battle-ground-ui/model-learner.ts. Do not call them from this route.
+// Astra + Jev and Astra + Laya commit through planLearnerMix when that mix
+// is selected and its credential is set. OpenAI Decisions stays a local
+// placeholder in lib/battle-ground-ui/model-learner.ts. Do not post it.
 export async function POST(request: Request) {
   const started = performance.now()
   const headers = { "cache-control": "no-store" }

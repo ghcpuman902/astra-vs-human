@@ -1,11 +1,12 @@
 import { z } from "zod"
 
 /** How the Learner turns a public board into counted taps. */
-export type LearnerMixId = "astra" | "astra-jev" | "astra-hybrid"
+export type LearnerMixId = "astra" | "astra-jev" | "astra-laya" | "astra-hybrid"
 
 export const learnerMixIds = [
   "astra",
   "astra-jev",
+  "astra-laya",
   "astra-hybrid",
 ] as const satisfies readonly LearnerMixId[]
 
@@ -29,37 +30,88 @@ export function learnerCredentials(env: NodeJS.ProcessEnv = process.env) {
   const openAI = present(env.OPENAI_API_KEY)
   const gateway = present(env.AI_GATEWAY_API_KEY) || present(env.VERCEL_OIDC_TOKEN)
   const jevDirect = present(env.TYPESAFE_API_KEY)
+  const layaKey = present(env.LAYA_API_KEY)
+  const impossibl = present(env.IMPOSSIBL_API_KEY)
+  const layaBase = present(env.LAYA_BASE_URL)
   return {
     openAI,
     gateway,
     jevDirect,
+    layaKey,
+    impossibl,
+    layaBase,
     /** Astra can answer through OpenAI or the Vercel AI Gateway. */
     astra: openAI || gateway,
     /** Jev is called only when a direct key or the gateway credential exists. */
     jev: jevDirect || gateway,
+    /**
+     * Laya is called only when a Laya key, an Impossibl key, or a base URL is set.
+     * An AI Gateway credential does not stand in for Laya.
+     */
+    laya: layaKey || impossibl || layaBase,
   }
 }
 
 export type JevCommit = "wait" | "one" | "batch"
+
+const commitQuestions = {
+  commit: {
+    type: "choice" as const,
+    instructions: "How much of this public-board plan should be played now?",
+    criteria: {
+      wait: "The plan is not supported by the visible board.",
+      one: "Play only the first placement.",
+      batch: "Play the whole short plan.",
+    },
+  },
+}
 
 /** TypeSafe System One body. State is public board data supplied by the caller. */
 export function jevCommitBody(state: string) {
   return {
     model: "jev-1.13.0",
     state,
-    questions: {
-      commit: {
-        type: "choice" as const,
-        instructions:
-          "How much of this public-board plan should be played now?",
-        criteria: {
-          wait: "The plan is not supported by the visible board.",
-          one: "Play only the first placement.",
-          batch: "Play the whole short plan.",
-        },
-      },
-    },
+    questions: commitQuestions,
   }
+}
+
+/** Convai Laya System One body. Same choice question as Jev, different model id. */
+export function layaCommitBody(state: string) {
+  return {
+    model: "convaiinnovations/laya",
+    state,
+    questions: commitQuestions,
+  }
+}
+
+/**
+ * Where a Laya commit is sent. Returns null when no Laya credential is set.
+ * `LAYA_BASE_URL` wins. Otherwise a lone Impossibl key uses api.impossibl.com,
+ * and a Laya key uses api.laya.studio.
+ */
+export function layaSystemOneTarget(env: NodeJS.ProcessEnv = process.env): {
+  url: string
+  authorization: string | null
+} | null {
+  if (!learnerCredentials(env).laya) return null
+  const explicit = env.LAYA_BASE_URL?.trim()
+  const impossiblOnly =
+    present(env.IMPOSSIBL_API_KEY) && !present(env.LAYA_API_KEY) && !explicit
+  const origin = (
+    explicit ||
+    (impossiblOnly ? "https://api.impossibl.com" : "https://api.laya.studio")
+  ).replace(/\/$/, "")
+  const url = origin.endsWith("/v1/systemone")
+    ? origin
+    : origin.endsWith("/v1")
+      ? `${origin}/systemone`
+      : `${origin}/v1/systemone`
+  const key = (
+    /impossibl\.com/i.test(url)
+      ? env.IMPOSSIBL_API_KEY?.trim() || env.LAYA_API_KEY?.trim()
+      : env.LAYA_API_KEY?.trim() || env.IMPOSSIBL_API_KEY?.trim()
+  )?.trim()
+  return { url, authorization: key ? `Bearer ${key}` : null }
 }
 
 export function readJevCommit(body: unknown): JevCommit | null {

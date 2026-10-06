@@ -6,6 +6,8 @@ import { allowedLearnerModel } from "../learner-models"
 import {
   applyCommit,
   jevCommitBody,
+  layaCommitBody,
+  layaSystemOneTarget,
   learnerCredentials,
   placementSchema,
   readJevCommit,
@@ -102,6 +104,25 @@ async function jevCommit(
   return null
 }
 
+async function layaCommit(
+  state: string,
+  signal: AbortSignal,
+  env: NodeJS.ProcessEnv
+): Promise<JevCommit | null> {
+  const target = layaSystemOneTarget(env)
+  if (!target) return null
+  const headers: Record<string, string> = { "content-type": "application/json" }
+  if (target.authorization) headers.authorization = target.authorization
+  const response = await fetch(target.url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(layaCommitBody(state)),
+    signal,
+  })
+  if (!response.ok) return null
+  return readJevCommit(await response.json())
+}
+
 export async function planLearnerMix(
   input: GameLearnerRequest,
   mix: Exclude<LearnerMixId, "astra">,
@@ -111,16 +132,27 @@ export async function planLearnerMix(
   placements: Placement[]
   patternClaim: string | null
   jev: "used" | "unconfigured" | "off"
+  laya: "used" | "unconfigured" | "off"
 }> {
   const model = allowedLearnerModel(input.model)
   if (!model) throw new Error("Model is not allowed")
   const plan = await astraPlan(input, model, signal, env)
   const parsed = hybridSchema.parse(plan)
-  if (mix === "astra-hybrid" || !learnerCredentials(env).jev) {
+  const credentials = learnerCredentials(env)
+  const decision =
+    mix === "astra-laya" ? "laya" : mix === "astra-jev" ? "jev" : "off"
+  const ready =
+    decision === "laya"
+      ? credentials.laya
+      : decision === "jev"
+        ? credentials.jev
+        : false
+  if (!ready) {
     return {
       placements: parsed.placements,
       patternClaim: parsed.patternClaim,
-      jev: mix === "astra-hybrid" ? "off" : "unconfigured",
+      jev: decision === "jev" ? "unconfigured" : "off",
+      laya: decision === "laya" ? "unconfigured" : "off",
     }
   }
   const state = JSON.stringify({
@@ -135,13 +167,17 @@ export async function planLearnerMix(
   })
   let choice: JevCommit | null = null
   try {
-    choice = await jevCommit(state, signal, env)
+    choice =
+      decision === "laya"
+        ? await layaCommit(state, signal, env)
+        : await jevCommit(state, signal, env)
   } catch {
     choice = null
   }
   return {
     placements: applyCommit(parsed.placements, choice),
     patternClaim: parsed.patternClaim,
-    jev: "used",
+    jev: decision === "jev" ? "used" : "off",
+    laya: decision === "laya" ? "used" : "off",
   }
 }
