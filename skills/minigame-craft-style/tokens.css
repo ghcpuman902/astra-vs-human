@@ -1,0 +1,63 @@
+/* Frozen minigame craft tokens — do not tune during the build. */
+:root {
+  /* Foundation */
+  --canvas:        oklch(100% 0 0);        /* #FFFFFF */
+  --ink:           oklch(16% 0.010 260);   /* ≈ #0B0D12 */
+  --border-strong: oklch(20% 0.008 260);   /* ≈ #14161A */
+  --ink-secondary: oklch(42% 0.010 260);   /* ≈ #4A4D53 */
+  --surface-muted: oklch(97% 0.004 260);   /* ≈ #F3F5F8 */
+
+  /* Six categorical fills: fixed L 86%, C 0.065, hues 60° apart */
+  --cat-1: oklch(86% 0.065 20);   /* rose   ≈ #F9C1BF  mark ● */
+  --cat-2: oklch(86% 0.065 80);   /* amber  ≈ #E8CDA1  mark ■ */
+  --cat-3: oklch(86% 0.065 140);  /* green  ≈ #BBDCB4  mark ▲ */
+  --cat-4: oklch(86% 0.065 200);  /* cyan   ≈ #9EDEE2  mark ◆ */
+  --cat-5: oklch(86% 0.065 260);  /* blue   ≈ #B9D2FC  mark + */
+  --cat-6: oklch(86% 0.065 320);  /* violet ≈ #E5C4EC  mark × */
+
+  /* Borders & states (shape, never hue) */
+  --line-cell:        1px solid var(--ink-secondary);
+  --line-region:      2px solid var(--border-strong);
+  --line-perimeter:   2px solid var(--border-strong);
+  --sel-outline:      3px;                   /* inset, var(--border-strong) */
+  --focus-outline:    3px solid var(--ink);
+  --focus-offset:     2px;
+  --hint-local:       2px dashed var(--border-strong);  /* inset */
+  --hint-forced:      3px solid var(--border-strong);   /* inset */
+  --radius-cell:      0;
+  --radius-control:   6px;
+  --radius-badge:     999px;
+
+  /* Type */
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Helvetica, Arial, sans-serif;
+  --t-title:   650 20px/24px var(--font-sans);
+  --t-body:    400 16px/23px var(--font-sans);
+  --t-ui:      500 14px/20px var(--font-sans);
+  --t-button:  600 14px/20px var(--font-sans);
+  --t-clock:   650 18px/22px var(--font-sans);  /* + tabular-nums */
+  --t-badge:   650 12px/16px var(--font-sans);
+  --t-value:   600 18px/20px var(--font-sans);
+  --t-glyph:   400 12px/12px var(--font-sans);
+
+  /* Spacing scale */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px;
+
+  /* Cells */
+  --cell: 44px;
+}
+@media (max-width: 420px) { :root { --cell: 36px; } }
+
+/* Helpers */
+.mg-clock { font: var(--t-clock); font-variant-numeric: tabular-nums; }
+.mg-cell  { width: var(--cell); height: var(--cell); border-radius: 0; }
+.mg-cell[aria-selected="true"] { box-shadow: inset 0 0 0 var(--sel-outline) var(--border-strong); }
+.mg-cell:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
+.mg-cell[data-hint="local"]  { outline: var(--hint-local);  outline-offset: -4px; }
+.mg-cell[data-hint="forced"] { outline: var(--hint-forced); outline-offset: -5px; }
+.mg-cell[data-invalid="true"] {
+  background-image: repeating-linear-gradient(45deg, var(--ink) 0 1.5px, transparent 1.5px 7px);
+}
+.mg-badge { font: var(--t-badge); border: 1.5px solid var(--border-strong);
+            border-radius: var(--radius-badge); padding: 2px var(--s-2);
+            background: var(--canvas); color: var(--ink); letter-spacing: .04em; }
