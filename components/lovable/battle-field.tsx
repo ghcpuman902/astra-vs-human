@@ -1,4 +1,4 @@
-import { Play, RotateCcw, Undo2 } from "lucide-react"
+import { RotateCcw, Undo2 } from "lucide-react"
 
 import { postcards } from "@/components/lovable/marks"
 import { PaperBoard } from "@/components/lovable/paper-board"
@@ -8,18 +8,14 @@ import type { GamePack } from "@/lib/mini-game-rules/schema"
 type BattleFieldProps = {
   pack: GamePack
   practice: boolean
-  loading: boolean
   started: boolean
   finished: boolean
-  remainingMs: number
   humanBoard: BoardProps
   learnerBoard: BoardProps
   humanActions: number
   learnerActions: number
   humanStatus: string
   learnerStatus: string
-  humanElapsedMs: number
-  learnerElapsedMs: number
   canUndo: boolean
   agentStatus: string
   claim: string
@@ -27,39 +23,23 @@ type BattleFieldProps = {
   rulesShown: boolean
   humanDone: boolean
   agentWorking: boolean
-  humanRound: string
-  learnerRound: string
   splitBoards: boolean
-  canAdvanceHuman: boolean
-  nextLabel: string
-  onReveal: () => void
-  onNext: () => void
-  onStart: () => void
   onTap: (cell: number) => void
   onUndo: () => void
   onClear: () => void
 }
 
-const clock = (ms: number) => {
-  const seconds = Math.floor(Math.max(0, ms) / 1000)
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
-}
-
 export const BattleField = ({
   pack,
   practice,
-  loading,
   started,
   finished,
-  remainingMs,
   humanBoard,
   learnerBoard,
   humanActions,
   learnerActions,
   humanStatus,
   learnerStatus,
-  humanElapsedMs,
-  learnerElapsedMs,
   canUndo,
   agentStatus,
   claim,
@@ -67,14 +47,7 @@ export const BattleField = ({
   rulesShown,
   humanDone,
   agentWorking,
-  humanRound,
-  learnerRound,
   splitBoards,
-  canAdvanceHuman,
-  nextLabel,
-  onReveal,
-  onNext,
-  onStart,
   onTap,
   onUndo,
   onClear,
@@ -95,8 +68,7 @@ export const BattleField = ({
             {humanDone ? <em className="done-mark">Done</em> : null}
           </strong>
           <span>
-            {humanRound} · {clock(humanElapsedMs)} · {humanActions} actions ·{" "}
-            {started ? humanStatus : "ready"}
+            {humanActions} taps · {started ? humanStatus : "ready"}
           </span>
         </header>
         <div className="arena-stage">
@@ -111,11 +83,7 @@ export const BattleField = ({
             />
           ) : (
             <div className="puzzle-cover">
-              <span>
-                {rulesShown
-                  ? "Ready when you are."
-                  : "Rules stay hidden until you reveal them."}
-              </span>
+              <span>Your board. Rules are shared, then both clocks start.</span>
             </div>
           )}
         </div>
@@ -151,51 +119,13 @@ export const BattleField = ({
         </footer>
       </section>
       <aside className="shared-rules">
-        <div className="stage-control">
-          <span className="stage-reading">
-            {started
-              ? `${clock(remainingMs)} left`
-              : rulesShown
-                ? "Rules are shared"
-                : "Same reveal for both"}
-          </span>
-          <button
-            type="button"
-            className="primary-button"
-            disabled={
-              loading ||
-              (started && !humanDone) ||
-              (started && humanDone && !canAdvanceHuman)
-            }
-            onClick={() => {
-              if (!rulesShown) onReveal()
-              else if (!started) onStart()
-              else if (humanDone && canAdvanceHuman) onNext()
-            }}
-          >
-            <Play />
-            {!rulesShown
-              ? "Show rules"
-              : !started
-                ? "Start both"
-                : humanDone
-                  ? nextLabel
-                  : clock(remainingMs)}
-          </button>
-          <span className="stage-progress">
-            {agentWorking
-              ? "Agent is still on its own round. You can move on."
-              : practice
-                ? "Practice · excluded from scores"
-                : humanDone
-                  ? "This puzzle is done."
-                  : `Typical ${pack.session.targetSeconds}s · LEARNER`}
-          </span>
-        </div>
         {rulesShown ? (
           <div className="postcard-rules">
             {splitBoards ? (
-              <p className="rules-pending">These clues are the human&apos;s current round.</p>
+              <p className="rules-pending">These clues are your current round.</p>
+            ) : null}
+            {practice ? (
+              <p className="rules-pending">Practice. Not scored.</p>
             ) : null}
             <p className="postcard-goal">{card.goal}</p>
             <ul>
@@ -205,17 +135,15 @@ export const BattleField = ({
             </ul>
           </div>
         ) : (
-          <p className="rules-pending">Rules appear for both players at once.</p>
+          <p className="rules-pending">Shared clues appear here for both players.</p>
         )}
         <p className="learner-note" aria-live="polite">
-          {splitBoards ? `${learnerRound}. ` : null}
+          {agentWorking ? "Agent still on its own round. " : null}
           {learnerStatus === "playing"
             ? agentStatus
             : started
               ? learnerStatus
-              : rulesShown
-                ? "Learner waits for Start."
-                : "Learner has not seen the rules."}
+              : "Agent waits for Start."}
           {finished && claim ? <blockquote>{claim}</blockquote> : null}
         </p>
       </aside>
@@ -231,9 +159,7 @@ export const BattleField = ({
             {agentWorking ? <em className="behind-mark">Still here</em> : null}
           </strong>
           <span>
-            {learnerRound} · {clock(learnerElapsedMs)} · {learnerActions}{" "}
-            actions · LEARNER
-            {started ? ` · ${learnerStatus}` : " · ready"}
+            {learnerActions} taps · {started ? learnerStatus : "ready"}
           </span>
         </header>
         <div className="arena-stage">
@@ -248,15 +174,13 @@ export const BattleField = ({
             />
           ) : (
             <div className="puzzle-cover">
-              <span>
-                {rulesShown ? "Waiting for Start." : "Waiting for the rules."}
-              </span>
+              <span>Agent board. It keeps playing if you move on.</span>
             </div>
           )}
         </div>
         <footer className="arena-footer">
-          <span className="agent-idle">LEARNER · L0</span>
-          <span>{started ? agentStatus : "Idle until both clocks start"}</span>
+          <span className="agent-idle">Read only</span>
+          <span>{started ? agentStatus : "Starts with you"}</span>
         </footer>
       </section>
     </div>

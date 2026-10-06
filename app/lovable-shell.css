@@ -76,13 +76,85 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "progress progress"
     "brand settings"
-    "tabs tabs";
+    "progress progress"
+    "actions actions";
   align-items: center;
   gap: var(--s-3) var(--s-4);
   padding: var(--s-3) var(--s-5);
   border-bottom: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
+}
+.match-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 72px;
+}
+.match-actions .primary-button {
+  width: 11.5rem;
+  min-width: 11.5rem;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.match-hint {
+  margin: 0;
+  min-height: 2.4em;
+  font: var(--t-badge);
+  color: var(--ink-secondary);
+}
+.match-lede {
+  margin: 0;
+  font: var(--t-badge);
+  color: var(--ink-secondary);
+}
+.family-gate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  width: min(40rem, 100%);
+  margin: 0 auto;
+  padding: var(--s-5);
+}
+.family-gate h1 {
+  margin: 0;
+  font: var(--t-title);
+}
+.family-gate > p {
+  margin: 0;
+  color: var(--ink-secondary);
+  font: var(--t-ui);
+}
+.family-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.family-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
+}
+.family-row p {
+  margin: 0;
+  color: var(--ink-secondary);
+  font: var(--t-badge);
+}
+.family-marks {
+  display: flex;
+  flex: none;
+  gap: var(--s-1);
+}
+.family-row button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--canvas);
 }
 .match-progress {
   grid-area: progress;
@@ -129,8 +201,9 @@
 .brand-block {
   grid-area: brand;
   display: flex;
-  align-items: center;
-  gap: var(--s-4);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-1);
   min-width: 0;
 }
 .round-marks {
@@ -271,25 +344,32 @@
 .battle-field {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "human agent"
+    "rules rules";
   min-height: 0;
 }
+.battle-arena[data-player="human"] {
+  grid-area: human;
+  border-right: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
+}
+.battle-arena[data-player="learner"] {
+  grid-area: agent;
+}
 .shared-rules {
+  grid-area: rules;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: var(--s-3);
-  padding: var(--s-4) var(--s-4);
-  border-right: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
+  padding: var(--s-4) var(--s-5);
+  border-top: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
 }
 .battle-arena {
   min-width: 0;
   display: grid;
   grid-template-rows: auto minmax(260px, 1fr) auto;
-}
-.battle-arena:first-child {
-  border-right: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
 }
 .arena-header {
   display: grid;
@@ -341,25 +421,6 @@
   font: var(--t-badge);
   color: var(--ink-secondary);
 }
-.stage-control {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-2);
-}
-.stage-control .primary-button {
-  width: 168px;
-  min-width: 168px;
-  font-variant-numeric: tabular-nums;
-}
-.stage-reading,
-.stage-progress {
-  font: var(--t-badge);
-  color: var(--ink-secondary);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-
 .clue-board {
   display: grid;
   grid-template-columns: max-content 24px;
@@ -684,13 +745,19 @@
     grid-template-columns: 1fr;
   }
   .battle-field {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "human"
+      "agent"
+      "rules";
   }
-  .shared-rules {
-    grid-column: 1 / -1;
-    grid-row: 2;
+  .battle-arena[data-player="human"] {
     border-right: 0;
-    border-top: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
+    border-bottom: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
+  }
+  .family-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .battle-top {
     padding-inline: var(--s-3);

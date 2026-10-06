@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useSyncExternalStore } from "react"
-import { Lock, LockOpen } from "lucide-react"
+import { Lock, LockOpen, Play } from "lucide-react"
 
 import { BattleField } from "@/components/lovable/battle-field"
 import { useLearnerModel } from "@/hooks/use-learner-model"
@@ -9,13 +9,17 @@ import {
   createBattleGround,
   scoreTransfer,
   transferGroup,
-  type Side,
   type SideCursor,
 } from "@/lib/battle-ground-ui/controller"
 import {
   createGameLearnerRunner,
   fetchGameLearnerDecision,
 } from "@/lib/battle-ground-ui/model-learner"
+import {
+  matchFamilies,
+  orderByFamily,
+  type FamilyMarks,
+} from "@/lib/battle-ground-ui/family-bias"
 import type { MatchDeck } from "@/lib/battle-ground-ui/match-deck"
 import { packSchema, type GamePack } from "@/lib/mini-game-rules/schema"
 import { verifyGame } from "@/lib/mini-game-rules/verifier"
@@ -37,13 +41,28 @@ type Generated = {
 const roundText = (cursor: SideCursor, gameCount: number, roundsPerGame: number) =>
   `Game ${cursor.game + 1} of ${gameCount} · Round ${cursor.round + 1} of ${roundsPerGame}`
 
+const clock = (ms: number) => {
+  const seconds = Math.floor(Math.max(0, ms) / 1000)
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
+}
+
 export function BattleApp({ deck }: { deck: MatchDeck }) {
-  const [packs, setPacks] = useState(deck.packs)
+  const [packs, setPacks] = useState<readonly GamePack[] | null>(null)
   const [cap, setCap] = useState(600000)
   const [practice, setPractice] = useState(false)
   const [session, setSession] = useState(0)
   const [source, setSource] = useState("verified starter")
   const [hash, setHash] = useState<string | undefined>()
+  if (!packs) {
+    return (
+      <FamilyGate
+        onPlay={(marks) => {
+          const games = orderByFamily(deck.games, marks)
+          setPacks(games.flatMap((game) => [...game.packs]))
+        }}
+      />
+    )
+  }
   return (
     <BattleSession
       key={`${session}:${cap}:${practice}:${packs.map((pack) => pack.seed).join("-")}`}
@@ -59,10 +78,80 @@ export function BattleApp({ deck }: { deck: MatchDeck }) {
       onSource={setSource}
       onHash={setHash}
       onReplaceFirst={(pack) => {
-        setPacks((current) => [pack, ...current.slice(1)])
+        setPacks((current) =>
+          current ? [pack, ...current.slice(1)] : current
+        )
         setSession((value) => value + 1)
       }}
     />
+  )
+}
+
+function FamilyGate({ onPlay }: { onPlay: (marks: FamilyMarks) => void }) {
+  const families = matchFamilies()
+  const [played, setPlayed] = useState<readonly string[]>([])
+  const [disliked, setDisliked] = useState<readonly string[]>([])
+  const toggle = (
+    id: string,
+    selected: readonly string[],
+    setSelected: (next: readonly string[]) => void
+  ) => {
+    setSelected(
+      selected.includes(id)
+        ? selected.filter((item) => item !== id)
+        : [...selected, id]
+    )
+  }
+  return (
+    <main className="battle-ground">
+      <form
+        className="family-gate"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onPlay({ played, disliked })
+        }}
+      >
+        <p className="wordmark">astra-vs-human</p>
+        <h1>What have you played?</h1>
+        <p>
+          New families come first. Ones you want less of move later. All five
+          still appear.
+        </p>
+        <ul className="family-list" aria-label="Puzzle families">
+          {families.map((family) => (
+            <li key={family.id} className="family-row">
+              <div>
+                <strong>{family.label}</strong>
+                <p>{family.pattern}</p>
+              </div>
+              <div className="family-marks">
+                <button
+                  type="button"
+                  className="paper-button"
+                  aria-pressed={played.includes(family.id)}
+                  aria-label={`Played ${family.label}`}
+                  onClick={() => toggle(family.id, played, setPlayed)}
+                >
+                  Played
+                </button>
+                <button
+                  type="button"
+                  className="paper-button"
+                  aria-pressed={disliked.includes(family.id)}
+                  aria-label={`Less of ${family.label}`}
+                  onClick={() => toggle(family.id, disliked, setDisliked)}
+                >
+                  Less
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <button type="submit" className="primary-button">
+          Start with this lineup
+        </button>
+      </form>
+    </main>
   )
 }
 
@@ -124,7 +213,6 @@ function BattleSession({
   const humanPack = packs[snapshot.cursors.human.index]
   const learnerPack = packs[snapshot.cursors.learner.index]
   const humanCursor = snapshot.cursors.human
-  const learnerCursor = snapshot.cursors.learner
   const humanDone = started && snapshot.attempts.human.status !== "playing"
   const learnerPlaying =
     started && snapshot.attempts.learner.status === "playing"
@@ -336,11 +424,6 @@ function BattleSession({
     : humanCursor.round + 1 >= roundsPerGame
       ? "Next game"
       : "Next round"
-  const humanRound = roundText(humanCursor, gameCount, roundsPerGame)
-  const learnerRound = roundText(learnerCursor, gameCount, roundsPerGame)
-  const elapsed = (side: Side) =>
-    started ? cap - snapshot.remainingMs[side] : 0
-
   return (
     <main className="battle-ground">
       <header className="battle-top">
@@ -352,7 +435,10 @@ function BattleSession({
               <section key={side} className="match-side" aria-label={`${label} progress`}>
                 <header>
                   <strong>{label}</strong>
-                  <span>{roundText(cursor, gameCount, roundsPerGame)}</span>
+                  <span>
+                    {roundText(cursor, gameCount, roundsPerGame)} ·{" "}
+                    {clock(snapshot.remainingMs[side])} left
+                  </span>
                 </header>
                 <ol className="match-games">
                   {Array.from({ length: gameCount }, (_, game) => (
@@ -397,6 +483,9 @@ function BattleSession({
         </div>
         <div className="brand-block">
           <div className="wordmark">astra-vs-human</div>
+          <p className="match-lede">
+            You play the left board. The agent plays the right, on its own clock.
+          </p>
         </div>
         <div className="battle-settings">
           <label>
@@ -442,6 +531,50 @@ function BattleSession({
             {practice ? "Test" : "Real"}
           </button>
         </div>
+        <div className="match-actions">
+          <button
+            type="button"
+            className="primary-button"
+            data-slot="match-next"
+            disabled={
+              busy ||
+              (!rulesShown
+                ? false
+                : !started
+                  ? models.status !== "ready"
+                  : !humanDone || !snapshot.canAdvance.human)
+            }
+            onClick={() => {
+              if (!rulesShown) {
+                setRulesShown(true)
+                return
+              }
+              if (!started) {
+                handleStart()
+                return
+              }
+              handleNext()
+            }}
+          >
+            <Play />
+            {!rulesShown ? "Show rules" : !started ? "Start both" : nextLabel}
+          </button>
+          <p className="match-hint">
+            {!rulesShown
+              ? "Rules are the same for both players."
+              : !started
+                ? models.status === "ready"
+                  ? "Start begins both clocks together."
+                  : "Learner model is loading."
+                : !humanDone
+                  ? "Next stays yours. The agent is not moved."
+                  : learnerPlaying
+                    ? "The agent is still on its round."
+                    : snapshot.canAdvance.human
+                      ? "Your next board. The agent keeps going."
+                      : "Both sides finished this match."}
+          </p>
+        </div>
       </header>
       <div className="battle-title">
         <h1>{names[humanPack.category]}</h1>
@@ -453,18 +586,14 @@ function BattleSession({
       <BattleField
         pack={humanPack}
         practice={practice}
-        loading={busy || models.status !== "ready"}
         started={started}
         finished={started && learnerAttempt.status !== "playing"}
-        remainingMs={snapshot.remainingMs.human}
         humanBoard={humanBoard}
         learnerBoard={learnerBoard}
         humanActions={humanAttempt.state.actions}
         learnerActions={learnerAttempt.state.actions}
         humanStatus={humanAttempt.status}
         learnerStatus={learnerAttempt.status}
-        humanElapsedMs={elapsed("human")}
-        learnerElapsedMs={elapsed("learner")}
         canUndo={humanAttempt.state.history.length > 0}
         agentStatus={agentStatus}
         claim={claim}
@@ -472,14 +601,7 @@ function BattleSession({
         rulesShown={rulesShown}
         humanDone={humanDone}
         agentWorking={humanDone && learnerPlaying}
-        humanRound={humanRound}
-        learnerRound={learnerRound}
         splitBoards={snapshot.seeds.human !== snapshot.seeds.learner}
-        canAdvanceHuman={snapshot.canAdvance.human}
-        nextLabel={nextLabel}
-        onReveal={() => setRulesShown(true)}
-        onNext={handleNext}
-        onStart={handleStart}
         onTap={handleTap}
         onUndo={() => battle.actions("human").undo()}
         onClear={() => battle.actions("human").clear()}

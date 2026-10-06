@@ -37,6 +37,8 @@ node scripts/check-game-learner.mjs
 ## Fairness (Human | Agent)
 
 - A match is five games. Each game is three distinct packs in one transfer family, not the same seed three times.
+- Before the match, mark families you have played or want less of. Novel families come first. Disliked families move later. None are removed.
+- Clocks, game marks, and Next live in the top bar. The boards stay put when you advance. Next only moves you.
 - One pack and seed per round index. While the sides are on different rounds they see different boards.
 - Independent attempts and clocks. Human finishing, skipping, or hitting a cap does not end or advance the Agent.
 - Shared actions: `selectCell`, `cycle`, `undo`, `clear`. Each tap counts on that side.

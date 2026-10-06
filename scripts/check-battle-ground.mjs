@@ -42,6 +42,9 @@ try {
   const { buildMatchDeck } = await import(
     out + "/battle-ground-ui/match-deck.js"
   )
+  const { matchFamilies, rankMatchFamilies, orderByFamily } = await import(
+    out + "/battle-ground-ui/family-bias.js"
+  )
   for (const category of [
     "binary_fill",
     "crown",
@@ -213,6 +216,65 @@ try {
     round: 0,
   })
   assert.equal(match.getSnapshot().cursors.learner.index, 1)
+
+  const catalogue = matchFamilies()
+  assert.equal(catalogue.length, 5)
+  assert.deepEqual(
+    rankMatchFamilies().map((family) => family.id),
+    catalogue.map((family) => family.id)
+  )
+  const playedFirst = rankMatchFamilies({
+    played: [catalogue[0].id],
+    disliked: [],
+  })
+  assert.equal(playedFirst.at(-1).id, catalogue[0].id)
+  assert.equal(playedFirst.length, 5)
+  const dislikedAll = rankMatchFamilies({
+    played: [],
+    disliked: catalogue.map((family) => family.id),
+  })
+  assert.equal(dislikedAll.length, 5)
+  assert.deepEqual(
+    dislikedAll.map((family) => family.id),
+    catalogue.map((family) => family.id)
+  )
+  const lessLights = rankMatchFamilies({
+    played: [],
+    disliked: ["lights-cross-cancellation"],
+  })
+  assert.equal(lessLights.at(-1).id, "lights-cross-cancellation")
+  assert.deepEqual(
+    lessLights.slice(0, 4).map((family) => family.id),
+    catalogue.slice(0, 4).map((family) => family.id)
+  )
+  const ordered = orderByFamily(deck.games, {
+    played: [],
+    disliked: ["lights-cross-cancellation"],
+  })
+  assert.equal(ordered.at(-1).category, "lights_toggle")
+  assert.equal(ordered[0].category, "binary_fill")
+  assert.equal(
+    ordered.flatMap((game) => game.packs).length,
+    15
+  )
+
+  const appSource = await readFile(
+    new URL("../components/battle-app.tsx", import.meta.url),
+    "utf8"
+  )
+  const fieldSource = await readFile(
+    new URL("../components/lovable/battle-field.tsx", import.meta.url),
+    "utf8"
+  )
+  const shellSource = await readFile(
+    new URL("../app/lovable-shell.css", import.meta.url),
+    "utf8"
+  )
+  assert.match(appSource, /data-slot="match-next"/)
+  assert.match(appSource, /advance\("human"\)/)
+  assert.doesNotMatch(fieldSource, /onNext|advance\(/)
+  assert.match(shellSource, /"human agent"/)
+  assert.match(shellSource, /grid-area: actions/)
   console.log(
     "Battle bridge verified: five games, three distinct rounds, independent clocks, per-side advance, transfer scoring."
   )
