@@ -98,7 +98,7 @@ The model receives the visible board, given marks, selected cell, postcard, coun
 
 `Observation.publicMarks` optionally carries the public clues drawn for both players: `{ quotas: { cells, count }[], friends: { cells: [a, b], relation: '=' | '×' }[] }`. Quota counts refer to cells valued `1`; all references are zero-indexed. The match constructor supplies these marks. Legacy observations can omit them, which means no extra displayed marks were supplied. Render these same marks for the human; never add private clues for the model. Marks accept only these visible fields, with bounded cell indexes and counts. The postcard cap is 32 lines and 1,800 characters including line breaks.
 
-Keep the game engine and hackathon chrome separate. Wire this adapter to the agent attempt, irrespective of the active Human|Agent display tab. The two attempts start from the same seed and clock. Keep advance locked until both finish or reach a cap. Hints are practice-only. During a scored round, the human tab must not reveal the Learner's filled answers while the human attempt is still playing.
+Keep the game engine and hackathon chrome separate. Wire this adapter to the agent attempt, irrespective of the active Human|Agent display tab. The two attempts start from the same seed and reveal moment. A standalone round advances after both attempts finish or reach its cap. In the authoritative Lovable timed stage, each side can repeat its own attempts until the shared stage deadline; retain the chosen model for that full stage. Hints are practice-only.
 
 ```ts
 import { createLearnerMemory, finishLearnerRound } from "@/lib/puzzle/learner"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import {
   createStageLearner,
@@ -20,6 +20,14 @@ export function useStageLearner(options: {
   running: boolean
 }) {
   const { stage, pack, publicMarks, memory, model, running } = options
+  // Equivalent cloned props during clock renders must not abort the model.
+  const packJson = JSON.stringify(pack)
+  const marksJson = JSON.stringify(publicMarks)
+  const stablePack = useMemo(() => JSON.parse(packJson) as RulePack, [packJson])
+  const stableMarks = useMemo(
+    () => JSON.parse(marksJson) as NonNullable<Observation["publicMarks"]>,
+    [marksJson]
+  )
   const [result, setResult] = useState<{
     stage: LearnerStage
     state: StageLearnerState
@@ -32,8 +40,8 @@ export function useStageLearner(options: {
     let active = true
     const session = createStageLearner({
       stage,
-      pack,
-      publicMarks,
+      pack: stablePack,
+      publicMarks: stableMarks,
       memory,
       model: () => model,
       onUpdate: (next) => {
@@ -48,7 +56,7 @@ export function useStageLearner(options: {
       active = false
       session.dispose()
     }
-  }, [stage, pack, publicMarks, memory, model, running])
+  }, [stage, stablePack, stableMarks, memory, model, running])
   // Old round results must not flash on a new seed or after a stop.
   return result.stage !== stage || result.state.seed !== pack.seed || !running
     ? { seed: pack.seed, status: "idle" as const, lastAction: null }

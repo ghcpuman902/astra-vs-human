@@ -41,6 +41,7 @@ export function createStageLearner(options: {
   }
   let decision: ModelLearnerResult | null = null
   let claimed = false
+  let failureDelay = 0
   let unsubscribe = () => {}
   const publish = (
     status: StageLearnerState["status"],
@@ -76,7 +77,8 @@ export function createStageLearner(options: {
   })
   const pace = Math.max(50, Math.min(2_000, options.paceMs ?? 250))
   const schedule = () => {
-    if (running && !disposed) timer = setTimeout(() => void pump(), pace)
+    if (running && !disposed)
+      timer = setTimeout(() => void pump(), Math.max(pace, failureDelay))
   }
   const pump = async (): Promise<void> => {
     if (disposed || !running || pumping) return
@@ -106,6 +108,13 @@ export function createStageLearner(options: {
       decision = null
       const acted = await runner.step()
       if (disposed || !running) return
+      const result = decision as ModelLearnerResult | null
+      failureDelay =
+        result?.reason === "unavailable"
+          ? Math.min(8_000, failureDelay ? failureDelay * 2 : 1_000)
+          : result?.reason === "deadline"
+            ? 1_000
+            : 0
       if (acted)
         publish(
           "playing",
