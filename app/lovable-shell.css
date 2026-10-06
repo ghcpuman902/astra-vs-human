@@ -8,6 +8,7 @@ html,
 body {
   height: 100%;
   overflow: hidden;
+  scrollbar-gutter: stable;
   background: var(--canvas);
 }
 @media (pointer: fine) {
@@ -51,7 +52,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 34px;
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
   padding: 0 var(--s-3);
   border: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
   border-radius: var(--radius-control);
@@ -84,7 +87,9 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 38px;
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
   padding: 0 var(--s-4);
   border: 1px solid var(--ink);
   border-radius: var(--radius-control);
@@ -465,7 +470,9 @@ body {
   gap: var(--s-2);
 }
 .battle-settings select {
-  height: 34px;
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
   border: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
   border-radius: var(--radius-control);
   background: var(--canvas);
@@ -550,7 +557,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
+  max-height: min(12rem, 32svh);
   padding: var(--s-4) var(--s-5);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   border-top: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
 }
 .battle-arena {
@@ -590,8 +601,9 @@ body {
   margin: 0;
 }
 .puzzle-cover {
-  width: min(100%, 292px);
-  aspect-ratio: 1;
+  box-sizing: border-box;
+  width: calc(var(--n) * var(--cell) + var(--cover-extra, 0px));
+  height: calc(var(--n) * var(--cell) + var(--cover-extra, 0px));
   display: grid;
   place-items: center;
   border: 1px dashed color-mix(in oklab, var(--ink-secondary) 32%, transparent);
@@ -863,9 +875,8 @@ body {
   vertical-align: middle;
 }
 .learner-note {
-  min-height: 3lh;
+  min-height: 2.4em;
   margin: 0;
-  overflow: hidden;
   color: var(--ink-secondary);
   font: var(--t-ui);
   font-size: 13px;
@@ -898,7 +909,9 @@ body {
   gap: var(--s-2);
 }
 .footer-tools select {
-  height: 34px;
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
   border: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
   border-radius: var(--radius-control);
   background: var(--canvas);
@@ -945,16 +958,8 @@ body {
 }
 
 @media (pointer: coarse) {
-  .paper-button,
-  .primary-button,
-  .battle-settings select,
-  .footer-tools select,
   .variant-card {
     min-height: 44px;
-  }
-  .paper-button,
-  .primary-button {
-    height: auto;
   }
 }
 @media (min-width: 800px) {
@@ -1013,7 +1018,6 @@ body {
     grid-row: 1;
   }
   .battle-arena {
-    --cell: min(36px, calc((100vi - 80px) / 12));
     grid-template-rows: auto minmax(160px, 1fr) auto;
   }
   .battle-arena .cell-symbol {
@@ -1028,6 +1032,11 @@ body {
   }
   .puzzle-cover {
     font-size: 12px;
+  }
+}
+@media (max-width: 420px) {
+  .battle-arena {
+    --cell: max(36px, min(44px, calc((100vi - 80px) / 12)));
   }
 }
 @media (prefers-reduced-motion: reduce) {

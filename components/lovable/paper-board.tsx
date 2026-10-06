@@ -43,6 +43,7 @@ export const PaperBoard = ({
   const grid = useRef<HTMLDivElement>(null)
   const [rejected, setRejected] = useState<number | null>(null)
   const [hover, setHover] = useState<number | null>(null)
+  const [focus, setFocus] = useState<number | null>(null)
   const n = board.n
   const blocked =
     "blocked" in board.clues ? new Set(board.clues.blocked) : new Set<number>()
@@ -56,10 +57,6 @@ export const PaperBoard = ({
       ? board.clues.constraints.filter((rule) => rule.kind === "friend")
       : []
   const selected = board.cells.find((cell) => cell.selected) ?? null
-  const cross =
-    board.category === "lights_toggle" && hover !== null
-      ? new Set([hover, ...neighbors(hover, n)])
-      : null
   const pathOrder = active?.size ?? 0
   const segments =
     board.category === "path_cover"
@@ -89,6 +86,19 @@ export const PaperBoard = ({
       return true
     return !board.cells[index]?.visible
   }
+
+  const explicit = hover ?? focus
+  const lightsPreview = (() => {
+    if (board.category !== "lights_toggle") return null
+    if (explicit !== null) return isBlocked(explicit) ? null : explicit
+    if (selected && !selected.locked && !isBlocked(selected.index))
+      return selected.index
+    return null
+  })()
+  const cross =
+    lightsPreview !== null
+      ? new Set([lightsPreview, ...neighbors(lightsPreview, n)])
+      : null
 
   const maskFor = (index: number, value: number | null) => {
     if (board.category !== "tile_rotate_connect" || !("ports" in board.clues))
@@ -171,7 +181,11 @@ export const PaperBoard = ({
               aria-pressed={cell.selected}
               disabled={!interactive || board.readOnly}
               onAnimationEnd={() => setRejected(null)}
-              onMouseEnter={() => setHover(fixed || blockedCell ? null : cell.index)}
+              onMouseEnter={() => setHover(cell.index)}
+              onFocus={() => setFocus(cell.index)}
+              onBlur={() =>
+                setFocus((current) => (current === cell.index ? null : current))
+              }
               onClick={() => {
                 if (!interactive || board.readOnly) return
                 if (fixed || blockedCell) {

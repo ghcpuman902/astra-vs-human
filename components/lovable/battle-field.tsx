@@ -1,9 +1,20 @@
+import { type CSSProperties } from "react"
 import { RotateCcw, Undo2 } from "lucide-react"
 
 import { postcards } from "@/components/lovable/marks"
 import { PaperBoard } from "@/components/lovable/paper-board"
 import type { BoardProps } from "@/lib/battle-ground-ui/controller"
 import type { GamePack } from "@/lib/mini-game-rules/schema"
+
+const coverStyle = (board: BoardProps): CSSProperties => {
+  const quotas =
+    "constraints" in board.clues &&
+    board.clues.constraints.some((rule) => rule.kind === "quota")
+  return {
+    "--n": board.n,
+    "--cover-extra": quotas ? "24px" : "0px",
+  } as CSSProperties
+}
 
 type BattleFieldProps = {
   pack: GamePack
@@ -88,7 +99,7 @@ export const BattleField = ({
               onTap={onTap}
             />
           ) : (
-            <div className="puzzle-cover">
+            <div className="puzzle-cover" style={coverStyle(humanBoard)}>
               <span>
                 {humanInteractive
                   ? "Your board. Rules are shared, then both clocks start."
@@ -183,7 +194,7 @@ export const BattleField = ({
               onTap={() => {}}
             />
           ) : (
-            <div className="puzzle-cover">
+            <div className="puzzle-cover" style={coverStyle(learnerBoard)}>
               <span>Agent board. It keeps playing if you move on.</span>
             </div>
           )}
