@@ -1,0 +1,6 @@
+# pnpm 11 blocks dependency build scripts unless explicitly allowed/denied.
+# Pre-approve here so fresh clones (and agent sandboxes) can `pnpm install` + `pnpm dev`
+# without an interactive `pnpm approve-builds` step.
+allowBuilds:
+  sharp: true
+  unrs-resolver: true

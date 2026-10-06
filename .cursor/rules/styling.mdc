@@ -1,0 +1,9 @@
+---
+description: Tailwind and shadcn/ui styling conventions
+globs: "**/*.tsx,**/*.css"
+alwaysApply: false
+---
+
+- Prefer semantic Tailwind tokens (`bg-background`, `text-foreground`, `text-primary`) over hardcoded colours.
+- Mobile-first; check narrow widths before desktop polish.
+- Compose existing `components/ui/` parts before writing new primitives. Details: `docs/design-system.md`.

@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+
+YOU MUST NEVER START THE DEV SERVER UNLESS THE USER HAS TOLD YOU TO.
+
+Never run `pnpm dev`, `pnpm start`, or equivalent start commands unless explicitly requested. The user may already be running one; if so, `.next/dev/lock` holds its URL and PID — reuse it instead of starting another.
