@@ -944,13 +944,16 @@ function BattleSession({
                   record.transferGroup === group &&
                   record.status === "finished"
               ).length
+              const goal = packs.filter(
+                (pack) => transferGroup(pack) === group
+              ).length
               return (
                 <span key={side}>
                   <strong>{side === "human" ? leftName : rightName}</strong> ·{" "}
                   {names[packs[cursor.index].category]} ·{" "}
                   {score.eligible
                     ? `action slope ${score.actionSlope?.toFixed(1)} per round${score.actionsFalling ? " · actions falling" : ""}`
-                    : `${count}/3 completed transfer rounds`}
+                    : `${count}/${goal} completed transfer rounds`}
                 </span>
               )
             })

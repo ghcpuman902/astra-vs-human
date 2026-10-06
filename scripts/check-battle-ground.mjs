@@ -637,6 +637,17 @@ try {
   assert.match(appSource, /label: "Tour"/)
   assert.match(appSource, /label: "Blitz"/)
   assert.match(appSource, /3 min/)
+  assert.match(
+    shellSource,
+    /\.length-choice \.paper-button\[aria-pressed="true"\]/
+  )
+  assert.match(
+    shellSource,
+    /\.length-choice \.paper-button\[aria-pressed="true"\][\s\S]*background:\s*var\(--ink\)/
+  )
+  assert.match(appSource, /transferGroup\(pack\) === group/)
+  assert.match(appSource, /\$\{count\}\/\$\{goal\} completed transfer rounds/)
+  assert.doesNotMatch(appSource, /\/3 completed transfer rounds/)
   assert.doesNotMatch(appSource, /5 × 3|5×3/)
   console.log(
     "Battle bridge verified: Deep 1×5 default, Tour 5×1, Blitz 3:00 independent clocks, human Next leaves the agent thinking, Code policy steps, shared-rules scroll."

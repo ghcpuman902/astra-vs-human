@@ -243,6 +243,12 @@ body {
   width: 100%;
   justify-content: center;
 }
+.length-choice .paper-button[aria-pressed="true"],
+.length-choice .paper-button[aria-pressed="true"]:hover {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--canvas);
+}
 .length-choice p {
   margin: 0;
   color: var(--ink-secondary);
