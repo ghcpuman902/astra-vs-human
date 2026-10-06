@@ -1,10 +1,14 @@
 # astra-vs-human
 
-**We score the pattern carried forward, not the class recognised.**
+![Demo — dual-arena play](docs/demo.gif)
 
-OpenAI × Lovable **GPT-6 Astra Hackathon London** · Tue 6 Oct 2026 · submit 20:30 Europe/London.
+**Are you cleverer than the agent, or is the agent just quicker?**
 
-A human and one Learner each play the same rule pack and the same seed. The attempts are independent. The score is the local friend-pattern that shows up again on the next near-transfer board.
+OpenAI × Lovable **GPT-6 Astra Hackathon London** · Tue 6 Oct 2026.
+
+A human and one Learner each play the same rule pack and the same seed. Independent attempts. Shared board, shared clock. We score the local friend-pattern that carries to the next near-transfer board — not the puzzle class you recognised.
+
+**Live:** [astra-vs-human.vercel.app](https://astra-vs-human.vercel.app) · **Lovable:** [paper-play-board.lovable.app](https://paper-play-board.lovable.app) · **1-min demo:** [Loom](https://www.loom.com/share/b549d07622694c8c9b1d9b31f2e38f60)
 
 ## How to run
 
@@ -30,8 +34,6 @@ node scripts/check-model-learner.mjs
 node scripts/check-game-learner.mjs
 ```
 
-On this branch, `app/page.tsx` is still the starter card. The demo frame is `components/battle-board.tsx` with `lib/battle-ground-ui/controller.ts`. Cursor is porting the Lovable craft UI locally.
-
 ## Fairness (Human | Agent)
 
 - One pack and one returned seed for both sides. A fallback pack keeps its actual seed.
@@ -55,16 +57,16 @@ A rules pack supplies props to the frame. It does not set layout or colours. Cat
 - **Lovable / Cursor** — paper-craft UI. Cursor ports the Mac craft export. This lane does not restyle tokens.
 - **Codex** — packs, verifiers, and `/api/pack` plus `/api/game-pack`.
 - **Astra Learner** — `/api/learner` and `/api/game-learner`. Same eyes as the human. Default model `gpt-6-astra`.
-- **Vercel** — deploy backup once a project is linked. No production URL is stored in the repo.
+- **Vercel** — [astra-vs-human.vercel.app](https://astra-vs-human.vercel.app)
 
 Next.js 16.3 (App Router) · React 19.3 · TypeScript · Tailwind 4 · shadcn/ui · pnpm 11.
 
 ## Public repo and demo
 
 - Repo (public): https://github.com/ghcpuman902/astra-vs-human
-- Engine branch: `codex/broad-game-engine`
+- Demo GIF: [docs/demo.gif](docs/demo.gif) (≈5s sped-up dual-arena loop)
 - 60-second shoot sheet: [docs/DEMO-SCRIPT.md](docs/DEMO-SCRIPT.md)
-- 20:30 list: [docs/SUBMIT-CHECKLIST.md](docs/SUBMIT-CHECKLIST.md)
-- Learner model picker (UX stub): [docs/MODEL-SELECTOR.md](docs/MODEL-SELECTOR.md)
+- Submit list: [docs/SUBMIT-CHECKLIST.md](docs/SUBMIT-CHECKLIST.md)
+- Learner model picker: [docs/MODEL-SELECTOR.md](docs/MODEL-SELECTOR.md)
 
-Backup MVP, if the novel minigame is still landing: pick one OpenAI model, play human vs that Learner on one shared pack and seed, and show the two attempts plus the one-line pattern claim. A second mechanic on the same frame is the stretch. The video is at most one minute and shows tonight’s work. Keys stay off the board, out of the repo, and out of the video.
+Built tonight. Keys stay off the board, out of the repo, and out of the video.
