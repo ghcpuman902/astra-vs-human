@@ -10,10 +10,10 @@ Tick these in the submit form. Leave a line blank when the URL does not exist ye
 
 ## Links to paste
 
-- [ ] Public repo: https://github.com/ghcpuman902/astra-vs-human
+- [x] Public repo: https://github.com/ghcpuman902/astra-vs-human
 - [ ] Branch with tonight’s engine: `codex/broad-game-engine` (docs PR branches into it)
-- [ ] Vercel URL: ______________________________ (none linked in the repo at the time of this checklist)
-- [ ] 1-minute video URL: ______________________________
+- [x] Vercel URL: https://astra-vs-human.vercel.app
+- [x] 1-minute video URL: https://www.loom.com/share/b549d07622694c8c9b1d9b31f2e38f60
 
 ## What the video and repo show
 
