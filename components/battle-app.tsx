@@ -813,6 +813,7 @@ function BattleSession({
             type="button"
             className="primary-button"
             data-slot="match-next"
+            data-phase={!rulesShown ? "rules" : !started ? "start" : "next"}
             disabled={
               busy ||
               (watching && started) ||
@@ -857,9 +858,9 @@ function BattleSession({
                   : blitzResult
                     ? blitzResult
                     : length === "blitz" && !humanDone
-                      ? "Your 3:00 keeps running. The agent is not moved."
+                      ? "Finish this attempt to unlock Next. Your 3:00 keeps running."
                       : !humanDone
-                        ? "Next stays yours. The agent is not moved."
+                        ? "Finish this attempt to unlock Next. The agent is not moved."
                         : learnerPlaying
                           ? "The agent is still on its round."
                           : snapshot.canAdvance.human

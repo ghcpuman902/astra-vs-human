@@ -575,7 +575,14 @@ try {
   assert.doesNotMatch(fieldSource, /onNext|advance\(/)
   assert.match(appSource, /Show rules/)
   assert.match(appSource, /Start both/)
-  assert.match(appSource, /Next stays yours\. The agent is not moved\./)
+  assert.match(
+    appSource,
+    /Finish this attempt to unlock Next\. The agent is not moved\./
+  )
+  assert.match(
+    appSource,
+    /data-phase=\{!rulesShown \? "rules" : !started \? "start" : "next"\}/
+  )
   assert.match(appSource, /humanInteractive=\{!watching\}/)
   assert.match(appSource, /learnerModeIds\.map/)
   for (const label of [
@@ -610,6 +617,11 @@ try {
   assert.match(shellSource, /\.shared-rules/)
   assert.match(shellSource, /max-height:\s*min\(12rem,\s*32svh\)/)
   assert.match(shellSource, /overflow:\s*auto/)
+  assert.match(shellSource, /\.primary-button:disabled\s*\{[^}]*surface-muted/)
+  assert.match(shellSource, /max\(36px,\s*min\(44px/)
+  assert.match(shellSource, /max\(36px,\s*var\(--cell\)\)/)
+  assert.match(shellSource, /min-width:\s*36px/)
+  assert.doesNotMatch(shellSource, /\(100vi - 80px\) \/ 12/)
   const sideLearnerSource = await readFile(
     new URL("../hooks/use-side-learner.ts", import.meta.url),
     "utf8"

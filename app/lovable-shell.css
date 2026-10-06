@@ -105,7 +105,10 @@ body {
   opacity: 0.88;
 }
 .primary-button:disabled {
-  cursor: default;
+  background: var(--surface-muted);
+  color: var(--ink-secondary);
+  border-color: color-mix(in oklab, var(--ink-secondary) 32%, transparent);
+  cursor: not-allowed;
 }
 
 .battle-top {
@@ -598,6 +601,8 @@ body {
   border-top: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
 }
 .battle-arena {
+  container-type: inline-size;
+  container-name: arena;
   min-width: 0;
   display: grid;
   grid-template-rows: auto minmax(260px, 1fr) auto;
@@ -624,11 +629,13 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .arena-stage {
+  --cell: max(36px, min(44px, calc((100cqi - 40px) / 6)));
   display: grid;
   place-items: center;
   min-height: calc(var(--cell) * 6 + 48px);
-  padding: var(--s-5) var(--s-3);
-  overflow: clip;
+  padding: var(--s-4) var(--s-2);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 .arena-stage .clue-board {
   margin: 0;
@@ -680,7 +687,7 @@ body {
   grid-column: 1;
   grid-row: 1;
   display: grid;
-  grid-template-columns: repeat(var(--n), var(--cell));
+  grid-template-columns: repeat(var(--n), max(36px, var(--cell)));
   align-items: center;
   text-align: center;
   font: var(--t-ui);
@@ -689,7 +696,7 @@ body {
   grid-column: 2;
   grid-row: 2;
   display: grid;
-  grid-template-rows: repeat(var(--n), var(--cell));
+  grid-template-rows: repeat(var(--n), max(36px, var(--cell)));
   align-items: center;
   text-align: center;
   font: var(--t-ui);
@@ -699,7 +706,8 @@ body {
   grid-column: 1;
   grid-row: 2;
   display: grid;
-  grid-template-columns: repeat(var(--n), var(--cell));
+  width: max-content;
+  grid-template-columns: repeat(var(--n), max(36px, var(--cell)));
   border: var(--line-perimeter);
 }
 .puzzle-cell {
@@ -745,8 +753,11 @@ body {
   position: relative;
   display: inline-grid;
   place-items: center;
-  width: var(--cell);
-  height: var(--cell);
+  box-sizing: border-box;
+  width: max(36px, var(--cell));
+  height: max(36px, var(--cell));
+  min-width: 36px;
+  min-height: 36px;
   padding: 0;
   background: var(--canvas);
   color: var(--ink);
@@ -890,6 +901,8 @@ body {
 .rule-strip .game-cell {
   width: 24px;
   height: 24px;
+  min-width: 24px;
+  min-height: 24px;
   border-right: var(--line-cell);
   border-bottom: var(--line-cell);
 }
@@ -1069,9 +1082,13 @@ body {
     font-size: 12px;
   }
 }
-@media (max-width: 420px) {
-  .battle-arena {
-    --cell: max(36px, min(44px, calc((100vi - 80px) / 12)));
+@container arena (max-width: 280px) {
+  .arena-header,
+  .arena-footer {
+    padding-inline: var(--s-2);
+  }
+  .arena-stage {
+    padding-inline: var(--s-1);
   }
 }
 @media (prefers-reduced-motion: reduce) {
