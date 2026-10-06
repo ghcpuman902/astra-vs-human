@@ -75,20 +75,47 @@
 .battle-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "brand settings"
+    "tabs tabs";
   align-items: center;
-  gap: var(--s-4);
+  gap: var(--s-3) var(--s-4);
   padding: var(--s-3) var(--s-5);
   border-bottom: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
 }
 .battle-top .wordmark {
+  grid-area: brand;
   font: var(--t-ui);
 }
+.battle-settings {
+  grid-area: settings;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s-2);
+}
+.battle-settings select {
+  height: 34px;
+  border: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
+  border-radius: var(--radius-control);
+  background: var(--canvas);
+  color: var(--ink);
+  font: var(--t-ui);
+  padding: 0 var(--s-2);
+}
 .battle-top .game-tabs {
+  grid-area: tabs;
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-1);
   margin: 0;
   border: 0;
+}
+.rules-pending {
+  margin: 0;
+  color: var(--ink-secondary);
+  font: var(--t-ui);
 }
 .game-tabs button[aria-current="step"] {
   border-bottom: 2px solid var(--ink);
@@ -477,7 +504,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
-  padding: var(--s-3) var(--s-5);
+  padding: var(--s-3) var(--s-5) var(--s-5);
   border-top: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
   color: var(--ink-secondary);
   font: var(--t-badge);
@@ -548,7 +575,6 @@
     border-top: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
   }
   .battle-top {
-    grid-template-columns: minmax(0, 1fr);
     padding-inline: var(--s-3);
     gap: var(--s-2);
   }

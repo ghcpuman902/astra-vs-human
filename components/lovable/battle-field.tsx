@@ -24,6 +24,8 @@ type BattleFieldProps = {
   agentStatus: string
   claim: string
   invalidIndex: number | null
+  rulesShown: boolean
+  onReveal: () => void
   onStart: () => void
   onTap: (cell: number) => void
   onUndo: () => void
@@ -54,6 +56,8 @@ export const BattleField = ({
   agentStatus,
   claim,
   invalidIndex,
+  rulesShown,
+  onReveal,
   onStart,
   onTap,
   onUndo,
@@ -86,7 +90,11 @@ export const BattleField = ({
             />
           ) : (
             <div className="puzzle-cover">
-              <span>Read the shared rules, then start both clocks.</span>
+              <span>
+                {rulesShown
+                  ? "Ready when you are."
+                  : "Rules stay hidden until you reveal them."}
+              </span>
             </div>
           )}
         </div>
@@ -124,22 +132,29 @@ export const BattleField = ({
       <aside className="shared-rules">
         <div className="stage-control">
           <span className="stage-reading">
-            {started ? `${clock(remainingMs)} left` : "Rules are shared"}
+            {started
+              ? `${clock(remainingMs)} left`
+              : rulesShown
+                ? "Rules are shared"
+                : "Same reveal for both"}
           </span>
           <button
             type="button"
             className="primary-button"
-            disabled={loading || (started && !finished)}
+            disabled={loading || started}
             onClick={() => {
-              if (!started) onStart()
+              if (!rulesShown) onReveal()
+              else if (!started) onStart()
             }}
           >
             <Play />
-            {!started
-              ? "Start both"
-              : finished
-                ? "Both finished"
-                : clock(remainingMs)}
+            {!rulesShown
+              ? "Show rules"
+              : !started
+                ? "Start both"
+                : finished
+                  ? "Both finished"
+                  : clock(remainingMs)}
           </button>
           <span className="stage-progress">
             {practice
@@ -147,20 +162,26 @@ export const BattleField = ({
               : `Typical ${pack.session.targetSeconds}s · LEARNER`}
           </span>
         </div>
-        <div className="postcard-rules">
-          <p className="postcard-goal">{card.goal}</p>
-          <ul>
-            {card.rules.map((rule, index) => (
-              <li key={index}>{rule}</li>
-            ))}
-          </ul>
-        </div>
+        {rulesShown ? (
+          <div className="postcard-rules">
+            <p className="postcard-goal">{card.goal}</p>
+            <ul>
+              {card.rules.map((rule, index) => (
+                <li key={index}>{rule}</li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="rules-pending">Rules appear for both players at once.</p>
+        )}
         <p className="learner-note" aria-live="polite">
           {learnerStatus === "playing"
             ? agentStatus
             : started
               ? learnerStatus
-              : "Learner waits for Start."}
+              : rulesShown
+                ? "Learner waits for Start."
+                : "Learner has not seen the rules."}
           {finished && claim ? <blockquote>{claim}</blockquote> : null}
         </p>
       </aside>
@@ -187,7 +208,9 @@ export const BattleField = ({
             />
           ) : (
             <div className="puzzle-cover">
-              <span>Waiting for Start.</span>
+              <span>
+                {rulesShown ? "Waiting for Start." : "Waiting for the rules."}
+              </span>
             </div>
           )}
         </div>

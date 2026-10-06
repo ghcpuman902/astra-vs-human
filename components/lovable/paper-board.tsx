@@ -20,16 +20,17 @@ const quotaFor = (
   axis: "row" | "column"
 ) => {
   if (!("constraints" in board.clues)) return undefined
-  return board.clues.constraints.find(
-    (rule) =>
-      rule.kind === "quota" &&
-      rule.cells.length === board.n &&
-      rule.cells.every((index) =>
+  const rule = board.clues.constraints.find(
+    (item) =>
+      item.kind === "quota" &&
+      item.cells.length === board.n &&
+      item.cells.every((index) =>
         axis === "row"
           ? Math.floor(index / board.n) === line
           : index % board.n === line
       )
-  )?.ones
+  )
+  return rule?.kind === "quota" ? rule.ones : undefined
 }
 
 export const PaperBoard = ({

@@ -50,3 +50,4 @@ scratch/
 
 # agent scratch (see _agent/README.md)
 /_agent/
+.env*

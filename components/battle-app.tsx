@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { Lock, LockOpen, Play, RotateCcw, Undo2 } from "lucide-react"
+import { Lock, LockOpen } from "lucide-react"
 
 import { BattleField } from "@/components/lovable/battle-field"
+import { useLearnerModel } from "@/hooks/use-learner-model"
 import { verifyGame } from "@/lib/mini-game-rules/verifier"
 import {
   createBattleGround,
@@ -23,10 +24,6 @@ const names: Record<GamePack["category"], string> = {
   path_cover: "Number trail",
   tile_rotate_connect: "Pipe turn",
   lights_toggle: "Cross lights",
-}
-const clock = (ms: number) => {
-  const seconds = Math.floor(Math.max(0, ms) / 1000)
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
 }
 type Generated = {
   pack: GamePack
@@ -52,6 +49,8 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
   const [cap, setCap] = useState(600000)
   const [memory, setMemory] = useState(createLearnerMemory)
   const memories = useRef<Record<string, LearnerMemory>>({})
+  const models = useLearnerModel()
+  const roundId = `${pack.seed}:${revision}`
   const family = `${pack.category}:${pack.n}:${pack.mode}:${pack.visibility.kind}:${pack.transfer.family}`
 
   async function generate(transfer: boolean) {
@@ -130,7 +129,36 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
     <main className="battle-ground">
       <header className="battle-top">
         <div className="wordmark">astra-vs-human · Round {roundNumber}</div>
-        <nav className="game-tabs" aria-label="Round games">
+        <div className="battle-settings">
+          <label>
+            Learner{" "}
+            <select
+              aria-label="Learner model"
+              value={models.selectedModel ?? ""}
+              disabled={
+                locked || busy || models.isFrozen || models.status !== "ready"
+              }
+              onChange={(event) => models.selectModel(event.target.value)}
+            >
+              {models.models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Cap{" "}
+            <select
+              aria-label="Shared round time cap"
+              value={cap}
+              disabled={locked || busy}
+              onChange={(event) => setCap(Number(event.target.value))}
+            >
+              <option value={120000}>2 minutes</option>
+              <option value={600000}>10 minutes, if stuck</option>
+            </select>
+          </label>
           <button
             type="button"
             className="paper-button"
@@ -149,6 +177,8 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
             {practice ? <LockOpen /> : <Lock />}
             {practice ? "Test" : "Real"}
           </button>
+        </div>
+        <nav className="game-tabs" aria-label="Round games">
           {fixtures.map((fixture, index) => {
             const done = records.some(
               (record) =>
@@ -186,6 +216,12 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
         practice={practice}
         loading={busy}
         memory={memory}
+        modelsReady={models.status === "ready"}
+        getModel={models.getModel}
+        onBegin={() => models.startRound(roundId)}
+        onFinish={() => {
+          models.endRound(roundId)
+        }}
         onLock={(value) => setLocked(value && !practice)}
         onEnd={(roundRecords) =>
           !practice &&
@@ -219,18 +255,6 @@ export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
           >
             Invent another variation
           </button>
-          <label>
-            Shared cap{" "}
-            <select
-              aria-label="Shared round time cap"
-              value={cap}
-              disabled={locked || busy}
-              onChange={(event) => setCap(Number(event.target.value))}
-            >
-              <option value={120000}>2 minutes</option>
-              <option value={600000}>10 minutes, if stuck</option>
-            </select>
-          </label>
         </div>
         <span className="seed">
           SEED {pack.seed}
@@ -280,6 +304,10 @@ function Round({
   practice,
   loading,
   memory,
+  modelsReady,
+  getModel,
+  onBegin,
+  onFinish,
   onLock,
   onEnd,
 }: {
@@ -288,6 +316,10 @@ function Round({
   practice: boolean
   loading: boolean
   memory: LearnerMemory
+  modelsReady: boolean
+  getModel: () => string | undefined
+  onBegin: () => string | undefined
+  onFinish: () => void
   onLock: (locked: boolean) => void
   onEnd: (records: BattleRecord[]) => void
 }) {
@@ -304,6 +336,7 @@ function Round({
     battle.getSnapshot
   )
   const [started, setStarted] = useState(false)
+  const [rulesShown, setRulesShown] = useState(false)
   const [agentStatus, setAgentStatus] = useState("Ready")
   const [claim, setClaim] = useState("")
   const [lastCell, setLastCell] = useState<number | null>(null)
@@ -324,6 +357,7 @@ function Round({
       observe: () => battle.boardProps("learner"),
       api: battle.actions("learner"),
       memory,
+      model: getModel,
       decide: async (request, signal) => {
         if (!disposed) setAgentStatus("Thinking")
         const result = await fetchGameLearnerDecision(request, signal)
@@ -366,15 +400,16 @@ function Round({
       unsubscribe()
       runner.dispose()
     }
-  }, [battle, memory, started])
+  }, [battle, getModel, memory, started])
   useEffect(() => {
     if (!finished || ended.current) return
     ended.current = true
     if (memory.currentClaim && !memory.claims.includes(memory.currentClaim))
       memory.claims.push(memory.currentClaim)
     onLock(false)
+    onFinish()
     onEnd([...snapshot.records])
-  }, [finished, memory, onEnd, onLock, snapshot.records])
+  }, [finished, memory, onEnd, onFinish, onLock, snapshot.records])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (
@@ -406,8 +441,12 @@ function Round({
     pack,
     humanBoard.cells.map((cell) => (cell.visible ? cell.value : null))
   )
-  const card = postcards[pack.category]
+  const showInvalid =
+    !report.valid &&
+    pack.category !== "tile_rotate_connect" &&
+    pack.category !== "lights_toggle"
   const handleStart = () => {
+    if (!modelsReady || !onBegin()) return
     battle.start()
     setStarted(true)
     onLock(true)
@@ -422,7 +461,7 @@ function Round({
     <BattleField
       pack={pack}
       practice={practice}
-      loading={loading}
+      loading={loading || !modelsReady}
       started={started}
       finished={finished}
       remainingMs={snapshot.remainingMs}
@@ -437,7 +476,9 @@ function Round({
       canUndo={humanAttempt.state.history.length > 0}
       agentStatus={agentStatus}
       claim={claim}
-      invalidIndex={!report.valid ? lastCell : null}
+      invalidIndex={showInvalid ? lastCell : null}
+      rulesShown={rulesShown}
+      onReveal={() => setRulesShown(true)}
       onStart={handleStart}
       onTap={handleTap}
       onUndo={() => battle.actions("human").undo()}
