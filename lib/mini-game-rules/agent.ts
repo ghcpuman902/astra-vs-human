@@ -38,11 +38,15 @@ export type GamePlanner = {
 
 /** Author capability only: typed tools, no arbitrary source-code execution. */
 export function createAstraGamePlanner(): GamePlanner | undefined {
-  if (typeof window !== "undefined") throw new Error("Game author is server-only")
+  if (typeof window !== "undefined")
+    throw new Error("Game author is server-only")
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return undefined
   const modelName = process.env.OPENAI_MODEL?.trim() || "gpt-6-astra"
-  const provider = createOpenAI({ apiKey, organization: process.env.OPENAI_ORG_ID })
+  const provider = createOpenAI({
+    apiKey,
+    organization: process.env.OPENAI_ORG_ID,
+  })
   return {
     source: "openai",
     model: modelName,
@@ -53,7 +57,13 @@ export function createAstraGamePlanner(): GamePlanner | undefined {
         model: provider.responses(modelName),
         maxRetries: 0,
         maxOutputTokens: 1600,
-        providerOptions: { openai: { store: false, parallelToolCalls: false, reasoningEffort: "low" } },
+        providerOptions: {
+          openai: {
+            store: false,
+            parallelToolCalls: false,
+            reasoningEffort: "low",
+          },
+        },
         instructions: `You author short-session mini-games, not UI chrome and not learner moves.
 Sift the four sampled ideas, invent a playable local twist, then call assemble.
 Rounds target 10–120 seconds; a stuck player may take 600 seconds. Grid 4–6.
@@ -67,7 +77,8 @@ Never invent a successful audit, hidden answer, new win predicate, or unsupporte
 No prose output is needed; stop after a successful assemble tool result.`,
         tools: {
           sift: tool({
-            description: "Choose one sampled assemblable idea; explain short-session fit and transferable local pattern.",
+            description:
+              "Choose one sampled assemblable idea; explain short-session fit and transferable local pattern.",
             inputSchema: siftSchema,
             execute: (selection) => {
               const feedback = context.sift(selection)
@@ -76,10 +87,15 @@ No prose output is needed; stop after a successful assemble tool result.`,
             },
           }),
           assemble: tool({
-            description: "Build and verify a pack using the typed engine. The returned audit contains no solution.",
+            description:
+              "Build and verify a pack using the typed engine. The returned audit contains no solution.",
             inputSchema: assemblyRequestSchema,
             execute: (request) => {
-              if (!sifted) return { ok: false, reason: "First call sift with an assemblable idea." }
+              if (!sifted)
+                return {
+                  ok: false,
+                  reason: "First call sift with an assemblable idea.",
+                }
               const feedback = context.assemble(request)
               assembled = feedback.ok
               return feedback
@@ -95,9 +111,12 @@ No prose output is needed; stop after a successful assemble tool result.`,
       await agent.generate({
         abortSignal: context.signal,
         prompt: JSON.stringify({
-          seed: context.seed, n: context.n, preferences: context.preferences,
+          seed: context.seed,
+          n: context.n,
+          preferences: context.preferences,
           sampledIdeas: context.ideas,
-          instruction: "Sift, invent within supported knobs, assemble, inspect verification; retry only on failure.",
+          instruction:
+            "Sift, invent within supported knobs, assemble, inspect verification; retry only on failure.",
         }),
       })
     },

@@ -1,0 +1,2503 @@
+{
+  "format": "mini-game-rules-showcase/v1",
+  "generatedBy": "node scripts/generate-game-showcase.mjs",
+  "generatedAt": "2026-10-06T18:43:33.824Z",
+  "tracks": {
+    "miniGameRules": "These public packs, typed engine files, category renderers and verified action traces.",
+    "battleGroundUi": "The separate frozen hackathon frame: white board, OKLCH craft tokens, Human|Agent tabs, dual clocks, shared Action API and advance lock."
+  },
+  "dependencies": {
+    "zod": "^4.6.5",
+    "language": "TypeScript"
+  },
+  "actionContract": "Both players call selectCell(cell), cycle(), undo(), clear(). Dispatch the corresponding GameAction through applyGameAction. Check completion with verifyGame(pack, state.cells). Neither player receives author audits or solutions.",
+  "fairness": {
+    "samePackAndSeed": true,
+    "sameActions": true,
+    "sameClock": true,
+    "advance": "Lock until both finish or reach a shared action/time cap.",
+    "hints": "practice-only",
+    "scoring": "Score falling actions across at least three near-transfer rounds within the same rule family and board size. The five mixed showcase categories are renderer demos, not one learning-slope cohort.",
+    "claim": "We score the pattern they carried forward, not the puzzle class they recognised."
+  },
+  "roundDesign": {
+    "targetSeconds": {
+      "minimum": 10,
+      "maximum": 120
+    },
+    "stretchSeconds": 600,
+    "note": "The target is a design estimate. Passing two minutes is not a failure; a stuck player may use the shared ten-minute cap."
+  },
+  "lovableTask": "Build five distinct category renderers behind the existing battle-ground-ui frame. Reuse the frozen white/OKLCH craft and Human|Agent dual-clock chrome. Treat engine files as authoritative. After user approval, summarize the UI decisions that transfer to the next typed game pack.",
+  "games": [
+    {
+      "id": "showcase-binary",
+      "pack": {
+        "version": 1,
+        "seed": 640101,
+        "n": 4,
+        "mode": "FORCED-CHAIN",
+        "visibility": {
+          "kind": "full"
+        },
+        "postcard": {
+          "goal": "Fill every cell with 0 or 1.",
+          "rules": [
+            "No three consecutive equal cells in a row or column.",
+            "Each visible row or column quota gives its exact number of ones.",
+            "Friends marked = match. Friends marked × differ.",
+            "Cycle empty → 0 → 1 → empty. Givens stay fixed."
+          ]
+        },
+        "cells": [
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": 1,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": 1,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": 1,
+            "locked": true
+          },
+          {
+            "value": 1,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          }
+        ],
+        "actionSurface": {
+          "actions": [
+            "selectCell",
+            "cycle",
+            "undo",
+            "clear"
+          ],
+          "cycleValues": [
+            null,
+            0,
+            1
+          ],
+          "effect": "set-cell"
+        },
+        "transfer": {
+          "family": "binary-friends",
+          "variant": "showcase-binary",
+          "friendPatterns": [
+            "AA_ forces the other bit.",
+            "A_A forces the other bit.",
+            "A filled quota forces all remaining cells."
+          ],
+          "minimumRounds": 3
+        },
+        "session": {
+          "targetSeconds": 45,
+          "stretchSeconds": 600,
+          "hints": "practice-only"
+        },
+        "category": "binary_fill",
+        "rules": {
+          "constraints": [
+            {
+              "kind": "no-three",
+              "cells": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                1,
+                2,
+                3
+              ]
+            },
+            {
+              "kind": "quota",
+              "cells": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "ones": 2
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                4,
+                5,
+                6
+              ]
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "kind": "quota",
+              "cells": [
+                4,
+                5,
+                6,
+                7
+              ],
+              "ones": 2
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                8,
+                9,
+                10
+              ]
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                9,
+                10,
+                11
+              ]
+            },
+            {
+              "kind": "quota",
+              "cells": [
+                8,
+                9,
+                10,
+                11
+              ],
+              "ones": 2
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                12,
+                13,
+                14
+              ]
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                13,
+                14,
+                15
+              ]
+            },
+            {
+              "kind": "quota",
+              "cells": [
+                12,
+                13,
+                14,
+                15
+              ],
+              "ones": 2
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                0,
+                4,
+                8
+              ]
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                4,
+                8,
+                12
+              ]
+            },
+            {
+              "kind": "quota",
+              "cells": [
+                0,
+                4,
+                8,
+                12
+              ],
+              "ones": 2
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                1,
+                5,
+                9
+              ]
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                5,
+                9,
+                13
+              ]
+            },
+            {
+              "kind": "quota",
+              "cells": [
+                1,
+                5,
+                9,
+                13
+              ],
+              "ones": 2
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                2,
+                6,
+                10
+              ]
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                6,
+                10,
+                14
+              ]
+            },
+            {
+              "kind": "quota",
+              "cells": [
+                2,
+                6,
+                10,
+                14
+              ],
+              "ones": 2
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                3,
+                7,
+                11
+              ]
+            },
+            {
+              "kind": "no-three",
+              "cells": [
+                7,
+                11,
+                15
+              ]
+            },
+            {
+              "kind": "quota",
+              "cells": [
+                3,
+                7,
+                11,
+                15
+              ],
+              "ones": 2
+            },
+            {
+              "kind": "friend",
+              "cells": [
+                1,
+                2
+              ],
+              "relation": "="
+            },
+            {
+              "kind": "friend",
+              "cells": [
+                2,
+                3
+              ],
+              "relation": "×"
+            },
+            {
+              "kind": "friend",
+              "cells": [
+                4,
+                5
+              ],
+              "relation": "×"
+            },
+            {
+              "kind": "friend",
+              "cells": [
+                7,
+                11
+              ],
+              "relation": "="
+            },
+            {
+              "kind": "friend",
+              "cells": [
+                11,
+                15
+              ],
+              "relation": "×"
+            },
+            {
+              "kind": "friend",
+              "cells": [
+                14,
+                15
+              ],
+              "relation": "×"
+            }
+          ]
+        },
+        "winPredicate": "satisfy-binary-constraints"
+      },
+      "rendererRequirements": [
+        "Render blank/0/1 as two clearly distinct fill states with an explicit empty state.",
+        "Display exact row/column quota numbers from quota constraints beside the grid.",
+        "Render = and × friend marks between their referenced cells and explain their meaning in the postcard.",
+        "Locked givens look fixed; cycle only editable cells. Do not show computed forced moves in scored rounds."
+      ],
+      "inputOutputTrace": [
+        {
+          "step": 0,
+          "action": null,
+          "cells": [
+            null,
+            null,
+            null,
+            null,
+            1,
+            0,
+            null,
+            1,
+            null,
+            null,
+            0,
+            null,
+            null,
+            1,
+            1,
+            null
+          ],
+          "selectedCell": null,
+          "actions": 0,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 1,
+          "action": {
+            "type": "selectCell",
+            "cell": 0
+          },
+          "cells": [
+            null,
+            null,
+            null,
+            null,
+            1,
+            0,
+            null,
+            1,
+            null,
+            null,
+            0,
+            null,
+            null,
+            1,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 1,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 2,
+          "action": {
+            "type": "cycle"
+          },
+          "cells": [
+            0,
+            null,
+            null,
+            null,
+            1,
+            0,
+            null,
+            1,
+            null,
+            null,
+            0,
+            null,
+            null,
+            1,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 2,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 3,
+          "action": {
+            "type": "cycle"
+          },
+          "cells": [
+            1,
+            null,
+            null,
+            null,
+            1,
+            0,
+            null,
+            1,
+            null,
+            null,
+            0,
+            null,
+            null,
+            1,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 3,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 4,
+          "action": {
+            "type": "undo"
+          },
+          "cells": [
+            0,
+            null,
+            null,
+            null,
+            1,
+            0,
+            null,
+            1,
+            null,
+            null,
+            0,
+            null,
+            null,
+            1,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 4,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 5,
+          "action": {
+            "type": "clear"
+          },
+          "cells": [
+            null,
+            null,
+            null,
+            null,
+            1,
+            0,
+            null,
+            1,
+            null,
+            null,
+            0,
+            null,
+            null,
+            1,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 5,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 6,
+          "action": {
+            "type": "undo"
+          },
+          "cells": [
+            0,
+            null,
+            null,
+            null,
+            1,
+            0,
+            null,
+            1,
+            null,
+            null,
+            0,
+            null,
+            null,
+            1,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 6,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "showcase-crowns",
+      "pack": {
+        "version": 1,
+        "seed": 640202,
+        "n": 5,
+        "mode": "BRANCHY",
+        "visibility": {
+          "kind": "full"
+        },
+        "postcard": {
+          "goal": "Place one crown in every row and column.",
+          "rules": [
+            "Blocked cells cannot hold crowns.",
+            "Crowns cannot touch diagonally.",
+            "Cycle empty → mark empty → crown → empty. Givens stay fixed."
+          ]
+        },
+        "cells": [
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": 1,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": 1,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          }
+        ],
+        "actionSurface": {
+          "actions": [
+            "selectCell",
+            "cycle",
+            "undo",
+            "clear"
+          ],
+          "cycleValues": [
+            null,
+            0,
+            1
+          ],
+          "effect": "set-cell"
+        },
+        "transfer": {
+          "family": "crown-nontouch",
+          "variant": "showcase-crowns",
+          "friendPatterns": [
+            "A placed crown removes its column from every other row.",
+            "A crown removes the two diagonal neighbor cells.",
+            "A row with one legal spot forces a crown."
+          ],
+          "minimumRounds": 3
+        },
+        "session": {
+          "targetSeconds": 60,
+          "stretchSeconds": 600,
+          "hints": "practice-only"
+        },
+        "category": "crown",
+        "rules": {
+          "blocked": [
+            4,
+            5,
+            13,
+            16,
+            18
+          ],
+          "noDiagonalTouch": true
+        },
+        "winPredicate": "one-crown-per-row-column"
+      },
+      "rendererRequirements": [
+        "Render crown, pencil-empty mark, and undecided as distinct cell states.",
+        "Render blocked cells from rules.blocked and locked crowns as fixed givens.",
+        "Show one-crown-per-row-and-column and the optional diagonal-touch rule in the postcard.",
+        "Keep the row/column layout visible at all times; do not calculate candidate highlights for scored players."
+      ],
+      "inputOutputTrace": [
+        {
+          "step": 0,
+          "action": null,
+          "cells": [
+            null,
+            null,
+            null,
+            null,
+            0,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            1,
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null
+          ],
+          "selectedCell": null,
+          "actions": 0,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 1,
+          "action": {
+            "type": "selectCell",
+            "cell": 0
+          },
+          "cells": [
+            null,
+            null,
+            null,
+            null,
+            0,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            1,
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 1,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 2,
+          "action": {
+            "type": "cycle"
+          },
+          "cells": [
+            0,
+            null,
+            null,
+            null,
+            0,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            1,
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 2,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 3,
+          "action": {
+            "type": "cycle"
+          },
+          "cells": [
+            1,
+            null,
+            null,
+            null,
+            0,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            1,
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 3,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Two crowns share a row or column"
+            ]
+          }
+        },
+        {
+          "step": 4,
+          "action": {
+            "type": "undo"
+          },
+          "cells": [
+            0,
+            null,
+            null,
+            null,
+            0,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            1,
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 4,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 5,
+          "action": {
+            "type": "clear"
+          },
+          "cells": [
+            null,
+            null,
+            null,
+            null,
+            0,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            1,
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 5,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 6,
+          "action": {
+            "type": "undo"
+          },
+          "cells": [
+            0,
+            null,
+            null,
+            null,
+            0,
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            1,
+            0,
+            null,
+            0,
+            null,
+            null,
+            null,
+            null,
+            1,
+            null
+          ],
+          "selectedCell": 0,
+          "actions": 6,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "showcase-path",
+      "pack": {
+        "version": 1,
+        "seed": 640303,
+        "n": 4,
+        "mode": "FORCED-CHAIN",
+        "visibility": {
+          "kind": "full"
+        },
+        "postcard": {
+          "goal": "Number the 9 open cells into one path, from 1 to 9.",
+          "rules": [
+            "Consecutive numbers share an edge.",
+            "Use each number exactly once and cover every open cell.",
+            "Numbered checkpoints are fixed. Blocked cells stay empty.",
+            "Cycle an open cell through empty and the path numbers."
+          ]
+        },
+        "cells": [
+          {
+            "value": null,
+            "locked": true
+          },
+          {
+            "value": 9,
+            "locked": true
+          },
+          {
+            "value": 8,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": true
+          },
+          {
+            "value": 1,
+            "locked": true
+          },
+          {
+            "value": 6,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": true
+          },
+          {
+            "value": null,
+            "locked": false
+          },
+          {
+            "value": null,
+            "locked": false
+          }
+        ],
+        "actionSurface": {
+          "actions": [
+            "selectCell",
+            "cycle",
+            "undo",
+            "clear"
+          ],
+          "cycleValues": [
+            null,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "effect": "set-cell"
+        },
+        "transfer": {
+          "family": "path-checkpoints",
+          "variant": "showcase-path",
+          "friendPatterns": [
+            "A corner with only two open neighbors must connect both.",
+            "A checkpoint reserves its place in the sequence.",
+            "A dead end must be a path endpoint."
+          ],
+          "minimumRounds": 3
+        },
+        "session": {
+          "targetSeconds": 60,
+          "stretchSeconds": 600,
+          "hints": "practice-only"
+        },
+        "category": "path_cover",
+        "rules": {
+          "active": [
+            6,
+            10,
+            14,
+            15,
+            11,
+            7,
+            3,
+            2,
+            1
+          ],
+          "start": 6,
+          "end": 1,
+          "checkpoints": [
+            {
+              "cell": 6,
+              "order": 1
+            },
+            {
+              "cell": 1,
+              "order": 9
+            },
+            {
+              "cell": 2,
+              "order": 8
+            },
+            {
+              "cell": 7,
+              "order": 6
+            }
+          ]
+        },
+        "winPredicate": "orthogonal-numbered-path-cover"
+      },
+      "rendererRequirements": [
+        "Render only rules.active as open cells; shade every inactive cell as blocked.",
+        "Render fixed start/end and numbered checkpoints. Open cells cycle through empty then 1 through active.length.",
+        "Draw path segments only between currently numbered consecutive edge neighbors.",
+        "Show the next cycle value on the selected cell control so ordinal cycling remains understandable on touch."
+      ],
+      "inputOutputTrace": [
+        {
+          "step": 0,
+          "action": null,
+          "cells": [
+            null,
+            9,
+            8,
+            null,
+            null,
+            null,
+            1,
+            6,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "selectedCell": null,
+          "actions": 0,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 1,
+          "action": {
+            "type": "selectCell",
+            "cell": 3
+          },
+          "cells": [
+            null,
+            9,
+            8,
+            null,
+            null,
+            null,
+            1,
+            6,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "selectedCell": 3,
+          "actions": 1,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 2,
+          "action": {
+            "type": "cycle"
+          },
+          "cells": [
+            null,
+            9,
+            8,
+            1,
+            null,
+            null,
+            1,
+            6,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "selectedCell": 3,
+          "actions": 2,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Path orders repeat"
+            ]
+          }
+        },
+        {
+          "step": 3,
+          "action": {
+            "type": "cycle"
+          },
+          "cells": [
+            null,
+            9,
+            8,
+            2,
+            null,
+            null,
+            1,
+            6,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "selectedCell": 3,
+          "actions": 3,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Consecutive path cells must share an edge"
+            ]
+          }
+        },
+        {
+          "step": 4,
+          "action": {
+            "type": "undo"
+          },
+          "cells": [
+            null,
+            9,
+            8,
+            1,
+            null,
+            null,
+            1,
+            6,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "selectedCell": 3,
+          "actions": 4,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Path orders repeat"
+            ]
+          }
+        },
+        {
+          "step": 5,
+          "action": {
+            "type": "clear"
+          },
+          "cells": [
+            null,
+            9,
+            8,
+            null,
+            null,
+            null,
+            1,
+            6,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "selectedCell": 3,
+          "actions": 5,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 6,
+          "action": {
+            "type": "undo"
+          },
+          "cells": [
+            null,
+            9,
+            8,
+            1,
+            null,
+            null,
+            1,
+            6,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "selectedCell": 3,
+          "actions": 6,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Path orders repeat"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "showcase-pipes",
+      "pack": {
+        "version": 1,
+        "seed": 640404,
+        "n": 5,
+        "mode": "FORCED-CHAIN",
+        "visibility": {
+          "kind": "full"
+        },
+        "postcard": {
+          "goal": "Rotate the pieces into one connected pipe.",
+          "rules": [
+            "Every port must meet a matching port across an edge.",
+            "Ports cannot point into blank cells or outside the board.",
+            "Tap cycles the distinct orientations of that tile."
+          ]
+        },
+        "cells": [
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": true
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": true
+          }
+        ],
+        "actionSurface": {
+          "actions": [
+            "selectCell",
+            "cycle",
+            "undo",
+            "clear"
+          ],
+          "cycleValues": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "effect": "rotate-ports"
+        },
+        "transfer": {
+          "family": "pipe-boundaries",
+          "variant": "showcase-pipes",
+          "friendPatterns": [
+            "An endpoint beside one pipe must face that neighbor.",
+            "Boundary ports point inward.",
+            "A matched neighbor fixes the turn of a corner."
+          ],
+          "minimumRounds": 3
+        },
+        "session": {
+          "targetSeconds": 40,
+          "stretchSeconds": 600,
+          "hints": "practice-only"
+        },
+        "category": "tile_rotate_connect",
+        "rules": {
+          "ports": [
+            0,
+            0,
+            0,
+            2,
+            9,
+            0,
+            0,
+            0,
+            0,
+            5,
+            2,
+            0,
+            0,
+            0,
+            5,
+            5,
+            0,
+            0,
+            12,
+            6,
+            12,
+            5,
+            10,
+            12,
+            0
+          ]
+        },
+        "winPredicate": "all-ports-match-connected"
+      },
+      "rendererRequirements": [
+        "Render ports as N=1, E=2, S=4, W=8 bits. Apply rotatePorts(baseMask, currentCellValue) before drawing.",
+        "Render zero-port tiles as blank locked cells. Render active endpoints, straights and elbows as pipes.",
+        "The shared cycle reducer skips equivalent orientations of symmetric tiles. Never assume every tile has four distinct states.",
+        "Keep tile hit targets fixed during rotation; matching pipes should join visually across shared edges."
+      ],
+      "inputOutputTrace": [
+        {
+          "step": 0,
+          "action": null,
+          "cells": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": null,
+          "actions": 0,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match"
+            ]
+          }
+        },
+        {
+          "step": 1,
+          "action": {
+            "type": "selectCell",
+            "cell": 3
+          },
+          "cells": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 3,
+          "actions": 1,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match"
+            ]
+          }
+        },
+        {
+          "step": 2,
+          "action": {
+            "type": "cycle"
+          },
+          "cells": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 3,
+          "actions": 2,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match"
+            ]
+          }
+        },
+        {
+          "step": 3,
+          "action": {
+            "type": "cycle"
+          },
+          "cells": [
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 3,
+          "actions": 3,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match"
+            ]
+          }
+        },
+        {
+          "step": 4,
+          "action": {
+            "type": "undo"
+          },
+          "cells": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 3,
+          "actions": 4,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match"
+            ]
+          }
+        },
+        {
+          "step": 5,
+          "action": {
+            "type": "clear"
+          },
+          "cells": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 3,
+          "actions": 5,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match"
+            ]
+          }
+        },
+        {
+          "step": 6,
+          "action": {
+            "type": "undo"
+          },
+          "cells": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 3,
+          "actions": 6,
+          "verification": {
+            "valid": false,
+            "complete": false,
+            "errors": [
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match",
+              "Ports do not match",
+              "Port points outside board",
+              "Ports do not match"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "showcase-lights",
+      "pack": {
+        "version": 1,
+        "seed": 640505,
+        "n": 4,
+        "mode": "MULTI",
+        "visibility": {
+          "kind": "full"
+        },
+        "postcard": {
+          "goal": "Switch every light off.",
+          "rules": [
+            "Tap flips this light and its edge neighbors.",
+            "Pressing the same cell twice cancels both presses.",
+            "Undo reverses your last tap. Clear restores the starting lights."
+          ]
+        },
+        "cells": [
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 1,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 1,
+            "locked": false
+          },
+          {
+            "value": 1,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 1,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          },
+          {
+            "value": 0,
+            "locked": false
+          }
+        ],
+        "actionSurface": {
+          "actions": [
+            "selectCell",
+            "cycle",
+            "undo",
+            "clear"
+          ],
+          "cycleValues": [
+            0,
+            1
+          ],
+          "effect": "toggle-cross"
+        },
+        "transfer": {
+          "family": "lights-cross-cancellation",
+          "variant": "showcase-lights",
+          "friendPatterns": [
+            "Two taps on one cell cancel.",
+            "Shared neighbors flip twice and cancel.",
+            "Corner taps affect three lights; interior taps affect five."
+          ],
+          "minimumRounds": 3
+        },
+        "session": {
+          "targetSeconds": 60,
+          "stretchSeconds": 600,
+          "hints": "practice-only"
+        },
+        "category": "lights_toggle",
+        "rules": {
+          "neighborhood": "orthogonal-cross"
+        },
+        "winPredicate": "all-lights-off"
+      },
+      "rendererRequirements": [
+        "Render on/off lights with both shape/brightness and color differences.",
+        "A cycle tap flips the selected light and its orthogonal neighbors through the shared reducer.",
+        "Show the affected cross on press/selection as interaction feedback, using the same feedback for Human and Learner.",
+        "Undo restores the previous whole board; clear restores the generated starting lights. Solved means all lights are off."
+      ],
+      "inputOutputTrace": [
+        {
+          "step": 0,
+          "action": null,
+          "cells": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": null,
+          "actions": 0,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 1,
+          "action": {
+            "type": "selectCell",
+            "cell": 0
+          },
+          "cells": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 0,
+          "actions": 1,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 2,
+          "action": {
+            "type": "cycle"
+          },
+          "cells": [
+            1,
+            1,
+            0,
+            1,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 0,
+          "actions": 2,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 3,
+          "action": {
+            "type": "cycle"
+          },
+          "cells": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 0,
+          "actions": 3,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 4,
+          "action": {
+            "type": "undo"
+          },
+          "cells": [
+            1,
+            1,
+            0,
+            1,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 0,
+          "actions": 4,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 5,
+          "action": {
+            "type": "clear"
+          },
+          "cells": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 0,
+          "actions": 5,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        },
+        {
+          "step": 6,
+          "action": {
+            "type": "undo"
+          },
+          "cells": [
+            1,
+            1,
+            0,
+            1,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "selectedCell": 0,
+          "actions": 6,
+          "verification": {
+            "valid": true,
+            "complete": false,
+            "errors": []
+          }
+        }
+      ]
+    }
+  ],
+  "files": {
+    "lib/mini-game-rules/schema.ts": "import { z } from \"zod\"\n\nexport const categorySchema = z.enum([\n  \"binary_fill\",\n  \"crown\",\n  \"path_cover\",\n  \"tile_rotate_connect\",\n  \"lights_toggle\",\n])\nexport const modeSchema = z.enum([\"FORCED-CHAIN\", \"BRANCHY\", \"MULTI\", \"RISK\"])\nexport type Mode = z.infer<typeof modeSchema>\nconst index = z.number().int().nonnegative()\nconst cellSchema = z.object({\n  value: z.number().int().nullable(),\n  locked: z.boolean(),\n})\nconst constraintSchema = z.discriminatedUnion(\"kind\", [\n  z.object({\n    kind: z.literal(\"no-three\"),\n    cells: z.tuple([index, index, index]),\n  }),\n  z.object({\n    kind: z.literal(\"quota\"),\n    cells: z.array(index).min(1),\n    ones: index,\n  }),\n  z.object({\n    kind: z.literal(\"friend\"),\n    cells: z.tuple([index, index]),\n    relation: z.enum([\"=\", \"×\"]),\n  }),\n])\nconst common = {\n  version: z.literal(1),\n  seed: z.number().int().safe(),\n  n: z.union([z.literal(4), z.literal(5), z.literal(6)]),\n  mode: modeSchema,\n  visibility: z.discriminatedUnion(\"kind\", [\n    z.object({ kind: z.literal(\"full\") }),\n    z.object({ kind: z.literal(\"partial\"), visibleCells: z.array(index) }),\n  ]),\n  postcard: z.object({\n    goal: z.string().min(1).max(160),\n    rules: z.array(z.string().min(1).max(180)).min(1).max(4),\n  }),\n  cells: z.array(cellSchema).min(16).max(36),\n  actionSurface: z.object({\n    actions: z.tuple([\n      z.literal(\"selectCell\"),\n      z.literal(\"cycle\"),\n      z.literal(\"undo\"),\n      z.literal(\"clear\"),\n    ]),\n    cycleValues: z.array(z.number().int().nullable()).min(2),\n    effect: z.enum([\"set-cell\", \"rotate-ports\", \"toggle-cross\"]),\n  }),\n  transfer: z.object({\n    family: z.string().min(1),\n    variant: z.string(),\n    friendPatterns: z.array(z.string()).min(1),\n    minimumRounds: z.literal(3),\n  }),\n  session: z.object({\n    targetSeconds: z.number().min(10).max(120),\n    stretchSeconds: z.literal(600),\n    hints: z.literal(\"practice-only\"),\n  }),\n}\nexport const packSchema = z\n  .discriminatedUnion(\"category\", [\n    z.object({\n      ...common,\n      category: z.literal(\"binary_fill\"),\n      rules: z.object({ constraints: z.array(constraintSchema) }),\n      winPredicate: z.literal(\"satisfy-binary-constraints\"),\n    }),\n    z.object({\n      ...common,\n      category: z.literal(\"crown\"),\n      rules: z.object({\n        blocked: z.array(index),\n        noDiagonalTouch: z.boolean(),\n      }),\n      winPredicate: z.literal(\"one-crown-per-row-column\"),\n    }),\n    z.object({\n      ...common,\n      category: z.literal(\"path_cover\"),\n      rules: z.object({\n        active: z.array(index).min(2),\n        start: index,\n        end: index,\n        checkpoints: z.array(z.object({ cell: index, order: index })),\n      }),\n      winPredicate: z.literal(\"orthogonal-numbered-path-cover\"),\n    }),\n    z.object({\n      ...common,\n      category: z.literal(\"tile_rotate_connect\"),\n      rules: z.object({ ports: z.array(z.number().int().min(0).max(15)) }),\n      winPredicate: z.literal(\"all-ports-match-connected\"),\n    }),\n    z.object({\n      ...common,\n      category: z.literal(\"lights_toggle\"),\n      rules: z.object({ neighborhood: z.literal(\"orthogonal-cross\") }),\n      winPredicate: z.literal(\"all-lights-off\"),\n    }),\n  ])\n  .superRefine((pack, ctx) => {\n    const count = pack.n ** 2\n    if (pack.cells.length !== count)\n      ctx.addIssue({\n        code: \"custom\",\n        message: \"Cell count must equal n squared\",\n      })\n    const ids =\n      pack.category === \"binary_fill\"\n        ? pack.rules.constraints.flatMap((rule) => rule.cells)\n        : pack.category === \"crown\"\n          ? pack.rules.blocked\n          : pack.category === \"path_cover\"\n            ? [\n                ...pack.rules.active,\n                pack.rules.start,\n                pack.rules.end,\n                ...pack.rules.checkpoints.map((p) => p.cell),\n              ]\n            : []\n    if (ids.some((id) => id >= count))\n      ctx.addIssue({ code: \"custom\", message: \"Clue cell outside board\" })\n    if (\n      pack.category === \"tile_rotate_connect\" &&\n      pack.rules.ports.length !== count\n    )\n      ctx.addIssue({\n        code: \"custom\",\n        message: \"Port count must equal cell count\",\n      })\n    if (\n      pack.visibility.kind === \"partial\" &&\n      pack.visibility.visibleCells.some((id) => id >= count)\n    )\n      ctx.addIssue({ code: \"custom\", message: \"Visible cell outside board\" })\n    const issue = (message: string) => ctx.addIssue({ code: \"custom\", message })\n    if (\n      new Set(pack.actionSurface.cycleValues).size !==\n      pack.actionSurface.cycleValues.length\n    )\n      issue(\"Cycle values must be distinct\")\n    if (\n      pack.cells.some(\n        (cell) => !pack.actionSurface.cycleValues.includes(cell.value)\n      )\n    )\n      issue(\"Initial cell outside action alphabet\")\n    if (pack.category === \"binary_fill\" || pack.category === \"crown\") {\n      if (\n        pack.actionSurface.effect !== \"set-cell\" ||\n        pack.actionSurface.cycleValues.join(\",\") !== [null, 0, 1].join(\",\")\n      )\n        issue(\"Binary and crown games require empty, 0, 1 cell cycling\")\n    }\n    if (pack.category === \"binary_fill\")\n      for (const rule of pack.rules.constraints) {\n        if (new Set(rule.cells).size !== rule.cells.length)\n          issue(\"Constraint repeats a cell\")\n        if (rule.kind === \"quota\" && rule.ones > rule.cells.length)\n          issue(\"Quota exceeds its cells\")\n      }\n    if (\n      pack.category === \"crown\" &&\n      pack.rules.blocked.some(\n        (id) => !pack.cells[id]?.locked || pack.cells[id]?.value !== 0\n      )\n    )\n      issue(\"Blocked crown cells must be locked empty marks\")\n    if (pack.category === \"path_cover\") {\n      if (new Set(pack.rules.active).size !== pack.rules.active.length)\n        issue(\"Path cells must be distinct\")\n      if (\n        !pack.rules.active.includes(pack.rules.start) ||\n        !pack.rules.active.includes(pack.rules.end) ||\n        pack.rules.start === pack.rules.end\n      )\n        issue(\"Path endpoints must be distinct active cells\")\n      if (\n        pack.actionSurface.effect !== \"set-cell\" ||\n        pack.actionSurface.cycleValues.length !==\n          pack.rules.active.length + 1 ||\n        pack.actionSurface.cycleValues.some(\n          (value, id) => value !== (id === 0 ? null : id)\n        )\n      )\n        issue(\"Path cycle must contain empty and every path order\")\n      if (\n        pack.rules.checkpoints.some(\n          (point) =>\n            !pack.rules.active.includes(point.cell) ||\n            point.order < 1 ||\n            point.order > pack.rules.active.length ||\n            !pack.cells[point.cell]?.locked ||\n            pack.cells[point.cell]?.value !== point.order\n        )\n      )\n        issue(\"Path checkpoints must be locked and within the path\")\n      if (\n        pack.cells.some(\n          (cell, id) =>\n            !pack.rules.active.includes(id) &&\n            (!cell.locked || cell.value !== null)\n        )\n      )\n        issue(\"Inactive path cells must be locked blank\")\n    }\n    if (\n      pack.category === \"tile_rotate_connect\" &&\n      (pack.actionSurface.effect !== \"rotate-ports\" ||\n        pack.actionSurface.cycleValues.join(\",\") !== \"0,1,2,3\")\n    )\n      issue(\"Pipe tiles require quarter-turn rotations\")\n    if (\n      pack.category === \"lights_toggle\" &&\n      (pack.actionSurface.effect !== \"toggle-cross\" ||\n        pack.actionSurface.cycleValues.join(\",\") !== \"0,1\" ||\n        pack.cells.some((cell) => cell.locked))\n    )\n      issue(\"Lights require unlocked bits and cross toggles\")\n  })\nexport type GamePack = z.infer<typeof packSchema>\nexport type GameCategory = z.infer<typeof categorySchema>\nexport const assemblyRequestSchema = z.object({\n  category: categorySchema,\n  seed: z.number().int().safe(),\n  n: z.union([z.literal(4), z.literal(5), z.literal(6)]),\n  variant: z.string().max(80).optional(),\n  preferences: z\n    .object({\n      mode: modeSchema.optional(),\n      visibility: z.enum([\"full\", \"partial\"]).optional(),\n      clueDensity: z.number().min(0.2).max(0.8).optional(),\n      noDiagonalTouch: z.boolean().optional(),\n      pathLength: z.number().int().min(4).max(12).optional(),\n      targetSeconds: z.number().min(10).max(120).optional(),\n    })\n    .optional(),\n})\nexport type AssemblyRequest = z.infer<typeof assemblyRequestSchema>\nexport type GameAction =\n  | { type: \"selectCell\"; cell: number }\n  | { type: \"cycle\" }\n  | { type: \"undo\" }\n  | { type: \"clear\" }\nexport type PackAudit = {\n  certified: true\n  solutionCount: number\n  solutionMeaning: string\n  unique: boolean\n  nodes: number\n  foothold: { cell: number; value: number; reason: string } | null\n  solution: (number | null)[]\n}\n",
+    "lib/mini-game-rules/runtime.ts": "import type { GameAction, GamePack } from \"./schema\"\n\nexport type GameState = {\n  cells: (number | null)[]\n  selectedCell: number | null\n  history: (number | null)[][]\n  actions: number\n}\nexport function initialGameState(pack: GamePack): GameState {\n  return {\n    cells: pack.cells.map((cell) => cell.value),\n    selectedCell: null,\n    history: [],\n    actions: 0,\n  }\n}\nexport function neighbors(cell: number, n: number) {\n  const row = Math.floor(cell / n),\n    col = cell % n\n  return [\n    row > 0 ? cell - n : -1,\n    col < n - 1 ? cell + 1 : -1,\n    row < n - 1 ? cell + n : -1,\n    col > 0 ? cell - 1 : -1,\n  ].filter((id) => id >= 0)\n}\nexport function rotatePorts(mask: number, turns: number) {\n  for (let i = 0; i < ((turns % 4) + 4) % 4; i++)\n    mask = ((mask << 1) & 15) | (mask >> 3)\n  return mask\n}\n/** Pure shared action reducer. Human and Learner must dispatch through this same reducer. */\nexport function applyGameAction(\n  pack: GamePack,\n  state: GameState,\n  action: GameAction\n): GameState {\n  if (action.type === \"selectCell\") {\n    if (\n      !Number.isInteger(action.cell) ||\n      action.cell < 0 ||\n      action.cell >= pack.n ** 2\n    )\n      return state\n    if (\n      pack.visibility.kind === \"partial\" &&\n      !pack.visibility.visibleCells.includes(action.cell)\n    )\n      return state\n    return { ...state, selectedCell: action.cell, actions: state.actions + 1 }\n  }\n  if (action.type === \"undo\") {\n    const previous = state.history.at(-1)\n    return previous\n      ? {\n          ...state,\n          cells: [...previous],\n          history: state.history.slice(0, -1),\n          actions: state.actions + 1,\n        }\n      : state\n  }\n  if (action.type === \"clear\")\n    return {\n      ...state,\n      cells: pack.cells.map((cell) => cell.value),\n      history: [...state.history, [...state.cells]],\n      actions: state.actions + 1,\n    }\n  const cell = state.selectedCell\n  if (cell === null || pack.cells[cell].locked) return state\n  const cells = [...state.cells]\n  if (pack.category === \"lights_toggle\")\n    for (const id of [cell, ...neighbors(cell, pack.n)])\n      cells[id] = cells[id] === 1 ? 0 : 1\n  else {\n    const values = pack.actionSurface.cycleValues\n    let next = (values.indexOf(cells[cell]) + 1) % values.length\n    if (pack.category === \"tile_rotate_connect\") {\n      const seen = new Set<number>()\n      const unique = values.filter((value) => {\n        const mask = rotatePorts(pack.rules.ports[cell], value ?? 0)\n        if (seen.has(mask)) return false\n        seen.add(mask)\n        return true\n      })\n      next = (unique.indexOf(cells[cell]) + 1) % unique.length\n      cells[cell] = unique[next]\n    } else cells[cell] = values[next]\n  }\n  return {\n    ...state,\n    cells,\n    history: [...state.history, [...state.cells]],\n    actions: state.actions + 1,\n  }\n}\n",
+    "lib/mini-game-rules/verifier.ts": "import { constraintPossible } from \"../puzzle/verifier\"\nimport { neighbors, rotatePorts } from \"./runtime\"\nimport { packSchema, type GamePack } from \"./schema\"\n\nexport type Verification = {\n  valid: boolean\n  complete: boolean\n  errors: string[]\n}\n/** Uses public rules only. No saved solution or author certificate is required. */\nexport function verifyGame(\n  pack: GamePack,\n  cells: readonly (number | null)[]\n): Verification {\n  const errors: string[] = []\n  if (!packSchema.safeParse(pack).success || cells.length !== pack.n ** 2)\n    return {\n      valid: false,\n      complete: false,\n      errors: [\"Invalid pack or cell count\"],\n    }\n  if (\n    cells.some(\n      (value, id) => pack.cells[id].locked && value !== pack.cells[id].value\n    )\n  )\n    errors.push(\"A locked cell changed\")\n  if (cells.some((value) => !pack.actionSurface.cycleValues.includes(value)))\n    errors.push(\"Value outside action alphabet\")\n  if (errors.length) return { valid: false, complete: false, errors }\n  let complete = false\n  if (pack.category === \"binary_fill\") {\n    if (\n      pack.rules.constraints.some(\n        (rule) => !constraintPossible(rule, cells as (0 | 1 | null)[])\n      )\n    )\n      errors.push(\"A binary constraint is broken\")\n    complete = !cells.includes(null)\n  } else if (pack.category === \"crown\") {\n    const crowns = cells.flatMap((value, id) => (value === 1 ? [id] : []))\n    if (crowns.some((id) => pack.rules.blocked.includes(id)))\n      errors.push(\"Crown on a blocked cell\")\n    for (let line = 0; line < pack.n; line++)\n      if (\n        crowns.filter((id) => Math.floor(id / pack.n) === line).length > 1 ||\n        crowns.filter((id) => id % pack.n === line).length > 1\n      )\n        errors.push(\"Two crowns share a row or column\")\n    if (\n      pack.rules.noDiagonalTouch &&\n      crowns.some((a, i) =>\n        crowns\n          .slice(i + 1)\n          .some(\n            (b) =>\n              Math.abs(Math.floor(a / pack.n) - Math.floor(b / pack.n)) === 1 &&\n              Math.abs((a % pack.n) - (b % pack.n)) === 1\n          )\n      )\n    )\n      errors.push(\"Crowns touch diagonally\")\n    complete = crowns.length === pack.n\n  } else if (pack.category === \"path_cover\") {\n    const { active, start, end, checkpoints } = pack.rules\n    if (cells.some((value, id) => !active.includes(id) && value !== null))\n      errors.push(\"Blocked path cell changed\")\n    const occupied = active.filter((id) => cells[id] !== null)\n    const orders = occupied.map((id) => cells[id])\n    if (new Set(orders).size !== orders.length)\n      errors.push(\"Path orders repeat\")\n    if (\n      orders.some(\n        (value) => value === null || value < 1 || value > active.length\n      )\n    )\n      errors.push(\"Invalid path order\")\n    for (const id of occupied) {\n      const next = occupied.find(\n        (other) => cells[other] === Number(cells[id]) + 1\n      )\n      if (next !== undefined && !neighbors(id, pack.n).includes(next))\n        errors.push(\"Consecutive path cells must share an edge\")\n    }\n    if (\n      cells[start] !== 1 ||\n      cells[end] !== active.length ||\n      checkpoints.some((point) => cells[point.cell] !== point.order)\n    )\n      errors.push(\"Path checkpoint changed\")\n    complete = occupied.length === active.length\n  } else if (pack.category === \"tile_rotate_connect\") {\n    const masks = cells.map((value, id) =>\n      value === null ? null : rotatePorts(pack.rules.ports[id], value)\n    )\n    for (let id = 0; id < masks.length; id++) {\n      const mask = masks[id]\n      if (mask === null) continue\n      for (let direction = 0; direction < 4; direction++) {\n        const bit = 1 << direction,\n          row = Math.floor(id / pack.n),\n          col = id % pack.n\n        const other =\n          direction === 0\n            ? row > 0\n              ? id - pack.n\n              : -1\n            : direction === 1\n              ? col < pack.n - 1\n                ? id + 1\n                : -1\n              : direction === 2\n                ? row < pack.n - 1\n                  ? id + pack.n\n                  : -1\n                : col > 0\n                  ? id - 1\n                  : -1\n        if (other < 0) {\n          if (mask & bit) errors.push(\"Port points outside board\")\n        } else if (\n          masks[other] !== null &&\n          Boolean(mask & bit) !==\n            Boolean(Number(masks[other]) & (1 << ((direction + 2) % 4)))\n        )\n          errors.push(\"Ports do not match\")\n      }\n    }\n    const active = masks.flatMap((mask, id) => (mask ? [id] : [])),\n      seen = new Set<number>(),\n      pending = active.length ? [active[0]] : []\n    while (pending.length) {\n      const id = pending.pop()!\n      if (seen.has(id)) continue\n      seen.add(id)\n      for (const other of neighbors(id, pack.n)) {\n        const direction =\n          other === id - pack.n\n            ? 0\n            : other === id + 1\n              ? 1\n              : other === id + pack.n\n                ? 2\n                : 3\n        if (Number(masks[id]) & (1 << direction)) pending.push(other)\n      }\n    }\n    complete = !cells.includes(null) && seen.size === active.length\n  } else complete = cells.every((value) => value === 0)\n  return {\n    valid: errors.length === 0,\n    complete: errors.length === 0 && complete,\n    errors,\n  }\n}\n",
+    "lib/puzzle/verifier.ts": "import type { Cell, Constraint, RulePack } from \"./types\"\n\nexport function constraintPossible(\n  rule: Constraint,\n  cells: readonly Cell[]\n): boolean {\n  const values = rule.cells.map((index) => cells[index])\n  if (rule.kind === \"quota\") {\n    const ones = values.filter((value) => value === 1).length\n    const empty = values.filter((value) => value === null).length\n    return ones <= rule.ones && ones + empty >= rule.ones\n  }\n  if (values.includes(null)) return true\n  if (rule.kind === \"no-three\")\n    return !(values[0] === values[1] && values[1] === values[2])\n  return (values[0] === values[1]) === (rule.relation === \"=\")\n}\n\nexport function packErrors(pack: RulePack): string[] {\n  const errors: string[] = []\n  if (![4, 5, 6].includes(pack.n) || pack.cells.length !== pack.n ** 2)\n    errors.push(\"Invalid grid size\")\n  if (!Number.isSafeInteger(pack.seed) || pack.mode !== \"FORCED-CHAIN\")\n    errors.push(\"Invalid pack identity\")\n  if (\n    pack.verifierSpec.version !== 1 ||\n    pack.verifierSpec.empty !== null ||\n    pack.verifierSpec.alphabet.join(\",\") !== \"0,1\"\n  )\n    errors.push(\"Unsupported verifier specification\")\n  if (\n    Array.from(pack.cells).some(\n      (value) => value !== null && value !== 0 && value !== 1\n    )\n  )\n    errors.push(\"Invalid cell\")\n  for (const rule of pack.constraints) {\n    if (\n      new Set(rule.cells).size !== rule.cells.length ||\n      rule.cells.some(\n        (index) =>\n          !Number.isInteger(index) || index < 0 || index >= pack.cells.length\n      )\n    )\n      errors.push(\"Invalid constraint coordinates\")\n    if (\n      rule.kind === \"quota\" &&\n      (!Number.isInteger(rule.ones) ||\n        rule.ones < 0 ||\n        rule.ones > rule.cells.length)\n    )\n      errors.push(\"Invalid quota\")\n    if (rule.kind === \"no-three\" && rule.cells.length !== 3)\n      errors.push(\"Invalid triple\")\n    if (\n      rule.kind === \"friend\" &&\n      (rule.cells.length !== 2 || ![\"=\", \"×\"].includes(rule.relation))\n    )\n      errors.push(\"Invalid friend\")\n  }\n  return errors\n}\n\n/** Pure host verifier. Partial validity means no currently broken constraint, not solvability. */\nexport function verify(pack: RulePack, cells: readonly Cell[]) {\n  const errors = packErrors(pack)\n  if (\n    cells.length !== pack.cells.length ||\n    Array.from(cells).some(\n      (value) => value !== null && value !== 0 && value !== 1\n    )\n  )\n    errors.push(\"Invalid board\")\n  if (errors.length)\n    return { valid: false, complete: false, errors, violations: [] as number[] }\n  const changedGiven = pack.cells.some(\n    (value, index) => value !== null && value !== cells[index]\n  )\n  if (changedGiven) errors.push(\"A given was changed\")\n  const violations = pack.constraints.flatMap((rule, index) =>\n    constraintPossible(rule, cells) ? [] : [index]\n  )\n  const valid = !errors.length && !violations.length\n  return { valid, complete: valid && !cells.includes(null), errors, violations }\n}\n",
+    "lib/puzzle/types.ts": "export type Bit = 0 | 1\nexport type Cell = Bit | null\nexport type Constraint =\n  | { kind: \"no-three\"; cells: readonly [number, number, number] }\n  | { kind: \"quota\"; cells: readonly number[]; ones: number }\n  | { kind: \"friend\"; cells: readonly [number, number]; relation: \"=\" | \"×\" }\n\nexport type RulePack = {\n  seed: number\n  n: 4 | 5 | 6\n  mode: \"FORCED-CHAIN\"\n  rulesPostcard: readonly string[]\n  cells: readonly Cell[]\n  constraints: readonly Constraint[]\n  verifierSpec: { version: 1; alphabet: readonly [0, 1]; empty: null }\n}\n\nexport type Player = \"human\" | \"learner\"\nexport type Action =\n  | { type: \"selectCell\"; cell: number }\n  | { type: \"cycle\" }\n  | { type: \"undo\" }\n  | { type: \"clear\" }\nexport type PlayerStatus = \"playing\" | \"finished\" | \"action-cap\" | \"time-cap\"\n\n// This is the entire L0 capability boundary. No pack, constraints, or verifier.\nexport type Observation = {\n  seed: number\n  n: number\n  mode: \"FORCED-CHAIN\"\n  rulesPostcard: readonly string[]\n  cells: readonly Cell[]\n  given: readonly boolean[]\n  selectedCell: number | null\n  actions: number\n  remainingActions: number\n  remainingMs: number\n  status: PlayerStatus\n}\n\nexport type ActionAPI = {\n  selectCell: (cell: number) => void\n  cycle: () => void\n  undo: () => void\n  clear: () => void\n}\n\nexport type RoundRecord = {\n  seed: number\n  n: number\n  transferGroup: string\n  editableCells: number\n  player: Player\n  actions: number\n  status: Exclude<PlayerStatus, \"playing\">\n  patternClaim: string | null\n}\n"
+  }
+}
