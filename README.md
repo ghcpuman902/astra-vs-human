@@ -36,11 +36,11 @@ node scripts/check-game-learner.mjs
 
 ## Fairness (Human | Agent)
 
-- One pack and one returned seed for both sides. A fallback pack keeps its actual seed.
-- Independent attempts. One board viewport. Human is the playable tab. Agent shows the Learner’s own attempt.
+- A match is five games. Each game is three distinct packs in one transfer family, not the same seed three times.
+- One pack and seed per round index. While the sides are on different rounds they see different boards.
+- Independent attempts and clocks. Human finishing, skipping, or hitting a cap does not end or advance the Agent.
 - Shared actions: `selectCell`, `cycle`, `undo`, `clear`. Each tap counts on that side.
-- Shared clock. Learner inference time stays on the Learner clock.
-- The next round stays locked until both finish or reach the shared action and time cap.
+- Each side's next round stays locked until that side finishes or reaches its own action and time cap.
 - Hints are practice-only. Scored rounds leave Hint off. The Learner receives the visible board, the postcard, and its earlier one-line claims.
 
 ## mini-game-rules and battle-ground-ui
@@ -48,7 +48,7 @@ node scripts/check-game-learner.mjs
 | Track | Owns |
 | --- | --- |
 | `mini-game-rules` | Pack schema, generator, verifier, postcards, transfer families, action effects |
-| `battle-ground-ui` | White board, craft tokens, Human\|Agent tabs, dual clocks, round lock |
+| `battle-ground-ui` | White board, craft tokens, Human\|Agent progress, per-side clocks and advance |
 
 A rules pack supplies props to the frame. It does not set layout or colours. Category renderers sit inside the frozen frame. See [docs/mini-game-rules.md](docs/mini-game-rules.md) and [handoffs/battle-ground-ui/README.md](handoffs/battle-ground-ui/README.md).
 

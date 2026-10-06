@@ -27,6 +27,10 @@ type BattleFieldProps = {
   rulesShown: boolean
   humanDone: boolean
   agentWorking: boolean
+  humanRound: string
+  learnerRound: string
+  splitBoards: boolean
+  canAdvanceHuman: boolean
   nextLabel: string
   onReveal: () => void
   onNext: () => void
@@ -63,6 +67,10 @@ export const BattleField = ({
   rulesShown,
   humanDone,
   agentWorking,
+  humanRound,
+  learnerRound,
+  splitBoards,
+  canAdvanceHuman,
   nextLabel,
   onReveal,
   onNext,
@@ -87,13 +95,14 @@ export const BattleField = ({
             {humanDone ? <em className="done-mark">Done</em> : null}
           </strong>
           <span>
-            {clock(humanElapsedMs)} · {humanActions} actions ·{" "}
+            {humanRound} · {clock(humanElapsedMs)} · {humanActions} actions ·{" "}
             {started ? humanStatus : "ready"}
           </span>
         </header>
         <div className="arena-stage">
           {started ? (
             <PaperBoard
+              key={humanBoard.seed}
               board={humanBoard}
               interactive
               invalidIndex={invalidIndex}
@@ -153,11 +162,15 @@ export const BattleField = ({
           <button
             type="button"
             className="primary-button"
-            disabled={loading || (started && !humanDone)}
+            disabled={
+              loading ||
+              (started && !humanDone) ||
+              (started && humanDone && !canAdvanceHuman)
+            }
             onClick={() => {
               if (!rulesShown) onReveal()
               else if (!started) onStart()
-              else if (humanDone) onNext()
+              else if (humanDone && canAdvanceHuman) onNext()
             }}
           >
             <Play />
@@ -171,7 +184,7 @@ export const BattleField = ({
           </button>
           <span className="stage-progress">
             {agentWorking
-              ? "Agent still on this puzzle. You can move on."
+              ? "Agent is still on its own round. You can move on."
               : practice
                 ? "Practice · excluded from scores"
                 : humanDone
@@ -181,6 +194,9 @@ export const BattleField = ({
         </div>
         {rulesShown ? (
           <div className="postcard-rules">
+            {splitBoards ? (
+              <p className="rules-pending">These clues are the human&apos;s current round.</p>
+            ) : null}
             <p className="postcard-goal">{card.goal}</p>
             <ul>
               {card.rules.map((rule, index) => (
@@ -192,6 +208,7 @@ export const BattleField = ({
           <p className="rules-pending">Rules appear for both players at once.</p>
         )}
         <p className="learner-note" aria-live="polite">
+          {splitBoards ? `${learnerRound}. ` : null}
           {learnerStatus === "playing"
             ? agentStatus
             : started
@@ -214,17 +231,19 @@ export const BattleField = ({
             {agentWorking ? <em className="behind-mark">Still here</em> : null}
           </strong>
           <span>
-            {clock(learnerElapsedMs)} · {learnerActions} actions · LEARNER
+            {learnerRound} · {clock(learnerElapsedMs)} · {learnerActions}{" "}
+            actions · LEARNER
             {started ? ` · ${learnerStatus}` : " · ready"}
           </span>
         </header>
         <div className="arena-stage">
           {started ? (
             <PaperBoard
+              key={learnerBoard.seed}
               board={learnerBoard}
               interactive={false}
               invalidIndex={null}
-              label={`Agent ${pack.n} by ${pack.n} board`}
+              label={`Agent ${learnerBoard.n} by ${learnerBoard.n} board`}
               onTap={() => {}}
             />
           ) : (

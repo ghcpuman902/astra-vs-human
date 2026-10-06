@@ -236,6 +236,8 @@ export function createMatch(packs: readonly RulePack[], options: MatchOptions) {
       )
       publish()
     },
+    // Shared cursor for the gallery handoff. Scored play uses createBattleGround,
+    // where each side advances on its own clock.
     advance: () => {
       tick()
       if (!canAdvance() || round + 1 >= queue.length) return false

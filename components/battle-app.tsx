@@ -1,23 +1,27 @@
 "use client"
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { Lock, LockOpen } from "lucide-react"
 
 import { BattleField } from "@/components/lovable/battle-field"
 import { useLearnerModel } from "@/hooks/use-learner-model"
-import { verifyGame } from "@/lib/mini-game-rules/verifier"
 import {
   createBattleGround,
   scoreTransfer,
-  type BattleRecord,
+  transferGroup,
+  type Side,
+  type SideCursor,
 } from "@/lib/battle-ground-ui/controller"
 import {
   createGameLearnerRunner,
   fetchGameLearnerDecision,
 } from "@/lib/battle-ground-ui/model-learner"
+import type { MatchDeck } from "@/lib/battle-ground-ui/match-deck"
 import { packSchema, type GamePack } from "@/lib/mini-game-rules/schema"
+import { verifyGame } from "@/lib/mini-game-rules/verifier"
 import { createLearnerMemory, type LearnerMemory } from "@/lib/puzzle/learner"
 
+const MATCH_ID = "match"
 const names: Record<GamePack["category"], string> = {
   binary_fill: "Sun & moon",
   crown: "Crown seats",
@@ -30,371 +34,72 @@ type Generated = {
   meta: { source: string; contentHash: string; elapsedMs: number }
 }
 
-export function BattleApp({ fixtures }: { fixtures: GamePack[] }) {
-  const [selected, setSelected] = useState(0)
-  const [pack, setPack] = useState(fixtures[0])
-  const [revision, setRevision] = useState(0)
-  const [busy, setBusy] = useState(false)
-  const [locked, setLocked] = useState(false)
+const roundText = (cursor: SideCursor, gameCount: number, roundsPerGame: number) =>
+  `Game ${cursor.game + 1} of ${gameCount} · Round ${cursor.round + 1} of ${roundsPerGame}`
+
+export function BattleApp({ deck }: { deck: MatchDeck }) {
+  const [packs, setPacks] = useState(deck.packs)
+  const [cap, setCap] = useState(600000)
   const [practice, setPractice] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<{
-    x: number
-    y: number
-    text: string
-  } | null>(null)
+  const [session, setSession] = useState(0)
   const [source, setSource] = useState("verified starter")
   const [hash, setHash] = useState<string | undefined>()
-  const [records, setRecords] = useState<BattleRecord[]>([])
-  const [cap, setCap] = useState(600000)
-  const [memory, setMemory] = useState(createLearnerMemory)
-  const [largeRound, setLargeRound] = useState(1)
-  const [smallDone, setSmallDone] = useState<number[]>([])
-  const [agentBehind, setAgentBehind] = useState(false)
-  const memories = useRef<Record<string, LearnerMemory>>({})
-  const models = useLearnerModel()
-  const roundId = `large-${largeRound}`
-  const family = `${pack.category}:${pack.n}:${pack.mode}:${pack.visibility.kind}:${pack.transfer.family}`
-
-  async function generate(transfer: boolean) {
-    if (busy || locked) return
-    setBusy(true)
-    setError(null)
-    try {
-      const response = await fetch("/api/game-pack", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          seed: crypto.getRandomValues(new Uint32Array(1))[0],
-          n: pack.n,
-          preferences: {
-            categories: [pack.category],
-            visibility: "full",
-            targetSeconds: pack.session.targetSeconds,
-          },
-          ...(transfer && hash ? { transferFrom: hash } : {}),
-        }),
-        signal: AbortSignal.timeout(60000),
-      })
-      const result = (await response.json()) as Generated & { error?: string }
-      if (!response.ok)
-        throw new Error(result.error ?? "Generation did not finish. Try again.")
-      const next = packSchema.parse(result.pack)
-      if (next.category !== pack.category)
-        throw new Error("The generator returned another game category.")
-      memories.current[family] = memory
-      const nextFamily = `${next.category}:${next.n}:${next.mode}:${next.visibility.kind}:${next.transfer.family}`
-      setMemory(memories.current[nextFamily] ?? createLearnerMemory())
-      setPack(next)
-      setHash(result.meta.contentHash)
-      setSource(
-        `${result.meta.source} · ${(result.meta.elapsedMs / 1000).toFixed(1)}s`
-      )
-      setSmallDone((current) => current.filter((index) => index !== selected))
-      setAgentBehind(false)
-      setRevision((v) => v + 1)
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Could not generate a pack."
-      )
-    } finally {
-      setBusy(false)
-    }
-  }
-  useEffect(() => {
-    if (!notice) return
-    const timer = setTimeout(() => setNotice(null), 1600)
-    return () => clearTimeout(timer)
-  }, [notice])
-  function pick(
-    index: number,
-    event?: { clientX: number; clientY: number },
-    force = false
-  ) {
-    if (index === selected) return
-    if (!force && (locked || busy)) {
-      setNotice({
-        x: event?.clientX ?? 24,
-        y: event?.clientY ?? 24,
-        text: "Finish this round first",
-      })
-      return
-    }
-    memories.current[family] = memory
-    const next = fixtures[index]
-    const nextFamily = `${next.category}:${next.n}:${next.mode}:${next.visibility.kind}:${next.transfer.family}`
-    setMemory(memories.current[nextFamily] ?? createLearnerMemory())
-    setSelected(index)
-    setPack(fixtures[index])
-    setHash(undefined)
-    setSource("verified starter")
-    setRevision((v) => v + 1)
-    setError(null)
-  }
-  function goNext() {
-    const next = selected + 1
-    if (next >= fixtures.length) {
-      models.endRound(roundId)
-      setLargeRound((current) => current + 1)
-      setSmallDone([])
-      setAgentBehind(false)
-      pick(0, undefined, true)
-      return
-    }
-    pick(next, undefined, true)
-  }
   return (
-    <main className="battle-ground">
-      <header className="battle-top">
-        <div className="brand-block">
-          <div className="wordmark">astra-vs-human</div>
-          <div
-            className="round-marks"
-            aria-label={`Large round ${largeRound}, puzzle ${selected + 1} of ${fixtures.length}`}
-          >
-            <div className="large-round">
-              <strong>{largeRound}</strong>
-              <span>Round</span>
-            </div>
-            <div className="small-rounds">
-              {fixtures.map((fixture, index) => (
-                <span
-                  key={fixture.category}
-                  className="small-round"
-                  data-current={index === selected || undefined}
-                  data-done={smallDone.includes(index) || undefined}
-                  data-agent={
-                    index === selected && agentBehind ? true : undefined
-                  }
-                  aria-label={
-                    index === selected && agentBehind
-                      ? `Puzzle ${index + 1}, you are done, agent still here`
-                      : smallDone.includes(index)
-                        ? `Puzzle ${index + 1}, done`
-                        : index === selected
-                          ? `Puzzle ${index + 1}, current`
-                          : `Puzzle ${index + 1}`
-                  }
-                >
-                  {index + 1}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="battle-settings">
-          <label>
-            Learner{" "}
-            <select
-              aria-label="Learner model"
-              value={models.selectedModel ?? ""}
-              disabled={
-                locked || busy || models.isFrozen || models.status !== "ready"
-              }
-              onChange={(event) => models.selectModel(event.target.value)}
-            >
-              {models.models.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Cap{" "}
-            <select
-              aria-label="Shared round time cap"
-              value={cap}
-              disabled={locked || busy}
-              onChange={(event) => setCap(Number(event.target.value))}
-            >
-              <option value={120000}>2 minutes</option>
-              <option value={600000}>10 minutes, if stuck</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            className="paper-button"
-            aria-pressed={practice}
-            disabled={locked || busy}
-            aria-label={
-              practice
-                ? "Test mode: scores excluded. Switch to a scored round"
-                : "Scored round. Switch to test mode"
-            }
-            onClick={() => {
-              setPractice((value) => !value)
-              setRevision((current) => current + 1)
-            }}
-          >
-            {practice ? <LockOpen /> : <Lock />}
-            {practice ? "Test" : "Real"}
-          </button>
-        </div>
-        <nav className="game-tabs" aria-label="Round games">
-          {fixtures.map((fixture, index) => {
-            const done = records.some(
-              (record) =>
-                record.side === "human" &&
-                record.seed === fixture.seed &&
-                record.status === "finished"
-            )
-            return (
-              <button
-                key={fixture.category}
-                type="button"
-                className="paper-button"
-                aria-current={selected === index ? "step" : undefined}
-                aria-disabled={locked || busy ? true : undefined}
-                onClick={(event) => pick(index, event)}
-              >
-                {index + 1}. {names[fixture.category]}
-                {done ? " ✓" : ""}
-              </button>
-            )
-          })}
-        </nav>
-      </header>
-      <div className="battle-title">
-        <h1>{names[pack.category]}</h1>
-        <span className="mode-badge">{pack.mode}</span>
-        <span className="battle-size">
-          {pack.n} × {pack.n}
-        </span>
-      </div>
-      <Round
-        key={`${largeRound}:${pack.seed}:${revision}:${cap}:${practice}`}
-        pack={pack}
-        cap={cap}
-        practice={practice}
-        loading={busy}
-        memory={memory}
-        modelsReady={models.status === "ready"}
-        getModel={models.getModel}
-        onBegin={() => models.startRound(roundId)}
-        onLock={(value) => setLocked(value && !practice)}
-        onHumanDone={() => {
-          setLocked(false)
-          setSmallDone((current) =>
-            current.includes(selected) ? current : [...current, selected]
-          )
-        }}
-        onAgentBehind={setAgentBehind}
-        onNext={goNext}
-        nextLabel={
-          selected + 1 >= fixtures.length ? "Next round" : "Next puzzle"
-        }
-        onEnd={(roundRecords) =>
-          !practice &&
-          setRecords((previous) => [
-            ...previous.filter(
-              (record) =>
-                !roundRecords.some(
-                  (next) =>
-                    next.seed === record.seed && next.side === record.side
-                )
-            ),
-            ...roundRecords,
-          ])
-        }
-      />
-      <footer className="battle-footer">
-        <div className="footer-tools">
-          <button
-            type="button"
-            className="paper-button"
-            disabled={busy || locked}
-            onClick={() => void generate(true)}
-          >
-            {busy ? "Generating…" : "Respawn same family"}
-          </button>
-          <button
-            type="button"
-            className="paper-button"
-            disabled={busy || locked}
-            onClick={() => void generate(false)}
-          >
-            Invent another variation
-          </button>
-        </div>
-        <span className="seed">
-          SEED {pack.seed}
-          {source ? ` · ${source}` : ""}
-        </span>
-        <div className="transfer-line" aria-label="Learning across respawns">
-          {(["human", "learner"] as const).map((side) => {
-            const score = scoreTransfer(records, side, family)
-            const count = records.filter(
-              (record) =>
-                record.side === side &&
-                record.transferGroup === family &&
-                record.status === "finished"
-            ).length
-            return (
-              <span key={side}>
-                <strong>{side === "human" ? "Human" : "Learner"}</strong> ·{" "}
-                {score.eligible
-                  ? `action slope ${score.actionSlope?.toFixed(1)} per round${score.actionsFalling ? " · actions falling" : ""}`
-                  : `${count}/3 completed transfer rounds`}
-              </span>
-            )
-          })}
-        </div>
-        {error ? (
-          <p role="alert" className="battle-error">
-            {error}
-          </p>
-        ) : null}
-      </footer>
-      {notice ? (
-        <div
-          role="status"
-          className="cursor-notice"
-          style={{ left: notice.x + 12, top: notice.y + 12 }}
-        >
-          {notice.text}
-        </div>
-      ) : null}
-    </main>
+    <BattleSession
+      key={`${session}:${cap}:${practice}:${packs.map((pack) => pack.seed).join("-")}`}
+      packs={packs}
+      gameCount={deck.gameCount}
+      roundsPerGame={deck.roundsPerGame}
+      cap={cap}
+      practice={practice}
+      source={source}
+      hash={hash}
+      onCap={setCap}
+      onPractice={() => setPractice((value) => !value)}
+      onSource={setSource}
+      onHash={setHash}
+      onReplaceFirst={(pack) => {
+        setPacks((current) => [pack, ...current.slice(1)])
+        setSession((value) => value + 1)
+      }}
+    />
   )
 }
 
-function Round({
-  pack,
+function BattleSession({
+  packs,
+  gameCount,
+  roundsPerGame,
   cap,
   practice,
-  loading,
-  memory,
-  modelsReady,
-  getModel,
-  onBegin,
-  onLock,
-  onEnd,
-  onHumanDone,
-  onAgentBehind,
-  onNext,
-  nextLabel,
+  source,
+  hash,
+  onCap,
+  onPractice,
+  onSource,
+  onHash,
+  onReplaceFirst,
 }: {
-  pack: GamePack
+  packs: readonly GamePack[]
+  gameCount: number
+  roundsPerGame: number
   cap: number
   practice: boolean
-  loading: boolean
-  memory: LearnerMemory
-  modelsReady: boolean
-  getModel: () => string | undefined
-  onBegin: () => string | undefined
-  onLock: (locked: boolean) => void
-  onEnd: (records: BattleRecord[]) => void
-  onHumanDone: () => void
-  onAgentBehind: (behind: boolean) => void
-  onNext: () => void
-  nextLabel: string
+  source: string
+  hash?: string
+  onCap: (cap: number) => void
+  onPractice: () => void
+  onSource: (source: string) => void
+  onHash: (hash: string) => void
+  onReplaceFirst: (pack: GamePack) => void
 }) {
   const [battle] = useState(() =>
-    createBattleGround([pack], {
+    createBattleGround(packs, {
       timeCapMs: cap,
       actionCap: 300,
       startPaused: true,
+      roundsPerGame,
+      practice,
     })
   )
   const snapshot = useSyncExternalStore(
@@ -402,25 +107,74 @@ function Round({
     battle.getSnapshot,
     battle.getSnapshot
   )
+  const models = useLearnerModel()
+  const { getModel, endRound, startRound } = models
   const [started, setStarted] = useState(false)
   const [rulesShown, setRulesShown] = useState(false)
   const [agentStatus, setAgentStatus] = useState("Ready")
   const [claim, setClaim] = useState("")
   const [lastCell, setLastCell] = useState<number | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{
+    x: number
+    y: number
+    text: string
+  } | null>(null)
+  const humanPack = packs[snapshot.cursors.human.index]
+  const learnerPack = packs[snapshot.cursors.learner.index]
+  const humanCursor = snapshot.cursors.human
+  const learnerCursor = snapshot.cursors.learner
   const humanDone = started && snapshot.attempts.human.status !== "playing"
-  const agentWorking = started && snapshot.attempts.learner.status === "playing"
-  const finished = humanDone && !agentWorking
-  const ended = useRef(false)
-  const humanReleased = useRef(false)
+  const learnerPlaying =
+    started && snapshot.attempts.learner.status === "playing"
+  const armed = started && !snapshot.matchComplete
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), 1600)
+    return () => clearTimeout(timer)
+  }, [notice])
   useEffect(() => {
     if (!started) return
     const timer = setInterval(battle.tick, 250)
     return () => clearInterval(timer)
   }, [battle, started])
   useEffect(() => {
+    if (!snapshot.matchComplete) return
+    endRound(MATCH_ID)
+  }, [endRound, snapshot.matchComplete])
+  useEffect(() => {
     if (!started) return
-    let disposed = false,
-      timer: ReturnType<typeof setTimeout> | undefined
+    let disposed = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const memory = createLearnerMemory()
+    const memories: Record<string, LearnerMemory> = {}
+    const closed = new Set<number>()
+    let family: string | null = null
+    const syncMemory = () => {
+      const pack = packs[battle.getSnapshot().cursors.learner.index]
+      const nextFamily = transferGroup(pack)
+      if (family === nextFamily) return
+      if (family === null) {
+        family = nextFamily
+        memories[nextFamily] = {
+          claims: [...memory.claims],
+          currentClaim: null,
+        }
+        memory.currentClaim = null
+        return
+      }
+      memories[family] = {
+        claims: [...memory.claims],
+        currentClaim: memory.currentClaim,
+      }
+      family = nextFamily
+      const stored = memories[nextFamily] ?? createLearnerMemory()
+      memories[nextFamily] = stored
+      memory.claims = [...stored.claims]
+      memory.currentClaim = null
+    }
     const runner = createGameLearnerRunner({
       observe: () => battle.boardProps("learner"),
       api: battle.actions("learner"),
@@ -445,47 +199,43 @@ function Round({
       },
     })
     const unsubscribe = battle.subscribe(runner.sync)
-    async function next() {
-      if (
-        disposed ||
-        battle.getSnapshot().attempts.learner.status !== "playing"
-      )
-        return
+    const closeRound = () => {
+      const snap = battle.getSnapshot()
+      const seed = snap.seeds.learner
+      if (snap.attempts.learner.status === "playing" || closed.has(seed)) return
+      closed.add(seed)
+      const line = memory.currentClaim
+      if (line && !memory.claims.includes(line)) memory.claims.push(line)
+      if (line) battle.claim("learner", line)
+      memory.currentClaim = null
+    }
+    async function loop() {
+      if (disposed) return
+      const snap = battle.getSnapshot()
+      if (snap.attempts.learner.status !== "playing") {
+        closeRound()
+        if (!battle.advance("learner")) {
+          if (!disposed) setAgentStatus(snap.attempts.learner.status)
+          return
+        }
+        if (!disposed) setClaim("")
+        syncMemory()
+      }
       try {
         await runner.step()
       } catch {
         if (!disposed) setAgentStatus("Connection interrupted; retrying")
       }
-      if (!disposed) {
-        if (memory.currentClaim) battle.claim("learner", memory.currentClaim)
-        timer = setTimeout(() => void next(), 500)
-      }
+      if (!disposed) timer = setTimeout(() => void loop(), 500)
     }
-    void next()
+    void loop()
     return () => {
       disposed = true
       if (timer) clearTimeout(timer)
       unsubscribe()
       runner.dispose()
     }
-  }, [battle, getModel, memory, started])
-  useEffect(() => {
-    if (!humanDone || humanReleased.current) return
-    humanReleased.current = true
-    onLock(false)
-    onHumanDone()
-    onEnd([...snapshot.records])
-  }, [humanDone, onEnd, onHumanDone, onLock, snapshot.records])
-  useEffect(() => {
-    onAgentBehind(humanDone && agentWorking)
-  }, [agentWorking, humanDone, onAgentBehind])
-  useEffect(() => {
-    if (!finished || ended.current) return
-    ended.current = true
-    if (memory.currentClaim && !memory.claims.includes(memory.currentClaim))
-      memory.claims.push(memory.currentClaim)
-    onEnd([...snapshot.records])
-  }, [finished, memory, onEnd, snapshot.records])
+  }, [battle, getModel, packs, started])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (
@@ -509,23 +259,68 @@ function Round({
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [battle])
+
+  async function generate(transfer: boolean) {
+    if (busy || armed) {
+      setNotice({ x: 24, y: 24, text: "Finish your attempt first" })
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/game-pack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          seed: crypto.getRandomValues(new Uint32Array(1))[0],
+          n: humanPack.n,
+          preferences: {
+            categories: [humanPack.category],
+            visibility: "full",
+            targetSeconds: humanPack.session.targetSeconds,
+          },
+          ...(transfer && hash ? { transferFrom: hash } : {}),
+        }),
+        signal: AbortSignal.timeout(60000),
+      })
+      const result = (await response.json()) as Generated & { error?: string }
+      if (!response.ok)
+        throw new Error(result.error ?? "Generation did not finish. Try again.")
+      const next = packSchema.parse(result.pack)
+      if (next.category !== humanPack.category)
+        throw new Error("The generator returned another game category.")
+      if (packs.some((pack, index) => index > 0 && pack.seed === next.seed))
+        throw new Error("That seed is already in this match.")
+      onSource(
+        `${result.meta.source} · ${(result.meta.elapsedMs / 1000).toFixed(1)}s`
+      )
+      onHash(result.meta.contentHash)
+      onReplaceFirst(next)
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not generate a pack."
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const humanBoard = battle.boardProps("human")
   const learnerBoard = battle.boardProps("learner")
   const humanAttempt = snapshot.attempts.human
   const learnerAttempt = snapshot.attempts.learner
   const report = verifyGame(
-    pack,
+    humanPack,
     humanBoard.cells.map((cell) => (cell.visible ? cell.value : null))
   )
   const showInvalid =
     !report.valid &&
-    pack.category !== "tile_rotate_connect" &&
-    pack.category !== "lights_toggle"
+    humanPack.category !== "tile_rotate_connect" &&
+    humanPack.category !== "lights_toggle"
   const handleStart = () => {
-    if (!modelsReady || !onBegin()) return
-    battle.start()
+    if (models.status !== "ready" || !startRound(MATCH_ID)) return
+    if (!battle.start()) return
     setStarted(true)
-    onLock(true)
   }
   const handleTap = (cell: number) => {
     setLastCell(cell)
@@ -533,36 +328,225 @@ function Round({
     actions.selectCell(cell)
     actions.cycle()
   }
+  const handleNext = () => {
+    if (!battle.advance("human")) return
+  }
+  const nextLabel = !snapshot.hasNext.human
+    ? "Match complete"
+    : humanCursor.round + 1 >= roundsPerGame
+      ? "Next game"
+      : "Next round"
+  const humanRound = roundText(humanCursor, gameCount, roundsPerGame)
+  const learnerRound = roundText(learnerCursor, gameCount, roundsPerGame)
+  const elapsed = (side: Side) =>
+    started ? cap - snapshot.remainingMs[side] : 0
+
   return (
-    <BattleField
-      pack={pack}
-      practice={practice}
-      loading={loading || !modelsReady}
-      started={started}
-      finished={finished}
-      remainingMs={snapshot.remainingMs}
-      humanBoard={humanBoard}
-      learnerBoard={learnerBoard}
-      humanActions={humanAttempt.state.actions}
-      learnerActions={learnerAttempt.state.actions}
-      humanStatus={humanAttempt.status}
-      learnerStatus={learnerAttempt.status}
-      humanElapsedMs={humanAttempt.endedAtMs ?? (started ? cap - snapshot.remainingMs : 0)}
-      learnerElapsedMs={learnerAttempt.endedAtMs ?? (started ? cap - snapshot.remainingMs : 0)}
-      canUndo={humanAttempt.state.history.length > 0}
-      agentStatus={agentStatus}
-      claim={claim}
-      invalidIndex={showInvalid ? lastCell : null}
-      rulesShown={rulesShown}
-      humanDone={humanDone}
-      agentWorking={humanDone && agentWorking}
-      nextLabel={nextLabel}
-      onReveal={() => setRulesShown(true)}
-      onNext={onNext}
-      onStart={handleStart}
-      onTap={handleTap}
-      onUndo={() => battle.actions("human").undo()}
-      onClear={() => battle.actions("human").clear()}
-    />
+    <main className="battle-ground">
+      <header className="battle-top">
+        <div className="match-progress" aria-label="Human and Agent match progress">
+          {(["human", "learner"] as const).map((side) => {
+            const cursor = snapshot.cursors[side]
+            const label = side === "human" ? "Human" : "Agent"
+            return (
+              <section key={side} className="match-side" aria-label={`${label} progress`}>
+                <header>
+                  <strong>{label}</strong>
+                  <span>{roundText(cursor, gameCount, roundsPerGame)}</span>
+                </header>
+                <ol className="match-games">
+                  {Array.from({ length: gameCount }, (_, game) => (
+                    <li key={game} className="match-game">
+                      <span className="match-game-name">
+                        {names[packs[game * roundsPerGame].category]}
+                      </span>
+                      <span className="small-rounds">
+                        {Array.from({ length: roundsPerGame }, (_, round) => {
+                          const index = game * roundsPerGame + round
+                          const done = snapshot.records.some(
+                            (record) =>
+                              record.side === side &&
+                              record.seed === packs[index].seed
+                          )
+                          const current = cursor.index === index
+                          return (
+                            <span
+                              key={packs[index].seed}
+                              className="small-round"
+                              data-current={current || undefined}
+                              data-done={done || undefined}
+                              aria-label={
+                                done
+                                  ? `${label} game ${game + 1} round ${round + 1}, done`
+                                  : current
+                                    ? `${label} game ${game + 1} round ${round + 1}, current`
+                                    : `${label} game ${game + 1} round ${round + 1}`
+                              }
+                            >
+                              {round + 1}
+                            </span>
+                          )
+                        })}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )
+          })}
+        </div>
+        <div className="brand-block">
+          <div className="wordmark">astra-vs-human</div>
+        </div>
+        <div className="battle-settings">
+          <label>
+            Learner{" "}
+            <select
+              aria-label="Learner model"
+              value={models.selectedModel ?? ""}
+              disabled={armed || busy || models.isFrozen || models.status !== "ready"}
+              onChange={(event) => models.selectModel(event.target.value)}
+            >
+              {models.models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Cap{" "}
+            <select
+              aria-label="Per-attempt time cap"
+              value={cap}
+              disabled={armed || busy}
+              onChange={(event) => onCap(Number(event.target.value))}
+            >
+              <option value={120000}>2 minutes</option>
+              <option value={600000}>10 minutes, if stuck</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="paper-button"
+            aria-pressed={practice}
+            disabled={armed || busy}
+            aria-label={
+              practice
+                ? "Test mode: scores excluded. Switch to a scored round"
+                : "Scored round. Switch to test mode"
+            }
+            onClick={onPractice}
+          >
+            {practice ? <LockOpen /> : <Lock />}
+            {practice ? "Test" : "Real"}
+          </button>
+        </div>
+      </header>
+      <div className="battle-title">
+        <h1>{names[humanPack.category]}</h1>
+        <span className="mode-badge">{humanPack.mode}</span>
+        <span className="battle-size">
+          {humanPack.n} × {humanPack.n}
+        </span>
+      </div>
+      <BattleField
+        pack={humanPack}
+        practice={practice}
+        loading={busy || models.status !== "ready"}
+        started={started}
+        finished={started && learnerAttempt.status !== "playing"}
+        remainingMs={snapshot.remainingMs.human}
+        humanBoard={humanBoard}
+        learnerBoard={learnerBoard}
+        humanActions={humanAttempt.state.actions}
+        learnerActions={learnerAttempt.state.actions}
+        humanStatus={humanAttempt.status}
+        learnerStatus={learnerAttempt.status}
+        humanElapsedMs={elapsed("human")}
+        learnerElapsedMs={elapsed("learner")}
+        canUndo={humanAttempt.state.history.length > 0}
+        agentStatus={agentStatus}
+        claim={claim}
+        invalidIndex={showInvalid ? lastCell : null}
+        rulesShown={rulesShown}
+        humanDone={humanDone}
+        agentWorking={humanDone && learnerPlaying}
+        humanRound={humanRound}
+        learnerRound={learnerRound}
+        splitBoards={snapshot.seeds.human !== snapshot.seeds.learner}
+        canAdvanceHuman={snapshot.canAdvance.human}
+        nextLabel={nextLabel}
+        onReveal={() => setRulesShown(true)}
+        onNext={handleNext}
+        onStart={handleStart}
+        onTap={handleTap}
+        onUndo={() => battle.actions("human").undo()}
+        onClear={() => battle.actions("human").clear()}
+      />
+      <footer className="battle-footer">
+        <div className="footer-tools">
+          <button
+            type="button"
+            className="paper-button"
+            disabled={busy || armed}
+            onClick={() => void generate(true)}
+          >
+            {busy ? "Generating…" : "Respawn same family"}
+          </button>
+          <button
+            type="button"
+            className="paper-button"
+            disabled={busy || armed}
+            onClick={() => void generate(false)}
+          >
+            Invent another variation
+          </button>
+        </div>
+        <span className="seed">
+          HUMAN SEED {humanPack.seed}
+          {snapshot.seeds.human !== snapshot.seeds.learner
+            ? ` · AGENT SEED ${learnerPack.seed}`
+            : ""}
+          {source ? ` · ${source}` : ""}
+        </span>
+        <div className="transfer-line" aria-label="Learning across rounds">
+          {practice ? (
+            <span>Practice · excluded from scores</span>
+          ) : (
+            (["human", "learner"] as const).map((side) => {
+              const cursor = snapshot.cursors[side]
+              const group = transferGroup(packs[cursor.index])
+              const score = scoreTransfer(snapshot.records, side, group)
+              const count = snapshot.records.filter(
+                (record) =>
+                  record.side === side &&
+                  record.transferGroup === group &&
+                  record.status === "finished"
+              ).length
+              return (
+                <span key={side}>
+                  <strong>{side === "human" ? "Human" : "Agent"}</strong> ·{" "}
+                  {names[packs[cursor.index].category]} ·{" "}
+                  {score.eligible
+                    ? `action slope ${score.actionSlope?.toFixed(1)} per round${score.actionsFalling ? " · actions falling" : ""}`
+                    : `${count}/3 completed transfer rounds`}
+                </span>
+              )
+            })
+          )}
+        </div>
+        {error ? (
+          <p role="alert" className="battle-error">
+            {error}
+          </p>
+        ) : null}
+      </footer>
+      {notice ? (
+        <div role="status" className="cursor-notice" style={{ left: notice.x + 12, top: notice.y + 12 }}>
+          {notice.text}
+        </div>
+      ) : null}
+    </main>
   )
 }

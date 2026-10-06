@@ -76,12 +76,52 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
+    "progress progress"
     "brand settings"
     "tabs tabs";
   align-items: center;
   gap: var(--s-3) var(--s-4);
   padding: var(--s-3) var(--s-5);
   border-bottom: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
+}
+.match-progress {
+  grid-area: progress;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-4);
+}
+.match-side {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.match-side header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.match-side header strong {
+  font: var(--t-ui);
+}
+.match-side header span,
+.match-game-name {
+  font: var(--t-badge);
+  color: var(--ink-secondary);
+}
+.match-games {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.match-game {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
 }
 .battle-top .wordmark {
   font: var(--t-ui);
@@ -640,6 +680,9 @@
 }
 
 @media (max-width: 800px) {
+  .match-progress {
+    grid-template-columns: 1fr;
+  }
   .battle-field {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

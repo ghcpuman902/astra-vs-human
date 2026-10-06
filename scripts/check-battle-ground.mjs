@@ -39,6 +39,9 @@ try {
   const { createBattleGround, scoreTransfer } = await import(
     out + "/battle-ground-ui/controller.js"
   )
+  const { buildMatchDeck } = await import(
+    out + "/battle-ground-ui/match-deck.js"
+  )
   for (const category of [
     "binary_fill",
     "crown",
@@ -61,8 +64,25 @@ try {
     battle.actions("human").selectCell(0)
     battle.actions("human").undo()
     assert.equal(battle.getSnapshot().attempts.human.state.actions, 2)
+    assert.equal(battle.getSnapshot().attempts.human.status, "action-cap")
     assert.deepEqual(battle.getSnapshot().attempts.learner.state.cells, before)
-    assert.equal(battle.advance(), false)
+    assert.equal(battle.getSnapshot().attempts.learner.status, "playing")
+    assert.equal(
+      battle.advance("learner"),
+      false,
+      "A side still playing cannot be advanced"
+    )
+    const learnerRemaining = battle.getSnapshot().remainingMs.learner
+    assert.equal(battle.advance("human"), true)
+    assert.equal(battle.getSnapshot().cursors.human.index, 1)
+    assert.equal(battle.getSnapshot().cursors.learner.index, 0)
+    assert.equal(battle.getSnapshot().attempts.learner.status, "playing")
+    assert.equal(battle.getSnapshot().remainingMs.learner, learnerRemaining)
+    assert.deepEqual(battle.getSnapshot().attempts.learner.state.cells, before)
+    assert.notEqual(
+      battle.boardProps("human").seed,
+      battle.boardProps("learner").seed
+    )
     let reads = 0
     const unsubscribe = battle.subscribe(() => reads++)
     time += 1
@@ -77,10 +97,18 @@ try {
     time = 121000
     battle.tick()
     assert.equal(battle.getSnapshot().attempts.learner.status, "playing")
+    assert.equal(
+      battle.getSnapshot().cursors.learner.index,
+      0,
+      "The clock must not pull the learner into the human's round"
+    )
     battle.actions("learner").clear()
     battle.actions("learner").undo()
-    assert.equal(battle.getSnapshot().canAdvance, true)
-    assert.equal(battle.advance(), true)
+    assert.equal(battle.getSnapshot().canAdvance.learner, true)
+    assert.equal(battle.getSnapshot().canAdvance.human, false)
+    assert.equal(battle.advance("learner"), true)
+    assert.equal(battle.getSnapshot().cursors.learner.index, 1)
+    assert.equal(battle.getSnapshot().cursors.human.index, 1)
     time += 600001
     battle.tick()
     assert.equal(battle.getSnapshot().attempts.human.status, "time-cap")
@@ -100,13 +128,15 @@ try {
   readingClock = 200000
   paused.tick()
   paused.actions("human").selectCell(0)
-  assert.equal(paused.getSnapshot().remainingMs, 120000)
+  assert.equal(paused.getSnapshot().remainingMs.human, 120000)
+  assert.equal(paused.getSnapshot().remainingMs.learner, 120000)
   assert.equal(paused.getSnapshot().attempts.human.state.actions, 0)
   assert.equal(paused.start(), true)
   assert.equal(paused.start(), false)
   readingClock += 1000
   paused.tick()
-  assert.equal(paused.getSnapshot().remainingMs, 119000)
+  assert.equal(paused.getSnapshot().remainingMs.human, 119000)
+  assert.equal(paused.getSnapshot().remainingMs.learner, 119000)
   readingClock += 120000
   paused.tick()
   assert.equal(paused.getSnapshot().attempts.human.status, "time-cap")
@@ -126,8 +156,65 @@ try {
     scoreTransfer(records.slice(0, 2), "human", "family").eligible,
     false
   )
+
+  const deck = buildMatchDeck()
+  assert.equal(deck.gameCount, 5)
+  assert.equal(deck.roundsPerGame, 3)
+  assert.equal(deck.packs.length, 15)
+  assert.equal(new Set(deck.packs.map((pack) => pack.seed)).size, 15)
+  for (const game of deck.games) {
+    assert.equal(game.packs.length, 3)
+    assert.equal(
+      new Set(game.packs.map((pack) => pack.transfer.family)).size,
+      1
+    )
+    assert.equal(
+      new Set(game.packs.map((pack) => JSON.stringify(pack.cells))).size,
+      3,
+      `${game.category} repeated a board`
+    )
+  }
+  let matchTime = 0
+  const match = createBattleGround(deck.packs, {
+    roundsPerGame: 3,
+    actionCap: 1,
+    timeCapMs: 1000,
+    now: () => matchTime,
+  })
+  assert.equal(match.getSnapshot().gameCount, 5)
+  const learnerSeed = match.boardProps("learner").seed
+  const learnerCells = match.getSnapshot().attempts.learner.state.cells
+  match.actions("human").selectCell(0)
+  assert.equal(match.getSnapshot().attempts.human.status, "action-cap")
+  matchTime = 1000
+  match.tick()
+  assert.equal(match.getSnapshot().attempts.learner.status, "time-cap")
+  assert.equal(match.getSnapshot().attempts.human.status, "action-cap")
+  assert.equal(match.getSnapshot().cursors.learner.index, 0)
+  assert.equal(match.advance("human"), true)
+  assert.deepEqual(match.getSnapshot().cursors.human, {
+    index: 1,
+    game: 0,
+    round: 1,
+  })
+  assert.equal(match.getSnapshot().attempts.human.status, "playing")
+  assert.equal(match.boardProps("learner").seed, learnerSeed)
+  assert.deepEqual(match.getSnapshot().attempts.learner.state.cells, learnerCells)
+  assert.equal(match.advance("learner"), true)
+  assert.equal(match.getSnapshot().cursors.learner.index, 1)
+  assert.equal(match.getSnapshot().cursors.human.index, 1)
+  for (let step = 0; step < 2; step++) {
+    match.actions("human").selectCell(0)
+    assert.equal(match.advance("human"), true)
+  }
+  assert.deepEqual(match.getSnapshot().cursors.human, {
+    index: 3,
+    game: 1,
+    round: 0,
+  })
+  assert.equal(match.getSnapshot().cursors.learner.index, 1)
   console.log(
-    "Battle bridge verified: five mechanics, shared clock, independent state, counted controls, advance lock, transfer scoring."
+    "Battle bridge verified: five games, three distinct rounds, independent clocks, per-side advance, transfer scoring."
   )
 } finally {
   await rm(out, { recursive: true, force: true })
