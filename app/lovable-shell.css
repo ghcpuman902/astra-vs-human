@@ -334,10 +334,21 @@ body {
   );
   box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ink) 22%, transparent);
 }
-.model-none {
-  margin: 0;
+.chip-note {
   color: var(--ink-secondary);
-  font: var(--t-button);
+  font-weight: 400;
+}
+.legend-note {
+  color: var(--ink-secondary);
+  font-weight: 400;
+}
+/* Not in play: same footprint, dimmed, the pick still readable. */
+.setup-group:disabled .option-chip {
+  opacity: 0.45;
+  cursor: default;
+}
+.setup-group:disabled .option-chip:active {
+  transform: none;
 }
 .agent-stack {
   display: grid;

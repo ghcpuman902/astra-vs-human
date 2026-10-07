@@ -26,6 +26,8 @@ const configSchema = z
 export function useLearnerModel() {
   const [config, setConfig] = useState<LearnerModelConfig | null>(null)
   const [selectedModel, setSelectedModel] = useState<string | undefined>()
+  // Agent A in Agent vs Agent. Starts on a different model so the boards differ.
+  const [rivalModel, setRivalModel] = useState<string | undefined>()
   const [round, setRound] = useState<{
     id: string | number
     model: string
@@ -33,6 +35,7 @@ export function useLearnerModel() {
   const [failed, setFailed] = useState(false)
   const available = useRef<LearnerModelConfig | null>(null)
   const selected = useRef<string | undefined>(undefined)
+  const rival = useRef<string | undefined>(undefined)
   const frozen = useRef<{ id: string | number; model: string } | null>(null)
   useEffect(() => {
     const controller = new AbortController()
@@ -46,8 +49,12 @@ export function useLearnerModel() {
         if (controller.signal.aborted) return
         available.current = next
         selected.current = next.defaultModel
+        rival.current =
+          next.models.find((model) => model.id !== next.defaultModel)?.id ??
+          next.defaultModel
         setConfig(next)
         setSelectedModel(next.defaultModel)
+        setRivalModel(rival.current)
       })
       .catch(() => {
         if (!controller.signal.aborted) setFailed(true)
@@ -76,6 +83,14 @@ export function useLearnerModel() {
     }
     return true
   }, [])
+  /** Agent A's model. No round freeze: the next request simply uses it. */
+  const chooseRival = useCallback((id: string): boolean => {
+    if (!available.current?.models.some((model) => model.id === id))
+      return false
+    rival.current = id
+    setRivalModel(id)
+    return true
+  }, [])
   const startRound = useCallback((id: string | number): string | undefined => {
     if (frozen.current)
       return frozen.current.id === id ? frozen.current.model : undefined
@@ -95,10 +110,12 @@ export function useLearnerModel() {
     () => frozen.current?.model ?? selected.current,
     []
   )
+  const getRivalModel = useCallback(() => rival.current, [])
   return {
     models: config?.models ?? [],
     defaultModel: config?.defaultModel,
     selectedModel,
+    rivalModel,
     roundModel: round?.model,
     isFrozen: round !== null,
     status: failed
@@ -111,5 +128,7 @@ export function useLearnerModel() {
     startRound,
     endRound,
     getModel,
+    chooseRival,
+    getRivalModel,
   }
 }

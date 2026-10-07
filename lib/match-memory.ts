@@ -37,6 +37,8 @@ export type SavedMatch = {
   rulesShown: boolean
   started: boolean
   model: string | null
+  /** Agent A's model in Agent vs Agent. Older saves have none. */
+  rivalModel?: string | null
   battle: BattleDump
   traces: {
     human: AgentTraceSnapshot | null
@@ -95,6 +97,8 @@ const dumpSchema = z.strictObject({
   ),
   matchMs: sides(z.number().min(0)),
   stopped: sides(z.boolean()),
+  // Missing on matches saved before overtime existed.
+  overtime: sides(z.boolean()).optional(),
 })
 const savedSchema = z.strictObject({
   v: z.literal(1),
@@ -118,6 +122,7 @@ const savedSchema = z.strictObject({
   rulesShown: z.boolean(),
   started: z.boolean(),
   model: z.string().max(120).nullable(),
+  rivalModel: z.string().max(120).nullable().optional(),
   battle: dumpSchema,
   traces: sides(z.unknown()),
 })

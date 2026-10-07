@@ -429,7 +429,14 @@ function BattleSession({
     battle.getSnapshot,
     battle.getSnapshot
   )
-  const { getModel, endRound, startRound, chooseModel } = models
+  const {
+    getModel,
+    getRivalModel,
+    endRound,
+    startRound,
+    chooseModel,
+    chooseRival,
+  } = models
   const [started, setStarted] = useState(() => Boolean(restored?.finished))
   const awaitingResume = paused && !started
   const watching = arena === "watch"
@@ -455,7 +462,7 @@ function BattleSession({
     packs,
     started: live,
     mix: leftMix,
-    getModel,
+    getModel: getRivalModel,
     trace: traces.human,
   })
   const rightLearner = useSideLearner({
@@ -490,9 +497,12 @@ function BattleSession({
   }, [endRound, snapshot.matchComplete])
   // The model a restored match was dealt with stays picked until the player swaps it.
   const restoredModel = restored?.model
+  const restoredRival = restored?.rivalModel
   useEffect(() => {
-    if (restoredModel && models.status === "ready") chooseModel(restoredModel)
-  }, [chooseModel, models.status, restoredModel])
+    if (models.status !== "ready") return
+    if (restoredModel) chooseModel(restoredModel)
+    if (restoredRival) chooseRival(restoredRival)
+  }, [chooseModel, chooseRival, models.status, restoredModel, restoredRival])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (watching) return
@@ -647,6 +657,9 @@ function BattleSession({
         : `${rightName} can't reach its model: ${rightLearner.trace.label}`
       : null
   const roundModel = models.roundModel ?? restored?.model ?? null
+  const rivalModel = watching
+    ? (models.rivalModel ?? restored?.rivalModel ?? null)
+    : null
   // Keep this match in localStorage so a reload lands back here, not on setup.
   useEffect(() => {
     let dirty = true
@@ -661,6 +674,7 @@ function BattleSession({
         rulesShown: true,
         started: started || paused,
         model: roundModel,
+        rivalModel,
         battle: battle.dump(),
         traces: {
           human: watching ? traces.human.getSnapshot() : null,
@@ -698,6 +712,7 @@ function BattleSession({
     dealt,
     matchOver,
     paused,
+    rivalModel,
     roundModel,
     setup,
     source,
@@ -707,12 +722,12 @@ function BattleSession({
   ])
 
   const modelId = models.roundModel ?? models.selectedModel
-  const modelMenu = () => (
+  const modelMenu = (side: Side) => (
     <AgentModelMenu
       models={models.models}
-      value={modelId}
+      value={side === "human" ? models.rivalModel : modelId}
       status={models.status}
-      onChange={chooseModel}
+      onChange={side === "human" ? chooseRival : chooseModel}
     />
   )
   const humanStatus =
@@ -912,7 +927,7 @@ function BattleSession({
           titleExtra={
             watching ? (
               <>
-                {mixUsesLanguageModel(leftMix) ? modelMenu() : null}
+                {mixUsesLanguageModel(leftMix) ? modelMenu("human") : null}
                 {abilityPill(leftAbility)}
               </>
             ) : null
@@ -951,7 +966,7 @@ function BattleSession({
           name={rightName}
           titleExtra={
             <>
-              {mixUsesLanguageModel(rightMix) ? modelMenu() : null}
+              {mixUsesLanguageModel(rightMix) ? modelMenu("learner") : null}
               {abilityPill(rightAbility)}
             </>
           }

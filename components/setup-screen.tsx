@@ -30,6 +30,9 @@ type ModelPick = {
   selectedModel: string | undefined
   status: "loading" | "ready" | "unavailable"
   chooseModel: (id: string) => boolean
+  /** Agent A's model in Agent vs Agent. */
+  rivalModel: string | undefined
+  chooseRival: (id: string) => boolean
 }
 
 /** What the match is about to be, in one glance, with one way to change it. */
@@ -159,20 +162,22 @@ export function SetupScreen({
           </h1>
           <p className="hero-cta">Battle them on mini games!</p>
         </header>
+        {watching ? (
+          <ModelChoice
+            legend="Agent A model"
+            models={model.models}
+            value={model.rivalModel}
+            status={model.status}
+            active={mixUsesLanguageModel(leftMix)}
+            onChange={model.chooseRival}
+          />
+        ) : null}
         <ModelChoice
+          legend={watching ? "Agent B model" : "Agent model"}
           models={model.models}
           value={model.selectedModel}
           status={model.status}
-          active={
-            mixUsesLanguageModel(rightMix) ||
-            (watching && mixUsesLanguageModel(leftMix))
-          }
-          hint={
-            watching &&
-            mixUsesLanguageModel(leftMix) !== mixUsesLanguageModel(rightMix)
-              ? "Used by the side that includes a language model."
-              : undefined
-          }
+          active={mixUsesLanguageModel(rightMix)}
           onChange={model.chooseModel}
         />
         <UpFirst

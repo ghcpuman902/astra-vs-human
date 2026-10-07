@@ -90,9 +90,10 @@ export const modeName = (mix: LearnerMixId) =>
 export type AgentStack = "llm" | "dm" | "both"
 export type DecisionModel = "jev" | "laya" | "openai"
 
-const STACKS: readonly { id: AgentStack; label: string }[] = [
-  { id: "llm", label: "LLM" },
-  { id: "dm", label: "DM" },
+// Examples are what this app can run: OpenAI GPT models, and the DECISIONS below.
+const STACKS: readonly { id: AgentStack; label: string; note?: string }[] = [
+  { id: "llm", label: "LLMs", note: "GPT" },
+  { id: "dm", label: "DMs", note: "Jev, Laya, Decisions" },
   { id: "both", label: "LLM + DM" },
 ]
 
@@ -195,16 +196,22 @@ function modeNote(mix: LearnerMixId, servers: Servers | null) {
 /** One row of radio chips. Quiet until picked. */
 export function Choice<T extends string>({
   legend,
+  legendNote,
   value,
   options,
   onChange,
   busyId = null,
+  disabled = false,
 }: {
   legend: string
+  /** Muted words after the legend. */
+  legendNote?: string
   value: T
   options: readonly {
     id: T
     label: string
+    /** Muted examples after the label, in parentheses. */
+    note?: string
     title?: string
     icon?: ChipIcon | null
     /** Category color tokens. Rendered as a saturated chip mark. */
@@ -213,11 +220,18 @@ export function Choice<T extends string>({
   onChange: (id: T) => void
   /** The chip whose board is still being built. */
   busyId?: T | null
+  /** Shown but not in play; keeps its height so nothing below moves. */
+  disabled?: boolean
 }) {
   const name = useId()
   return (
-    <fieldset className="setup-group">
-      <legend>{legend}</legend>
+    <fieldset className="setup-group" disabled={disabled}>
+      <legend>
+        {legend}
+        {legendNote ? (
+          <span className="legend-note"> · {legendNote}</span>
+        ) : null}
+      </legend>
       <div className="chip-row">
         {options.map((option) => {
           const Icon = option.icon
@@ -261,6 +275,9 @@ export function Choice<T extends string>({
               ) : null}
               <Check className="chip-check" aria-hidden="true" />
               {option.label}
+              {option.note ? (
+                <span className="chip-note">({option.note})</span>
+              ) : null}
             </label>
           )
         })}
@@ -385,33 +402,29 @@ export function AgentModelMenu({
   )
 }
 
-/** Every model is visible, one tap each. */
+/**
+ * Every model is visible, one tap each. A DM-only side keeps the row,
+ * dimmed, so switching to it does not pull the page up.
+ */
 export function ModelChoice({
+  legend = "Agent model",
   models,
   value,
   status,
   active = true,
-  hint,
   onChange,
 }: {
+  legend?: string
   models: readonly { id: string; label: string }[]
   value: string | undefined
   status: "loading" | "ready" | "unavailable"
   active?: boolean
-  hint?: string
   onChange: (id: string) => void
 }) {
-  if (!active)
-    return (
-      <div className="setup-group">
-        <span className="field-label">Agent model</span>
-        <p className="model-none">None</p>
-      </div>
-    )
   if (status !== "ready")
     return (
       <div className="setup-group">
-        <span className="field-label">Agent model</span>
+        <span className="field-label">{legend}</span>
         <p className="setup-note">
           {status === "loading"
             ? "Loading models…"
@@ -422,7 +435,9 @@ export function ModelChoice({
   return (
     <div className="setup-group">
       <Choice
-        legend="Agent model"
+        legend={legend}
+        legendNote={active ? undefined : "not used by DMs"}
+        disabled={!active}
         value={value ?? models[0]?.id ?? ""}
         options={models.map((model) => ({
           id: model.id,
@@ -432,7 +447,6 @@ export function ModelChoice({
         }))}
         onChange={onChange}
       />
-      {hint ? <p className="setup-note">{hint}</p> : null}
     </div>
   )
 }
