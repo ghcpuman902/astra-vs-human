@@ -45,6 +45,22 @@ export const learnerModeIds = [
   "openai-bare",
 ] as const satisfies readonly LearnerMixId[]
 
+/**
+ * Mixes whose next tap is one choice from a closed menu.
+ * A repeat of a choice on that menu is a legal tap, not a loop to undo.
+ */
+export const choiceLearnerMixIds = [
+  "jev-bare",
+  "laya-bare",
+  "openai-bare",
+  "openai-decisions",
+] as const satisfies readonly LearnerMixId[]
+
+export const isChoiceLearnerMix = (
+  mix: string | undefined
+): mix is (typeof choiceLearnerMixIds)[number] =>
+  choiceLearnerMixIds.some((id) => id === mix)
+
 /** Solver names a target value; the engine compiles it into counted taps. */
 export const placementSchema = z.strictObject({
   cell: z.number().int().min(0).max(35),
@@ -355,15 +371,15 @@ export function bareControlQuestions(
   cells: readonly number[],
   controls: { cycle?: boolean; undo?: boolean; clear?: boolean } = {}
 ) {
-  const criteria: Record<string, string> = {
-    wait: "No supported tap on the visible board.",
-  }
+  const criteria: Record<string, string> = {}
   if (controls.undo) criteria.undo = "Undo the last counted change."
   if (controls.clear) criteria.clear = "Restore the round's starting board."
   if (controls.cycle) criteria.cycle = "Cycle the selected editable cell once."
   for (const cell of cells) {
     criteria[`cell-${cell}`] = `Select visible cell ${cell}.`
   }
+  if (!Object.keys(criteria).length)
+    criteria.wait = "No supported tap on the visible board."
   return {
     control: {
       type: "choice" as const,

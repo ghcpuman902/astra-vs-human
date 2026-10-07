@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { ChevronRight, Play, RefreshCw } from "lucide-react"
 
+import { ThemeToggle } from "@/components/theme-provider"
+
 import { postcardFor } from "@/components/lovable/marks"
 import { MiniBoard } from "@/components/lovable/mini-board"
 import { RoundStrip } from "@/components/lovable/round-strip"
@@ -18,7 +20,11 @@ import {
   type Arena,
   type Servers,
 } from "@/components/match-options"
-import { matchFamilies } from "@/lib/battle-ground-ui/family-bias"
+import {
+  familyMarkPaint,
+  matchFamilies,
+  toMarkPaint,
+} from "@/lib/battle-ground-ui/family-bias"
 import { dealTitle } from "@/lib/battle-ground-ui/labels"
 import type { LearnerMixId } from "@/lib/battle-ground-ui/learner-mix"
 import type { DealtMatch, MatchLength } from "@/lib/battle-ground-ui/match-deck"
@@ -144,9 +150,13 @@ export function SetupScreen({
   const families =
     length === "deep" ? matchFamilies().filter((family) => !family.demote) : []
   const familyValue = pendingFamilyId ?? preview?.familyId ?? ""
+  const deepColor = familyMarkPaint(preview?.familyId ?? familyValue)[0]
   return (
     <main className="battle-ground is-setup">
-      <p className="site-name">astra-vs-human.vercel.app</p>
+      <div className="site-bar">
+        <p className="site-name">astra-vs-human.vercel.app</p>
+        <ThemeToggle />
+      </div>
       <form
         className="setup"
         onSubmit={(event) => {
@@ -162,24 +172,16 @@ export function SetupScreen({
           </h1>
           <p className="hero-cta">Battle them on mini games!</p>
         </header>
-        {watching ? (
+        {watching ? null : (
           <ModelChoice
-            legend="Agent A model"
+            legend="Agent model"
             models={model.models}
-            value={model.rivalModel}
+            value={model.selectedModel}
             status={model.status}
-            active={mixUsesLanguageModel(leftMix)}
-            onChange={model.chooseRival}
+            active={mixUsesLanguageModel(rightMix)}
+            onChange={model.chooseModel}
           />
-        ) : null}
-        <ModelChoice
-          legend={watching ? "Agent B model" : "Agent model"}
-          models={model.models}
-          value={model.selectedModel}
-          status={model.status}
-          active={mixUsesLanguageModel(rightMix)}
-          onChange={model.chooseModel}
-        />
+        )}
         <UpFirst
           preview={preview}
           length={length}
@@ -209,6 +211,7 @@ export function SetupScreen({
             <LengthChoice
               value={length}
               busyId={dealing ? length : null}
+              deepColor={deepColor}
               onChange={onLength}
             />
             {length === "deep" ? (
@@ -221,7 +224,7 @@ export function SetupScreen({
                     id: family.id,
                     label: family.label,
                     title: family.label,
-                    swatch: family.paint,
+                    swatch: toMarkPaint(family.paint),
                   }))}
                   onChange={onFamily}
                 />
@@ -230,6 +233,22 @@ export function SetupScreen({
             <ArenaChoice value={arena} onChange={onArena} />
             {watching ? (
               <>
+                <ModelChoice
+                  legend="Agent A model"
+                  models={model.models}
+                  value={model.rivalModel}
+                  status={model.status}
+                  active={mixUsesLanguageModel(leftMix)}
+                  onChange={model.chooseRival}
+                />
+                <ModelChoice
+                  legend="Agent B model"
+                  models={model.models}
+                  value={model.selectedModel}
+                  status={model.status}
+                  active={mixUsesLanguageModel(rightMix)}
+                  onChange={model.chooseModel}
+                />
                 <AgentStack
                   legend="Agent A"
                   value={leftMix}

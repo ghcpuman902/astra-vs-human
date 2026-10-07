@@ -12,7 +12,7 @@ import type {
   RoundStatus,
   Side,
 } from "@/lib/battle-ground-ui/controller"
-import { familyPaint } from "@/lib/battle-ground-ui/family-bias"
+import { familyMarkPaint } from "@/lib/battle-ground-ui/family-bias"
 import { familyLabel, formatClock } from "@/lib/battle-ground-ui/labels"
 import type { DealtMatch, MatchLength } from "@/lib/battle-ground-ui/match-deck"
 import type { GamePack } from "@/lib/mini-game-rules/schema"
@@ -54,6 +54,29 @@ const verdictReason = (
   return "More time left"
 }
 
+/** Fun scale: OpenAI’s published average ChatGPT query ≈ 1k tokens. */
+const AVG_QUERY_TOKENS = 1_000
+/** Sam Altman, “The Gentle Singularity”, Jun 2025 — ~0.34 Wh per average query. */
+const WH_PER_AVG_QUERY = 0.34
+/** Same note — 0.000085 gal ≈ 0.32 mL per average query. */
+const ML_PER_AVG_QUERY = 0.32
+const ENERGY_WATER_SOURCE =
+  "https://blog.samaltman.com/the-gentle-singularity"
+
+const formatEnergy = (wh: number) => {
+  if (wh <= 0) return "0 Wh"
+  if (wh < 0.01) return `${(wh * 1000).toFixed(1)} mWh`
+  if (wh < 10) return `${wh.toFixed(2)} Wh`
+  return `${wh.toFixed(1)} Wh`
+}
+
+const formatWater = (ml: number) => {
+  if (ml <= 0) return "0 mL"
+  if (ml < 1) return `${ml.toFixed(2)} mL`
+  if (ml < 1000) return `${ml.toFixed(1)} mL`
+  return `${(ml / 1000).toFixed(2)} L`
+}
+
 const MODEL_ROWS = [
   {
     key: "input",
@@ -84,6 +107,18 @@ const MODEL_ROWS = [
     key: "per",
     label: "Tokens per solved board",
     title: "Input plus output tokens, divided by solved boards",
+  },
+  {
+    key: "energy",
+    label: "Est. energy*",
+    title:
+      "Rough estimate from OpenAI’s ~0.34 Wh per average ChatGPT query, scaled by tokens",
+  },
+  {
+    key: "water",
+    label: "Est. water†",
+    title:
+      "Rough estimate from OpenAI’s ~0.32 mL per average ChatGPT query, scaled by tokens",
   },
 ] as const
 
@@ -256,7 +291,7 @@ export function MatchResults({
       if (!human && !learner) return []
       const faster = roundFaster(human, learner)
       const name = familyLabel(pack)
-      const paint = familyPaint(pack.transfer.family, pack.category)
+      const paint = familyMarkPaint(pack.transfer.family, pack.category)
       const racing =
         human?.status === "playing" || learner?.status === "playing"
       const verdict =
@@ -329,6 +364,14 @@ export function MatchResults({
     if (key === "think") return formatThink(thinkMs(trace, now))
     if (key === "calls")
       return formatTokens(meters.calls + (trace.pendingSince ? 1 : 0))
+    if (key === "energy" || key === "water") {
+      const tokens =
+        meters.inputTokens + meters.outputTokens + meters.reasoningTokens
+      if (!tokens) return "—"
+      const scale = tokens / AVG_QUERY_TOKENS
+      if (key === "energy") return formatEnergy(scale * WH_PER_AVG_QUERY)
+      return formatWater(scale * ML_PER_AVG_QUERY)
+    }
     const done = solved(side)
     if (!done) return "—"
     return formatTokens(
@@ -518,6 +561,26 @@ export function MatchResults({
             </div>
           ))}
         </div>
+        <p className="results-notes">
+          <span>
+            * Rough energy estimate: OpenAI’s ~{WH_PER_AVG_QUERY} Wh per average
+            ChatGPT query, scaled by this match’s tokens vs an assumed{" "}
+            {AVG_QUERY_TOKENS.toLocaleString("en")} tokens/query. Not measured.{" "}
+            <a
+              href={ENERGY_WATER_SOURCE}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Altman, Jun 2025
+            </a>
+            .
+          </span>
+          <span>
+            † Rough water estimate: same note’s ~{ML_PER_AVG_QUERY} mL (0.000085
+            gal) per average query, scaled the same way. Fun ballpark only —
+            varies by model, hardware, and datacenter.
+          </span>
+        </p>
       </div>
       <div className="results-actions" hidden={!open}>
         {onKeepPlaying ? (

@@ -700,9 +700,11 @@ export async function openaiDecisionsControl(
     plan.placements,
     input.board.affordances
   )
-  const cells = plannedCells.length
+  const selected = input.board.cells.findIndex((cell) => cell.selected)
+  const pool = plannedCells.length
     ? plannedCells
     : bareCandidateCells(input.board.affordances)
+  const cells = pool.filter((cell) => cell !== selected)
   const captions = captionMap(plan.captions)
   const questions = plannedControlQuestions(
     cells,

@@ -9,6 +9,7 @@ const {
   decideGameLearner,
   createGameLearnerRunner,
   learnerMixIds,
+  isChoiceLearnerMix,
   runProgram,
   dispatchMix,
   cleanup,
@@ -281,6 +282,24 @@ try {
         )
           await run.runner.step()
         const label = `${mode} ${game.id} ${mix}`
+        const permittedRepeat =
+          isChoiceLearnerMix(mix) &&
+          (mode === "first" ||
+            (mode === "stateless" && mix === "openai-decisions"))
+        if (permittedRepeat) {
+          assert.notEqual(
+            run.runner.haltNote?.(),
+            "Repeating a move, so this round stopped.",
+            `${label} does not blame a permitted choice`
+          )
+          if (mode === "first")
+            assert.equal(
+              run.runner.reason?.() ?? null,
+              null,
+              `${label} legal repeats stay in play`
+            )
+          continue
+        }
         assert.equal(run.runner.reason?.() ?? null, "stuck", label)
         assert.ok(run.tally.calls <= 24, `${label} calls ${run.tally.calls}`)
         assert.ok(

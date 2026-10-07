@@ -27,7 +27,12 @@ export function MatchInfo({
         <Info aria-hidden="true" />
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner side="bottom" align="end" sideOffset={8}>
+        <Popover.Positioner
+          className="info-pop-positioner"
+          side="bottom"
+          align="end"
+          sideOffset={8}
+        >
           <Popover.Popup className="info-pop">
             <Popover.Title className="info-title">Match info</Popover.Title>
             <dl>

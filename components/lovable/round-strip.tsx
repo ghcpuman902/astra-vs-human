@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react"
 
-import { familyPaint } from "@/lib/battle-ground-ui/family-bias"
+import { familyMarkPaint } from "@/lib/battle-ground-ui/family-bias"
 import { familyLabel } from "@/lib/battle-ground-ui/labels"
 import type { GamePack } from "@/lib/mini-game-rules/schema"
 
@@ -65,7 +65,7 @@ export const RoundStrip = ({
           {Array.from({ length: count }, (_, slot) => {
             const pack = packs[slot % packs.length]
             if (!pack) return null
-            const paint = familyPaint(pack.transfer.family, pack.category)
+            const paint = familyMarkPaint(pack.transfer.family, pack.category)
             const real = slot < packs.length
             const current = real && slot === safeIndex
             const finished = real && done.has(slot)

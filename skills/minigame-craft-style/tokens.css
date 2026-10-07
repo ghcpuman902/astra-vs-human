@@ -7,13 +7,31 @@
   --ink-secondary: oklch(42% 0.010 260);   /* ≈ #4A4D53 */
   --surface-muted: oklch(97% 0.004 260);   /* ≈ #F3F5F8 */
 
-  /* Six categorical fills: fixed L 86%, C 0.065, hues 60° apart */
+  /* Six categorical fills: fixed L 86%, C 0.065, hues 60° apart.
+     Board cells keep this wash. Small UI marks use the -mark cousins. */
   --cat-1: oklch(86% 0.065 20);   /* rose   ≈ #F9C1BF  mark ● */
   --cat-2: oklch(86% 0.065 80);   /* amber  ≈ #E8CDA1  mark ■ */
   --cat-3: oklch(86% 0.065 140);  /* green  ≈ #BBDCB4  mark ▲ */
   --cat-4: oklch(86% 0.065 200);  /* cyan   ≈ #9EDEE2  mark ◆ */
   --cat-5: oklch(86% 0.065 260);  /* blue   ≈ #B9D2FC  mark + */
   --cat-6: oklch(86% 0.065 320);  /* violet ≈ #E5C4EC  mark × */
+
+  /* Higher-contrast cousins for chips, ribbons, and mode motifs.
+     Same hue, closer to a Tailwind 300: readable when two colors split. */
+  --cat-1-mark: oklch(64% 0.15 20);
+  --cat-2-mark: oklch(64% 0.15 80);
+  --cat-3-mark: oklch(64% 0.15 140);
+  --cat-4-mark: oklch(64% 0.15 200);
+  --cat-5-mark: oklch(64% 0.15 260);
+  --cat-6-mark: oklch(64% 0.15 320);
+
+  /* Crown regions: a light wash of the category hue. Dark mode replaces these. */
+  --region-1: color-mix(in oklab, var(--cat-1) 34%, var(--canvas));
+  --region-2: color-mix(in oklab, var(--cat-2) 34%, var(--canvas));
+  --region-3: color-mix(in oklab, var(--cat-3) 34%, var(--canvas));
+  --region-4: color-mix(in oklab, var(--cat-4) 34%, var(--canvas));
+  --region-5: color-mix(in oklab, var(--cat-5) 34%, var(--canvas));
+  --region-6: color-mix(in oklab, var(--cat-6) 34%, var(--canvas));
 
   /* Borders & states (shape, never hue) */
   --line-cell:        1px solid var(--ink-secondary);
@@ -47,6 +65,40 @@
   --cell: 44px;
 }
 @media (max-width: 420px) { :root { --cell: 36px; } }
+
+/* Dark paper. Washes are mid-tones (about 3.3:1 on the canvas, WCAG 1.4.11), so a
+   colored cell separates from an empty one and ink on top stays above 5:1 (1.4.3).
+   Lightness is set per hue to hold that luminance, not one L for all six. */
+.dark {
+  --canvas:        oklch(16% 0.010 260);
+  --ink:           oklch(96% 0.006 260);
+  --border-strong: oklch(88% 0.008 260);
+  --ink-secondary: oklch(74% 0.010 260);
+  --surface-muted: oklch(23% 0.008 260);
+
+  --cat-1: oklch(52% 0.12 20);
+  --cat-2: oklch(51% 0.10 80);
+  --cat-3: oklch(49.5% 0.11 140);
+  --cat-4: oklch(49.5% 0.075 200);
+  --cat-5: oklch(51% 0.13 260);
+  --cat-6: oklch(52% 0.13 320);
+
+  --cat-1-mark: oklch(74% 0.13 20);
+  --cat-2-mark: oklch(74% 0.13 80);
+  --cat-3-mark: oklch(74% 0.13 140);
+  --cat-4-mark: oklch(74% 0.10 200);
+  --cat-5-mark: oklch(74% 0.13 260);
+  --cat-6-mark: oklch(74% 0.13 320);
+
+  /* Crown regions. A 34% mix into this canvas is mud (~1.6:1). These hold
+     about 5.2:1 on the canvas so the six hues stay apart (WCAG 1.4.11). */
+  --region-1: oklch(62.5% 0.11 20);
+  --region-2: oklch(61.5% 0.11 80);
+  --region-3: oklch(60% 0.14 140);
+  --region-4: oklch(60.5% 0.10 200);
+  --region-5: oklch(61.5% 0.14 260);
+  --region-6: oklch(62.5% 0.11 320);
+}
 
 /* Helpers */
 .mg-clock { font: var(--t-clock); font-variant-numeric: tabular-nums; }

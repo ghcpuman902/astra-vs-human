@@ -286,31 +286,70 @@ export function Choice<T extends string>({
   )
 }
 
+const MARKS = [1, 2, 3, 4, 5, 6].map((n) => `var(--cat-${n}-mark)`)
+
+/** Deep is one color, Tour is five, Blitz keeps going past the card edge. */
+function lengthMotif(id: MatchLength, deepColor: string) {
+  if (id === "deep") return Array.from({ length: 5 }, () => deepColor)
+  if (id === "tour") return [MARKS[1], MARKS[4], MARKS[2], MARKS[5], MARKS[3]]
+  return Array.from({ length: 16 }, (_, index) => MARKS[index % MARKS.length]!)
+}
+
 export function LengthChoice({
   value,
   busyId = null,
+  deepColor = "var(--cat-2-mark)",
   onChange,
 }: {
   value: MatchLength
   busyId?: MatchLength | null
+  /** First mark color of the current Deep family. */
+  deepColor?: string
   onChange: (length: MatchLength) => void
 }) {
+  const name = useId()
   return (
-    <div className="setup-group">
-      <Choice
-        legend="Match"
-        value={value}
-        busyId={busyId}
-        options={MATCH_LENGTHS.map((id) => ({
-          id,
-          label: LENGTH_COPY[id].label,
-        }))}
-        onChange={onChange}
-      />
+    <fieldset className="setup-group">
+      <legend>Match</legend>
+      <div className="length-row">
+        {MATCH_LENGTHS.map((id) => {
+          const pending = busyId === id
+          return (
+            <label
+              key={id}
+              className="length-card"
+              data-pending={pending ? "true" : undefined}
+              aria-busy={pending ? true : undefined}
+            >
+              <input
+                type="radio"
+                name={name}
+                value={id}
+                checked={value === id}
+                onChange={() => onChange(id)}
+              />
+              <span
+                className="length-motif"
+                data-clip={id === "blitz" ? "true" : undefined}
+                aria-hidden="true"
+              >
+                {lengthMotif(id, deepColor).map((color, index) => (
+                  <span
+                    key={`${id}-${index}`}
+                    className="length-dot"
+                    style={{ background: color }}
+                  />
+                ))}
+              </span>
+              <span className="length-label">{LENGTH_COPY[id].label}</span>
+            </label>
+          )
+        })}
+      </div>
       <p className="setup-note" aria-live="polite">
         {LENGTH_COPY[value].hint}
       </p>
-    </div>
+    </fieldset>
   )
 }
 
@@ -368,7 +407,12 @@ export function AgentModelMenu({
         <ChevronDown aria-hidden="true" />
       </Menu.Trigger>
       <Menu.Portal>
-        <Menu.Positioner side="bottom" align="start" sideOffset={6}>
+        <Menu.Positioner
+          className="model-menu-positioner"
+          side="bottom"
+          align="start"
+          sideOffset={6}
+        >
           <Menu.Popup className="model-menu">
             <Menu.RadioGroup
               value={value}

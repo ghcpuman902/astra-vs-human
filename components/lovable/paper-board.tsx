@@ -13,14 +13,14 @@ import {
   type Walls,
 } from "@/lib/mini-game-rules/runtime"
 
-/** Queens paint: one craft hue per region, washed toward the canvas. */
+/** Queens paint: one hue per region. Light mode washes it; dark mode uses the solid. */
 export const REGION_FILLS = [
-  "var(--cat-1)",
-  "var(--cat-2)",
-  "var(--cat-3)",
-  "var(--cat-4)",
-  "var(--cat-5)",
-  "var(--cat-6)",
+  "var(--region-1)",
+  "var(--region-2)",
+  "var(--region-3)",
+  "var(--region-4)",
+  "var(--region-5)",
+  "var(--region-6)",
 ] as const
 
 type PaperBoardProps = {
@@ -398,7 +398,10 @@ export const PaperBoard = ({
               style={
                 regions && cell.value !== 1
                   ? {
-                      background: `color-mix(in oklab, ${REGION_FILLS[regions[cell.index] % REGION_FILLS.length]} 34%, var(--canvas))`,
+                      background:
+                        REGION_FILLS[
+                          regions[cell.index] % REGION_FILLS.length
+                        ],
                     }
                   : undefined
               }

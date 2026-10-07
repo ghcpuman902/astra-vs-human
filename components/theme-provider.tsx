@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Moon, Sun } from "lucide-react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
 function ThemeProvider({
@@ -34,8 +35,23 @@ function isTypingTarget(target: EventTarget | null) {
   )
 }
 
+/**
+ * Follow the device until a click disagrees with it.
+ * A later click that lands back on the device preference clears the override,
+ * so the next system change is followed again.
+ */
+function useThemeChoice() {
+  const { resolvedTheme, systemTheme, setTheme } = useTheme()
+  const chooseOpposite = React.useCallback(() => {
+    if (resolvedTheme !== "light" && resolvedTheme !== "dark") return
+    const next = resolvedTheme === "dark" ? "light" : "dark"
+    setTheme(systemTheme && next === systemTheme ? "system" : next)
+  }, [resolvedTheme, systemTheme, setTheme])
+  return chooseOpposite
+}
+
 function ThemeHotkey() {
-  const { resolvedTheme, setTheme } = useTheme()
+  const chooseOpposite = useThemeChoice()
 
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -55,7 +71,7 @@ function ThemeHotkey() {
         return
       }
 
-      setTheme(resolvedTheme === "dark" ? "light" : "dark")
+      chooseOpposite()
     }
 
     window.addEventListener("keydown", onKeyDown)
@@ -63,9 +79,26 @@ function ThemeHotkey() {
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
-  }, [resolvedTheme, setTheme])
+  }, [chooseOpposite])
 
   return null
 }
 
-export { ThemeProvider }
+/** Icons follow `.dark`. The `d` hotkey uses the same choice. */
+function ThemeToggle() {
+  const chooseOpposite = useThemeChoice()
+
+  return (
+    <button
+      type="button"
+      className="icon-button theme-toggle"
+      aria-label="Toggle color theme"
+      onClick={chooseOpposite}
+    >
+      <Sun className="theme-icon theme-icon-sun" aria-hidden="true" />
+      <Moon className="theme-icon theme-icon-moon" aria-hidden="true" />
+    </button>
+  )
+}
+
+export { ThemeProvider, ThemeToggle }

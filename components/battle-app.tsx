@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -32,6 +33,7 @@ import {
   type Servers,
 } from "@/components/match-options"
 import { MatchInfo, MatchSettings } from "@/components/match-settings"
+import { ThemeToggle } from "@/components/theme-provider"
 import { SetupScreen } from "@/components/setup-screen"
 import {
   rememberDeal,
@@ -124,6 +126,61 @@ const ensureMatchHistory = () => {
 }
 
 const isMatchHistory = () => history.state?.battle === "match"
+
+/** Midpoint of both boards, covers while they are hidden and grids once they are open. */
+const placeShared = (node: HTMLElement) => {
+  const covers = document.querySelectorAll(".puzzle-cover")
+  const targets =
+    covers.length > 0 ? covers : document.querySelectorAll(".puzzle-grid")
+  if (targets.length === 0) return
+  const boxes = [...targets].map((target) => target.getBoundingClientRect())
+  const left = Math.min(...boxes.map((box) => box.left))
+  const right = Math.max(...boxes.map((box) => box.right))
+  const top = Math.min(...boxes.map((box) => box.top))
+  const bottom = Math.max(...boxes.map((box) => box.bottom))
+  const x = `${(left + right) / 2}px`
+  const y = `${(top + bottom) / 2}px`
+  if (node.style.left !== x) node.style.left = x
+  if (node.style.top !== y) node.style.top = y
+}
+
+const SharedFloat = ({
+  label,
+  disabled,
+  onClick,
+}: {
+  label: string
+  disabled: boolean
+  onClick: () => void
+}) => {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const node = ref.current
+    if (!node) return
+    // Boards move without a window event (cover to grid, next round, layout settling),
+    // so follow them every frame. placeShared only writes when the midpoint changed.
+    let frame = requestAnimationFrame(function follow() {
+      placeShared(node)
+      frame = requestAnimationFrame(follow)
+    })
+    placeShared(node)
+    return () => cancelAnimationFrame(frame)
+  }, [])
+  return (
+    <div className="shared-float" ref={ref}>
+      <button
+        type="button"
+        className="primary-button shared-button"
+        data-slot="match-next"
+        disabled={disabled}
+        onClick={onClick}
+      >
+        <Play aria-hidden="true" />
+        {label}
+      </button>
+    </div>
+  )
+}
 
 export function BattleApp() {
   const mounted = useMounted()
@@ -773,9 +830,24 @@ function BattleSession({
   }
   const canKeepPlaying =
     !watching && started && humanAttempt.status === "time-cap" && !overtime
-  const dock = (
+  const sharedControl = awaitingResume
+    ? {
+        label: "Resume match",
+        disabled: models.status !== "ready",
+        onClick: handleStart,
+      }
+    : !started
+      ? {
+          label: "Start both",
+          disabled: models.status !== "ready",
+          onClick: handleStart,
+        }
+      : watching
+        ? { label: "Watching", disabled: true, onClick: () => {} }
+        : null
+  const dock = watching ? null : (
     <div className="dock-row">
-      {watching ? null : canKeepPlaying ? (
+      {canKeepPlaying ? (
         <button
           type="button"
           className="paper-button icon-text"
@@ -816,35 +888,19 @@ function BattleSession({
           </button>
         </>
       )}
-      <button
-        type="button"
-        className="primary-button"
-        data-slot="match-next"
-        data-locked={(started && !watching && !humanDone) || undefined}
-        disabled={
-          (watching && started) ||
-          (!started
-            ? models.status !== "ready"
-            : halted || !humanDone || !snapshot.canAdvance.human)
-        }
-        onClick={() => {
-          if (!started) handleStart()
-          else battle.advance("human")
-        }}
-      >
-        {started && !watching && !humanDone ? (
-          <Lock aria-hidden="true" />
-        ) : (
-          <Play aria-hidden="true" />
-        )}
-        {awaitingResume
-          ? "Resume match"
-          : !started
-            ? "Start both"
-            : watching
-              ? "Watching"
-              : nextLabel}
-      </button>
+      {sharedControl ? null : (
+        <button
+          type="button"
+          className="primary-button"
+          data-slot="match-next"
+          data-locked={(!humanDone) || undefined}
+          disabled={halted || !humanDone || !snapshot.canAdvance.human}
+          onClick={() => battle.advance("human")}
+        >
+          {!humanDone ? <Lock aria-hidden="true" /> : <Play aria-hidden="true" />}
+          {nextLabel}
+        </button>
+      )}
     </div>
   )
   const infoRows = [
@@ -909,6 +965,7 @@ function BattleSession({
           <ArrowLeft aria-hidden="true" />
         </button>
         <div className="battle-tools">
+          <ThemeToggle />
           <MatchInfo rows={infoRows} />
           <button
             type="button"
@@ -920,6 +977,14 @@ function BattleSession({
           </button>
         </div>
       </header>
+      {sharedControl ? (
+        <SharedFloat
+          key={sharedControl.label}
+          label={sharedControl.label}
+          disabled={sharedControl.disabled}
+          onClick={sharedControl.onClick}
+        />
+      ) : null}
       <div className="phones" id="boards">
         <Phone
           side="human"

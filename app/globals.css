@@ -361,7 +361,7 @@
   border-radius: 6px;
   padding: 7px;
   color: var(--foreground);
-  background: white;
+  background: var(--canvas);
 }
 .transfer-summary {
   max-width: 950px;

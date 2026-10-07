@@ -941,7 +941,7 @@ try {
   // Deep families live in that panel, each with a color mark. Up first stays a board.
   assert.match(setupSource, /<ModelChoice/)
   assert.match(setupSource, /className="deep-families"/)
-  assert.match(setupSource, /swatch: family\.paint/)
+  assert.match(setupSource, /swatch: toMarkPaint\(family\.paint\)/)
   assert.match(setupSource, /length === "deep" \? matchFamilies\(\)/)
   assert.doesNotMatch(setupSource, /Families you/)
   assert.match(setupSource, /More options/)

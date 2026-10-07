@@ -10,6 +10,7 @@ import { serverStepSchema, type ServerStep } from "./agent-trace"
 import type { BoardProps, SharedActions } from "./controller"
 import {
   expandPlacements,
+  isChoiceLearnerMix,
   learnerBoardPayload,
   learnerCredentials,
   learnerMixIds,
@@ -479,6 +480,8 @@ const offerBoard = (
   controls.selectCell = controls.selectCell.filter(
     (cell) => !skip?.has(`select:${cell}`) && !parked?.has(cell)
   )
+  const selected = next.cells.find((cell) => cell.selected)?.index
+  if (selected !== undefined && parked?.has(selected)) controls.cycle = false
   return next
 }
 const valueKey = (board: BoardProps) =>
@@ -555,6 +558,7 @@ export function createGameLearnerRunner(options: {
   let phase: "idle" | "waiting" | "applying" = "idle"
   let disposed = false
   let stuck = false
+  let haltLine: string | null = null
   let idle = 0
   let escapes = 0
   let note: string | null = null
@@ -675,6 +679,7 @@ export function createGameLearnerRunner(options: {
     cancel: () => pending?.abort(),
     busy: () => pending !== null,
     reason: () => (stuck ? ("stuck" as const) : null),
+    haltNote: () => haltLine,
     note: () => {
       const line = note
       note = null
@@ -696,13 +701,41 @@ export function createGameLearnerRunner(options: {
       rememberBoard(live)
       const mark = fingerprint(live)
       const seen = (visits.get(mark) ?? 0) + 1
-      if (seen > VISIT_LIMIT || idle >= IDLE_LIMIT) {
-        if (seen > VISIT_LIMIT && rewind(live)) return true
+      const choiceOnly = isChoiceLearnerMix(options.mix)
+      if (!choiceOnly && seen > VISIT_LIMIT) {
+        if (rewind(live)) return true
         stuck = true
+        haltLine = "Repeating a move, so this round stopped."
+        return false
+      }
+      if (idle >= IDLE_LIMIT) {
+        stuck = true
+        haltLine = choiceOnly
+          ? "The choice was not an offered move, so this round stopped."
+          : "Repeating a move, so this round stopped."
+        return false
+      }
+      const offered = offerBoard(live, blocked.get(mark), parked)
+      const selected = offered.cells.find((cell) => cell.selected)?.index
+      const choiceSelectable =
+        selected === undefined
+          ? offered.affordances.controls.selectCell
+          : offered.affordances.controls.selectCell.filter(
+              (cell) => cell !== selected
+            )
+      const choiceHasMove =
+        choiceSelectable.length > 0 ||
+        offered.affordances.controls.cycle ||
+        offered.affordances.controls.undo ||
+        offered.affordances.controls.clear
+      if (choiceOnly && !choiceHasMove) {
+        stuck = true
+        haltLine =
+          "No offered move can change this board, so this round stopped."
         return false
       }
       const parsed = gameLearnerRequestSchema.safeParse({
-        board: offerBoard(live, blocked.get(mark), parked),
+        board: offered,
         priorClaims: options.memory.claims.slice(-30),
         model: options.model?.(),
         mix: options.mix,

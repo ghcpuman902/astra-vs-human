@@ -71,6 +71,7 @@ export async function loadGameRuntime(label = "agent-suite") {
     decideGameLearner: learner.decideGameLearner,
     createGameLearnerRunner: learner.createGameLearnerRunner,
     learnerMixIds: mix.learnerMixIds,
+    isChoiceLearnerMix: mix.isChoiceLearnerMix,
     bareControlQuestions: mix.bareControlQuestions,
     plannedControlQuestions: mix.plannedControlQuestions,
     interpretPolicy: mix.interpretPolicy,

@@ -392,7 +392,10 @@ export function useSideLearner({
         if (runner.reason() === "stuck") {
           halt = true
           if (!disposed)
-            trace.phase("done", "Repeating a move, so this round stopped.")
+            trace.phase(
+              "done",
+              runner.haltNote() ?? "Repeating a move, so this round stopped."
+            )
         }
       } catch {
         if (!disposed)

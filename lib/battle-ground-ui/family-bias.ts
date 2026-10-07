@@ -18,8 +18,8 @@ export type FamilyDef = {
   /** Lucide / emoji hint for setup cards. */
   icon: "sun-moon" | "crown" | "path" | "pipe" | "lights" | "islands" | "sparse" | "cascade" | "lamp" | "mosaic" | "skyline"
   /**
-   * Round-ribbon fills. One color paints the square. Two split it into
-   * diagonal halves, first color on the top-left triangle.
+   * Board-wash fills. One color paints a cell. Two split a mark on the
+   * diagonal, first color on the top-left triangle. Ribbons use the mark cousin.
    */
   paint: readonly [string] | readonly [string, string]
   spirit?: "Tango" | "Queens" | "Zip" | "Lights Out" | "Akari" | "Fill-a-Pix" | "Skyscrapers" | "Friend"
@@ -206,7 +206,7 @@ export type MatchFamily = {
   pattern: string
   n: 4 | 5 | 6
   icon: FamilyDef["icon"]
-  /** Category color tokens. Setup chips saturate these; the board keeps the wash. */
+  /** Board-wash tokens. Small marks use toMarkPaint / familyMarkPaint. */
   paint: FamilyDef["paint"]
   spirit?: FamilyDef["spirit"]
   demote?: boolean
@@ -278,6 +278,31 @@ export function familyPaint(
   if (hit) return hit.paint
   if (category) return CATEGORY_PAINT[category]
   return ["var(--ink-secondary)"]
+}
+
+const WASH_MARK: Record<string, string> = {
+  "var(--cat-1)": "var(--cat-1-mark)",
+  "var(--cat-2)": "var(--cat-2-mark)",
+  "var(--cat-3)": "var(--cat-3-mark)",
+  "var(--cat-4)": "var(--cat-4-mark)",
+  "var(--cat-5)": "var(--cat-5-mark)",
+  "var(--cat-6)": "var(--cat-6-mark)",
+}
+
+/** Same family colors, stepped up for chips and ribbons. The board keeps the wash. */
+export function toMarkPaint(paint: readonly string[]): FamilyDef["paint"] {
+  const first = WASH_MARK[paint[0] ?? ""] ?? paint[0] ?? "var(--ink-secondary)"
+  const second = paint[1]
+  if (!second) return [first]
+  return [first, WASH_MARK[second] ?? second]
+}
+
+/** UI-chrome cousin of familyPaint. */
+export function familyMarkPaint(
+  id: string,
+  category?: GameCategory
+): FamilyDef["paint"] {
+  return toMarkPaint(familyPaint(id, category))
 }
 
 export function orderByFamily<T extends { category: GameCategory }>(

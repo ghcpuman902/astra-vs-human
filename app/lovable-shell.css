@@ -15,7 +15,11 @@
 html {
   color-scheme: light;
   background: var(--canvas);
+  overflow-y: scroll;
   scrollbar-gutter: stable;
+}
+html.dark {
+  color-scheme: dark;
 }
 body {
   background: var(--canvas);
@@ -52,7 +56,6 @@ body {
 }
 
 .battle-ground {
-  color-scheme: light;
   min-height: 100svh;
   width: 100%;
   background: var(--canvas);
@@ -200,11 +203,32 @@ body {
   margin-bottom: var(--s-2);
 }
 /* The app name is page chrome in the corner, not a line above the title. */
+.site-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-right: max(var(--s-3), env(safe-area-inset-right));
+}
 .site-name {
   margin: 0;
-  padding: var(--s-4) max(var(--s-4), env(safe-area-inset-left));
+  padding: var(--s-4) 0 var(--s-4) max(var(--s-4), env(safe-area-inset-left));
   color: var(--ink-secondary);
   font: 500 13px/18px ui-monospace, monospace;
+}
+.theme-toggle {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+.theme-icon-sun {
+  display: none;
+}
+.dark .theme-icon-sun {
+  display: block;
+}
+.dark .theme-icon-moon {
+  display: none;
 }
 .hero h1 {
   margin: 0;
@@ -321,7 +345,7 @@ body {
   display: none;
 }
 
-/* Saturated cousin of the board wash. One color is solid; two split on the diagonal. */
+/* Mark cousin of the board wash. One color is solid; two split on the diagonal. */
 .family-swatch {
   width: 0.7em;
   height: 0.7em;
@@ -329,10 +353,75 @@ body {
   border-radius: 3px;
   background: linear-gradient(
     135deg,
-    oklch(from var(--swatch-a) 58% 0.16 h) 50%,
-    oklch(from var(--swatch-b) 58% 0.16 h) 50%
+    var(--swatch-a) 50%,
+    var(--swatch-b) 50%
   );
   box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ink) 22%, transparent);
+}
+.length-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+.length-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 8px 8px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  background: var(--canvas);
+  color: var(--ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.length-card input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.length-card:has(input:focus-visible) {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
+.length-card:has(input:checked) {
+  border-color: var(--ink);
+  background: var(--surface-muted);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .length-card:hover:not(:has(input:checked)) {
+    border-color: var(--ink-secondary);
+  }
+}
+.length-card[data-pending="true"] {
+  cursor: progress;
+}
+.length-motif {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  min-height: 8px;
+}
+.length-motif[data-clip="true"] {
+  overflow: hidden;
+}
+.length-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.length-label {
+  font: var(--t-button);
 }
 .chip-note {
   color: var(--ink-secondary);
@@ -449,23 +538,32 @@ body {
   border: 1px dashed var(--hairline-strong);
 }
 .mini-cell {
-  stroke: var(--ink-secondary);
-  stroke-width: 0.03;
+  stroke: var(--ink);
+  stroke-width: 0.045;
 }
 .mini-frame {
   stroke: var(--border-strong);
-  stroke-width: 0.08;
+  stroke-width: 0.09;
 }
 .mini-pipe {
   stroke: var(--ink);
-  stroke-width: 0.2;
+  stroke-width: 0.28;
+  stroke-linecap: round;
 }
 .mini-sun {
-  fill: none;
+  fill: var(--cat-2-mark);
   stroke: var(--ink);
-  stroke-width: 0.07;
+  stroke-width: 0.06;
 }
 .mini-moon {
+  fill: var(--cat-5-mark);
+  stroke: var(--ink);
+  stroke-width: 0.05;
+}
+.mini-lamp {
+  fill: var(--cat-2-mark);
+}
+.mini-crown {
   fill: var(--ink);
 }
 .mini-gate {
@@ -473,9 +571,12 @@ body {
 }
 .mini-order {
   fill: var(--canvas);
-  font: 600 0.34px/1 var(--font-sans);
+  font: 600 0.46px/1 var(--font-sans);
   text-anchor: middle;
   dominant-baseline: central;
+}
+.mini-count {
+  fill: var(--ink);
 }
 .board-swap {
   transition:
@@ -626,14 +727,46 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-3);
-  padding: var(--s-3) max(var(--s-4), env(safe-area-inset-right)) 0
-    max(var(--s-4), env(safe-area-inset-left));
+  gap: 12px;
+  padding: 12px max(16px, env(safe-area-inset-right)) 0
+    max(16px, env(safe-area-inset-left));
+}
+.battle-bar .icon-button {
+  border-radius: 999px;
+}
+.battle-bar .theme-toggle {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
 }
 .battle-tools {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: 12px;
+}
+/* One pill for whatever drives both clocks, over the boards. */
+.shared-float {
+  position: fixed;
+  z-index: 25;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.shared-button {
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 999px;
+  pointer-events: auto;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--canvas) 22%, transparent),
+    0 16px 40px -12px color-mix(in oklab, var(--ink) 42%, transparent);
+}
+.shared-button:disabled {
+  box-shadow: 0 10px 28px -16px color-mix(in oklab, var(--ink) 28%, transparent);
+}
+.shared-button svg {
+  margin-inline-start: 1px;
 }
 .phones {
   flex: 1;
@@ -645,6 +778,9 @@ body {
     max(var(--s-4), env(safe-area-inset-left));
 }
 .phone {
+  /* Board cells use z-index. Keep that stack inside the card so a
+     portaled menu cannot slip underneath a number disc. */
+  isolation: isolate;
   container-type: inline-size;
   container-name: arena;
   display: flex;
@@ -658,8 +794,8 @@ body {
   border-radius: 34px;
   background: var(--canvas);
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.9),
-    0 0 0 1px rgb(0 0 0 / 0.12);
+    inset 0 0 0 1px color-mix(in oklab, var(--canvas) 90%, var(--ink)),
+    0 0 0 1px color-mix(in oklab, var(--ink) 18%, transparent);
 }
 .phone-bar {
   display: flex;
@@ -749,6 +885,9 @@ body {
   outline: var(--focus-outline);
   outline-offset: var(--focus-offset);
 }
+.model-menu-positioner {
+  z-index: 50;
+}
 .model-menu {
   z-index: 30;
   box-sizing: border-box;
@@ -800,10 +939,11 @@ body {
   display: grid;
   flex: none;
   justify-items: end;
-  font-variant-numeric: tabular-nums;
 }
 .phone-clock strong {
   font: 650 20px/24px var(--font-sans);
+  /* The font shorthand above resets this to proportional figures. */
+  font-variant-numeric: tabular-nums;
 }
 .phone .small-rounds {
   padding: var(--s-2) var(--s-4) 0;
@@ -882,6 +1022,7 @@ body {
   top: 50%;
   left: 50%;
   z-index: 41;
+  scrollbar-gutter: stable;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -889,7 +1030,7 @@ body {
   max-height: calc(100svh - 2rem);
   overflow: auto;
   border: 2px solid var(--border-strong);
-  border-radius: 14px;
+  border-radius: 28px;
   background: var(--canvas);
   color: var(--ink);
   font: var(--t-body);
@@ -926,18 +1067,24 @@ body {
   margin: 0;
   font: 600 15px/20px var(--font-sans);
 }
+.settings-head .icon-button {
+  border-radius: 999px;
+}
+.settings-sheet .option-chip {
+  border-radius: 12px;
+}
 .settings-foot {
   position: sticky;
   bottom: 0;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  padding: var(--s-3) var(--s-5);
-  border-top: 1px solid var(--hairline);
+  padding: var(--s-3) var(--s-5) var(--s-5);
   background: var(--canvas);
 }
 .settings-foot .primary-button {
   width: 100%;
+  border-radius: 999px;
 }
 .settings-warn {
   margin: 0;
@@ -958,6 +1105,9 @@ body {
 }
 
 /* Info popover: seed, source, and other meta. */
+.info-pop-positioner {
+  z-index: 50;
+}
 .info-pop {
   z-index: 42;
   box-sizing: border-box;
@@ -1277,6 +1427,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
   padding: 0 var(--s-5) max(var(--s-5), env(safe-area-inset-bottom));
 }
@@ -1798,6 +1949,7 @@ q.trace-part-text {
   row-gap: var(--s-3);
   min-height: 0;
   overflow: auto;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
   padding: 0 var(--s-5) var(--s-2);
 }
@@ -1806,6 +1958,7 @@ q.trace-part-text {
 }
 .pace-block,
 .results-table,
+.results-notes,
 .results-actions {
   grid-column: 1 / -1;
 }
@@ -1909,6 +2062,25 @@ q.trace-part-text {
 .results-table > .results-section [role="columnheader"] {
   grid-column: 1 / -1;
 }
+.results-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  grid-column: 1 / -1;
+  margin: var(--s-2) 0 0;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--hairline);
+  color: var(--ink-secondary);
+  font: 400 10px/14px var(--font-sans);
+}
+.results-notes a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.results-notes a:hover {
+  color: var(--ink);
+}
 .results-live {
   color: var(--ink-secondary);
   font-weight: 400;
@@ -1991,6 +2163,14 @@ q.trace-part-text {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+}
+/* Bright crown regions need a light grid or the cells melt together. */
+.dark .puzzle-grid.mg-crown {
+  border-color: var(--ink);
+}
+.dark .puzzle-grid.mg-crown .puzzle-cell {
+  border-right-color: var(--ink);
+  border-bottom-color: var(--ink);
 }
 .puzzle-cell {
   border-right: var(--line-cell);

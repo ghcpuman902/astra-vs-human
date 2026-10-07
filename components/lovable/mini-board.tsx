@@ -25,7 +25,7 @@ export function MiniBoard({ pack }: { pack: GamePack }) {
       : null
   const fill = (id: number) => {
     const value = pack.cells[id].value
-    if (lampWalls?.has(id)) return "var(--ink)"
+    if (lampWalls?.has(id)) return "var(--wall)"
     if (pack.category === "tower_sight" && pack.cells[id].locked)
       return "color-mix(in oklab, var(--ink) 9%, var(--canvas))"
     if (cellInert(pack, id)) return "var(--mini-blocked)"
@@ -33,7 +33,7 @@ export function MiniBoard({ pack }: { pack: GamePack }) {
       return value === 0 ? "var(--cat-2)" : "var(--cat-5)"
     if (pack.category === "lights_toggle" && value === 1) return "var(--cat-2)"
     if (pack.category === "crown" && pack.rules.regions)
-      return `color-mix(in oklab, ${REGION_FILLS[pack.rules.regions[id] % REGION_FILLS.length]} 34%, var(--canvas))`
+      return REGION_FILLS[pack.rules.regions[id] % REGION_FILLS.length]
     return "var(--canvas)"
   }
   const walls = pack.category === "path_cover" ? (pack.rules.walls ?? []) : []
@@ -74,8 +74,17 @@ export function MiniBoard({ pack }: { pack: GamePack }) {
               <circle
                 cx={0.5}
                 cy={0.5}
-                r={0.16}
+                r={0.28}
                 className={cell.value === 0 ? "mini-sun" : "mini-moon"}
+              />
+            ) : null}
+            {pack.category === "lights_toggle" && cell.value === 1 ? (
+              <circle cx={0.5} cy={0.5} r={0.2} className="mini-lamp" />
+            ) : null}
+            {pack.category === "crown" && cell.value === 1 ? (
+              <path
+                d="M0.22 0.7 0.28 0.4 0.42 0.54 0.5 0.28 0.58 0.54 0.72 0.4 0.78 0.7Z"
+                className="mini-crown"
               />
             ) : null}
             {lampNumbers?.has(id) ? (

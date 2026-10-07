@@ -1,16 +1,91 @@
-/* Lamplight (E8): ink walls with numbers, an amber wash where light falls. */
+/* Lamplight (E8): stone walls with numbers, a lantern where a lamp stands, a pool
+   of light on every cell it reaches. Tokens carry both themes; ratios in the
+   comments are WCAG 2.2 contrast against the cell they sit on. */
+:root {
+  --wall: var(--ink);
+  --wall-ink: var(--canvas);
+  --wall-ring: transparent;
+  /* Lit floor: 3.7:1 on white (1.4.11), 5.2:1 against a wall. */
+  --lit: oklch(62% 0.13 72);
+  /* Lantern tile: the bulb stroke (11.9:1) carries it, the fill is the glow. */
+  --lamp-core: oklch(94% 0.11 98);
+  --lamp-edge: oklch(86% 0.16 92);
+  --bulb-line: oklch(20% 0.04 70);
+  --bulb-fill: oklch(98% 0.03 96);
+  --bulb-glow: oklch(75% 0.16 85 / 0.55);
+}
+.dark {
+  /* Night stone with a light rim: 10.5:1 for its number, a 2px ring (8.4:1) against the floor. */
+  --wall: oklch(34% 0.02 260);
+  --wall-ink: var(--ink);
+  --wall-ring: var(--ink-secondary);
+  /* Lit floor glows: 5.2:1 at the edge, 7.7:1 at the core. */
+  --lit-core: oklch(72% 0.14 82);
+  --lamp-core: oklch(97% 0.055 98);
+  --lamp-edge: oklch(84% 0.16 90);
+  --bulb-glow: oklch(88% 0.16 92 / 0.9);
+}
 .mg-cell[data-wall="true"],
 .mg-lamp_rays .game-cell.blocked {
-  background: var(--ink);
-  color: var(--canvas);
+  background: var(--wall);
+  color: var(--wall-ink);
+  box-shadow: inset 0 0 0 2px var(--wall-ring);
 }
-.mg-cell[data-lit="true"] {
-  background: color-mix(in oklab, var(--cat-2) 45%, var(--canvas));
+.mg-cell[data-lit="true"] .pencil-dot {
+  background: var(--bulb-line);
+}
+.mg-cell[data-lit="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(
+    circle at 50% 50%,
+    var(--lit-core, var(--lit)),
+    var(--lit) 100%
+  );
+}
+/* Lantern tiles: Lamplight lamps and Cross lights bulbs share the same glow. */
+.game-cell:has(> .lucide-lightbulb) {
+  background: radial-gradient(
+    circle at 50% 45%,
+    var(--lamp-core) 0 22%,
+    var(--lamp-edge) 100%
+  );
+}
+.game-cell > .lucide-lightbulb {
+  stroke: var(--bulb-line);
+  fill: var(--bulb-fill);
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 4px var(--bulb-glow));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mg-cell[data-lit="true"]::before {
+    animation: lit-in 280ms var(--ease-out) both;
+  }
+  .game-cell > .lucide-lightbulb {
+    animation: bulb-on 420ms var(--ease-out) both;
+  }
+}
+@keyframes lit-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes bulb-on {
+  from {
+    scale: 0.65;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  55% {
+    scale: 1.14;
+    filter: drop-shadow(0 0 10px var(--bulb-glow));
+  }
 }
 .lamp-number {
   position: relative;
   z-index: 1;
-  color: var(--canvas);
+  color: var(--wall-ink);
   font: var(--t-value);
   font-variant-numeric: tabular-nums;
 }
