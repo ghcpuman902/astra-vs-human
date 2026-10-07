@@ -1,6 +1,7 @@
 // Author-only assembly. Never include PackAudit in a Learner observation or public response.
 import { certify } from "../puzzle/author"
 import { authorBinary } from "./binary"
+import { authorLamp } from "./lamp"
 import { neighbors, rotatePorts, walled } from "./runtime"
 import {
   assemblyRequestSchema,
@@ -691,6 +692,55 @@ export function assembleGamePack(
         reason: "The endpoint has exactly one neighboring pipe tile.",
       },
       solution,
+    }
+  } else if (category === "lamp_rays") {
+    const authored = authorLamp(n, rng, checkpoint)
+    const walls = new Set(authored.walls)
+    const { foothold } = authored
+    pack = {
+      ...common,
+      category,
+      cells: common.cells.map((cell, id) =>
+        walls.has(id) ? { value: null, locked: true } : cell
+      ),
+      rules: { walls: authored.walls, numbers: authored.numbers },
+      winPredicate: "every-cell-lit",
+      postcard: {
+        goal: "Place lamps until every open cell is lit.",
+        rules: [
+          "A lamp lights its row and column until a wall.",
+          "Lamps never light each other.",
+          "A number on a wall counts the lamps on its four sides.",
+          "Cycle empty → mark empty → lamp → empty. Walls stay fixed.",
+        ],
+      },
+      transfer: {
+        ...common.transfer,
+        family: "lamp-rays",
+        friendPatterns: [
+          "A dark cell only one open cell can see takes the lamp there.",
+          "A number with exactly as many open sides as it needs fills them all.",
+          "A lamp rules out every cell it lights.",
+        ],
+      },
+    }
+    audit = {
+      certified: true,
+      solutionCount: 1,
+      solutionMeaning: "Lamp placements; × pencil marks are ignored",
+      unique: true,
+      nodes,
+      foothold: {
+        cell: foothold.cell,
+        value: foothold.value,
+        reason:
+          foothold.technique === "lonely-viewer"
+            ? "Only this cell can still light a dark cell in its view."
+            : foothold.value === 1
+              ? "This number needs a lamp on every open side."
+              : "This number is already met, so its other sides stay dark.",
+      },
+      solution: authored.solution,
     }
   } else {
     const initial = Array.from({ length: count }, () => 0),

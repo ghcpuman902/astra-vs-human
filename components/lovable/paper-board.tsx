@@ -5,6 +5,7 @@ import { useRef, useState, type CSSProperties, type PointerEvent } from "react"
 import { cellFill, cellGlyph } from "@/components/lovable/marks"
 import type { BoardProps } from "@/lib/battle-ground-ui/controller"
 import {
+  litCells,
   neighbors,
   pathCandidates,
   rotatePorts,
@@ -101,6 +102,20 @@ export const PaperBoard = ({
   const active = "active" in board.clues ? new Set(board.clues.active) : null
   const walls = "active" in board.clues ? board.clues.walls : undefined
   const regions = "blocked" in board.clues ? board.clues.regions : undefined
+  // Lamplight: walls block light; light is drawn from the lamps on the board.
+  const lampWalls = "numbers" in board.clues ? board.clues.walls : null
+  const lampNumbers =
+    "numbers" in board.clues
+      ? new Map(board.clues.numbers.map((clue) => [clue.cell, clue.lamps]))
+      : null
+  const lit = lampWalls
+    ? litCells(
+        n,
+        lampWalls,
+        board.cells.map((cell) => (cell.visible ? cell.value : null))
+      )
+    : null
+  const lampWallSet = new Set(lampWalls)
   // Heavy edges: region borders for Queens, walls for Zip.
   const fences: Walls = regions
     ? board.cells.flatMap((cell) =>
@@ -145,6 +160,7 @@ export const PaperBoard = ({
 
   const isBlocked = (index: number) => {
     if (blocked.has(index)) return true
+    if (lampWallSet.has(index)) return true
     if (active && !active.has(index)) return true
     if (
       board.category === "tile_rotate_connect" &&
@@ -354,6 +370,8 @@ export const PaperBoard = ({
                   : undefined
               }
               data-cross={cross?.has(cell.index) || undefined}
+              data-lit={(lit?.has(cell.index) && cell.value !== 1) || undefined}
+              data-wall={lampWallSet.has(cell.index) || undefined}
               data-selected={(!zip && cell.selected) || undefined}
               data-head={head === cell.index || undefined}
               data-rejected={rejected === cell.index || undefined}
@@ -364,7 +382,7 @@ export const PaperBoard = ({
                     }
                   : undefined
               }
-              aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}${zip && cell.value !== null ? `, ${cell.value}` : ""}${blockedCell ? ", blocked" : ""}${fixed ? ", fixed" : ""}${cell.selected ? ", selected" : ""}`}
+              aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}${zip && cell.value !== null ? `, ${cell.value}` : ""}${lampNumbers?.has(cell.index) ? `, wall ${lampNumbers.get(cell.index)}` : blockedCell ? lampWalls ? ", wall" : ", blocked" : ""}${lampWalls && cell.value === 1 ? ", lamp" : ""}${lit?.has(cell.index) && cell.value !== 1 ? ", lit" : ""}${fixed ? ", fixed" : ""}${cell.selected ? ", selected" : ""}`}
               aria-pressed={cell.selected}
               disabled={!interactive || board.readOnly}
               onAnimationEnd={() => setRejected(null)}
@@ -404,7 +422,11 @@ export const PaperBoard = ({
                 interactive && handleKeyDown(event, cell.index)
               }
             >
-              {zip && !blockedCell ? (
+              {lampNumbers?.has(cell.index) ? (
+                <span className="lamp-number">
+                  {lampNumbers.get(cell.index)}
+                </span>
+              ) : zip && !blockedCell ? (
                 cell.value !== null ? (
                   <span className={fixed ? "path-gate" : "path-number"}>
                     {cell.value}

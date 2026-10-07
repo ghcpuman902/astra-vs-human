@@ -1,0 +1,19 @@
+/* Lamplight (E8): ink walls with numbers, an amber wash where light falls. */
+.mg-cell[data-wall="true"],
+.mg-lamp_rays .game-cell.blocked {
+  background: var(--ink);
+  color: var(--canvas);
+}
+.mg-cell[data-lit="true"] {
+  background: color-mix(in oklab, var(--cat-2) 45%, var(--canvas));
+}
+.lamp-number {
+  position: relative;
+  z-index: 1;
+  color: var(--canvas);
+  font: var(--t-value);
+  font-variant-numeric: tabular-nums;
+}
+.rule-strip .lamp-number {
+  font: var(--t-badge);
+}
