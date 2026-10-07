@@ -9,6 +9,8 @@ const FALLBACK_NAMES: Record<GamePack["category"], string> = {
   tile_rotate_connect: "Pipe turn",
   lights_toggle: "Cross lights",
   lamp_rays: "Lamplight",
+  mosaic_count: "Mosaic",
+  tower_sight: "Skyline",
 }
 
 export const familyLabel = (pack: GamePack) => {

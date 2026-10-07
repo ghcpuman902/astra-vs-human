@@ -54,6 +54,10 @@ const CYCLE_EFFECT: Record<GamePack["category"], string> = {
     "Cycle flips the selected cell and its orthogonal neighbours.",
   lamp_rays:
     "Cycle visits empty, × pencil, then lamp on the selected open cell. Walls block light.",
+  mosaic_count:
+    "Cycle visits empty, × pencil, then shaded on the selected cell. Numbered cells can be shaded.",
+  tower_sight:
+    "Cycle visits empty, then heights 1 up to n, then empty, on the selected open cell.",
 }
 
 const isVisible = (pack: GamePack, index: number) =>

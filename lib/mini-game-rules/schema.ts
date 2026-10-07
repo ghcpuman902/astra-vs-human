@@ -7,6 +7,8 @@ export const categorySchema = z.enum([
   "tile_rotate_connect",
   "lights_toggle",
   "lamp_rays",
+  "mosaic_count",
+  "tower_sight",
 ])
 export const modeSchema = z.enum(["FORCED-CHAIN", "BRANCHY", "MULTI", "RISK"])
 export type Mode = z.infer<typeof modeSchema>
@@ -132,6 +134,29 @@ export const packSchema = z
       }),
       winPredicate: z.literal("every-cell-lit"),
     }),
+    z.object({
+      ...common,
+      category: z.literal("mosaic_count"),
+      rules: z.object({
+        /** A number counts shaded cells in its 3×3 block, itself included. */
+        clues: z.array(
+          z.object({ cell: index, shaded: z.number().int().min(0).max(9) })
+        ),
+      }),
+      winPredicate: z.literal("every-count-met"),
+    }),
+    z.object({
+      ...common,
+      category: z.literal("tower_sight"),
+      rules: z.object({
+        /** Towers seen from each edge, nearest cell first; null = no clue. */
+        top: z.array(z.number().int().min(1).max(6).nullable()),
+        bottom: z.array(z.number().int().min(1).max(6).nullable()),
+        left: z.array(z.number().int().min(1).max(6).nullable()),
+        right: z.array(z.number().int().min(1).max(6).nullable()),
+      }),
+      winPredicate: z.literal("latin-sight-lines"),
+    }),
   ])
   .superRefine((pack, ctx) => {
     const count = pack.n ** 2
@@ -154,7 +179,9 @@ export const packSchema = z
               ]
             : pack.category === "lamp_rays"
               ? pack.rules.walls
-              : []
+              : pack.category === "mosaic_count"
+                ? pack.rules.clues.map((clue) => clue.cell)
+                : []
     if (ids.some((id) => id >= count))
       ctx.addIssue({ code: "custom", message: "Clue cell outside board" })
     if (
@@ -185,13 +212,36 @@ export const packSchema = z
     if (
       pack.category === "binary_fill" ||
       pack.category === "crown" ||
-      pack.category === "lamp_rays"
+      pack.category === "lamp_rays" ||
+      pack.category === "mosaic_count"
     ) {
       if (
         pack.actionSurface.effect !== "set-cell" ||
         pack.actionSurface.cycleValues.join(",") !== [null, 0, 1].join(",")
       )
         issue("Binary, crown and lamp games require empty, 0, 1 cell cycling")
+    }
+    if (
+      pack.category === "mosaic_count" &&
+      new Set(pack.rules.clues.map((clue) => clue.cell)).size !==
+        pack.rules.clues.length
+    )
+      issue("Mosaic numbers repeat a cell")
+    if (pack.category === "tower_sight") {
+      const { n } = pack
+      if (
+        [pack.rules.top, pack.rules.bottom, pack.rules.left, pack.rules.right]
+          .some((side) => side.length !== n || side.some((k) => k !== null && k > n))
+      )
+        issue("Skyline needs n edge clues per side, each 1..n")
+      if (
+        pack.actionSurface.effect !== "set-cell" ||
+        pack.actionSurface.cycleValues.join(",") !==
+          [null, ...Array.from({ length: n }, (_, i) => i + 1)].join(",")
+      )
+        issue("Skyline cells cycle empty, then heights 1..n")
+      if (pack.cells.some((cell) => cell.locked !== (cell.value !== null)))
+        issue("Skyline givens are exactly the locked heights")
     }
     if (pack.category === "lamp_rays") {
       const walls = new Set(pack.rules.walls)

@@ -101,6 +101,28 @@ const families: Record<
     knobs: ["wall share", "number carving", "symmetric walls"],
     neighbors: ["Light Up", "Akari"],
   },
+  mosaic_count: {
+    niches: [
+      "overlapping blocks that differ by one",
+      "zeros and nines that clear or fill",
+      "edge numbers with small blocks",
+    ],
+    localPattern:
+      "Two overlapping numbers bound their shared cells; the difference sits in the cells only one owns.",
+    knobs: ["shade share", "number carving"],
+    neighbors: ["Fill-a-Pix", "Minesweeper"],
+  },
+  tower_sight: {
+    niches: [
+      "a 1 beside the tallest",
+      "staircase lines that see every tower",
+      "two edges that pin the tallest",
+    ],
+    localPattern:
+      "A clue k keeps the tallest at least k − 1 cells in; a 1 puts the tallest beside it.",
+    knobs: ["edge clue carving", "given heights at larger sizes"],
+    neighbors: ["Skyscrapers", "Towers"],
+  },
 }
 
 const modes: Mode[] = ["FORCED-CHAIN", "BRANCHY", "MULTI", "RISK"]
@@ -111,6 +133,8 @@ const supported: Record<GameCategory, Mode[]> = {
   tile_rotate_connect: ["FORCED-CHAIN"],
   lights_toggle: ["BRANCHY", "MULTI"],
   lamp_rays: ["FORCED-CHAIN"],
+  mosaic_count: ["FORCED-CHAIN"],
+  tower_sight: ["FORCED-CHAIN"],
 }
 
 /** A cross-product of mechanics and research axes, never a list of puzzle boards. */

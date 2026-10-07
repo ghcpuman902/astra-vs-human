@@ -2,6 +2,8 @@
 import { certify } from "../puzzle/author"
 import { authorBinary } from "./binary"
 import { authorLamp } from "./lamp"
+import { authorMosaic } from "./mosaic"
+import { authorTowers } from "./towers"
 import { neighbors, rotatePorts, walled } from "./runtime"
 import {
   assemblyRequestSchema,
@@ -739,6 +741,99 @@ export function assembleGamePack(
             : foothold.value === 1
               ? "This number needs a lamp on every open side."
               : "This number is already met, so its other sides stay dark.",
+      },
+      solution: authored.solution,
+    }
+  } else if (category === "mosaic_count") {
+    const authored = authorMosaic(n, rng, checkpoint)
+    const { foothold } = authored
+    pack = {
+      ...common,
+      category,
+      rules: { clues: authored.clues },
+      winPredicate: "every-count-met",
+      postcard: {
+        goal: "Shade cells until every number is right.",
+        rules: [
+          "A number counts shaded cells in its 3×3 block, itself included.",
+          "Numbered cells can be shaded too.",
+          "Cycle empty → mark empty → shade → empty.",
+        ],
+      },
+      transfer: {
+        ...common.transfer,
+        family: "mosaic-overlap",
+        friendPatterns: [
+          "Two overlapping numbers: the difference must sit in the cells only the larger one owns.",
+          "A number already met marks the rest of its block empty.",
+          "A number as large as its open cells shades them all.",
+        ],
+      },
+    }
+    audit = {
+      certified: true,
+      solutionCount: 1,
+      solutionMeaning: "Shaded cells; empty pencil marks are ignored",
+      unique: true,
+      nodes,
+      foothold: {
+        cell: foothold.cell,
+        value: foothold.value,
+        reason:
+          foothold.technique === "overlap"
+            ? "Two overlapping numbers leave this cell only one choice."
+            : foothold.value === 1
+              ? "This number needs every open cell in its block."
+              : "This number is already met, so the rest of its block stays empty.",
+      },
+      solution: authored.solution,
+    }
+  } else if (category === "tower_sight") {
+    const authored = authorTowers(n, rng, checkpoint)
+    const { foothold } = authored
+    pack = {
+      ...common,
+      category,
+      cells: authored.givens.map((value) => ({ value, locked: value !== null })),
+      actionSurface: {
+        ...common.actionSurface,
+        cycleValues: [null, ...Array.from({ length: n }, (_, i) => i + 1)],
+      },
+      rules: authored.clues,
+      winPredicate: "latin-sight-lines",
+      postcard: {
+        goal: `Build towers 1 to ${n} so each row and column holds each height once.`,
+        rules: [
+          "An edge number counts the towers seen from there.",
+          "A taller tower hides every shorter one behind it.",
+          `Cycle empty → 1 → … → ${n} → empty. Givens stay fixed.`,
+        ],
+      },
+      transfer: {
+        ...common.transfer,
+        family: "skyline-sight",
+        friendPatterns: [
+          `A 1 sees only the tallest: ${n} stands right beside it.`,
+          "A clue k keeps the tallest at least k − 1 cells in.",
+          "A line with one gap takes its missing height.",
+        ],
+      },
+    }
+    audit = {
+      certified: true,
+      solutionCount: 1,
+      solutionMeaning: "Height grids",
+      unique: true,
+      nodes,
+      foothold: {
+        cell: foothold.cell,
+        value: foothold.value,
+        reason:
+          foothold.technique === "last-height"
+            ? "The edge numbers leave this height one place in its line."
+            : foothold.technique === "line"
+              ? "Only this height lets both edge numbers of the line come true."
+              : "The edge number allows only this height here.",
       },
       solution: authored.solution,
     }

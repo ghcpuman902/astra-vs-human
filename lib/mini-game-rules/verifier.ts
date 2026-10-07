@@ -1,6 +1,8 @@
 import { constraintPossible } from "../puzzle/verifier"
 import { lampSight, neighbors, rotatePorts, walled } from "./runtime"
+import { mosaicWindow } from "./mosaic"
 import { packSchema, type GamePack } from "./schema"
+import { sightLine, towersSeen } from "./towers"
 
 export type Verification = {
   valid: boolean
@@ -172,6 +174,33 @@ export function verifyGame(
     complete =
       counts.every((extra) => extra === 0) &&
       sight.every((seen) => !seen.length || seen.some(lamp))
+  } else if (pack.category === "mosaic_count") {
+    // × marks are pencil only; shaded cells decide every count.
+    const extra = pack.rules.clues.map(
+      (clue) =>
+        mosaicWindow(pack.n, clue.cell).filter((id) => cells[id] === 1).length -
+        clue.shaded
+    )
+    if (extra.some((over) => over > 0))
+      errors.push("A number has too many shaded cells")
+    complete = extra.every((over) => over === 0)
+  } else if (pack.category === "tower_sight") {
+    const { n } = pack
+    for (let line = 0; line < n; line++) {
+      const row = cells.slice(line * n, line * n + n).filter((v) => v !== null)
+      const col = Array.from({ length: n }, (_, r) => cells[r * n + line]).filter(
+        (v) => v !== null
+      )
+      if (new Set(row).size !== row.length || new Set(col).size !== col.length)
+        errors.push("A height repeats in a row or column")
+    }
+    for (const side of ["top", "bottom", "left", "right"] as const)
+      pack.rules[side].forEach((k, index) => {
+        const seen = towersSeen(sightLine(n, side, index).map((id) => cells[id]))
+        if (k !== null && seen !== null && seen !== k)
+          errors.push("An edge number sees the wrong count")
+      })
+    complete = !cells.includes(null)
   } else complete = cells.every((value) => value === 0)
   return {
     valid: errors.length === 0,

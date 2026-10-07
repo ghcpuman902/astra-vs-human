@@ -16,13 +16,13 @@ export type FamilyDef = {
   n: 4 | 5 | 6
   knobs?: FamilyKnobs
   /** Lucide / emoji hint for setup cards. */
-  icon: "sun-moon" | "crown" | "path" | "pipe" | "lights" | "islands" | "sparse" | "cascade" | "lamp"
+  icon: "sun-moon" | "crown" | "path" | "pipe" | "lights" | "islands" | "sparse" | "cascade" | "lamp" | "mosaic" | "skyline"
   /**
    * Round-ribbon fills. One color paints the square. Two split it into
    * diagonal halves, first color on the top-left triangle.
    */
   paint: readonly [string] | readonly [string, string]
-  spirit?: "Tango" | "Queens" | "Zip" | "Lights Out" | "Akari" | "Friend"
+  spirit?: "Tango" | "Queens" | "Zip" | "Lights Out" | "Akari" | "Fill-a-Pix" | "Skyscrapers" | "Friend"
   /** Soft-demote in ranking (boring pipe etc.). */
   demote?: boolean
 }
@@ -138,6 +138,30 @@ export const FAMILY_DEFS: readonly FamilyDef[] = [
     spirit: "Akari",
   },
   {
+    // E8: overlapping counts. See docs/e8-new-mechanic.md.
+    id: "mosaic",
+    category: "mosaic_count",
+    label: "Mosaic",
+    pattern:
+      "Numbers count shade in their 3×3 block. Where two blocks overlap, the difference sits in the cells only one owns.",
+    n: 6,
+    icon: "mosaic",
+    paint: ["var(--cat-5)", "var(--cat-3)"],
+    spirit: "Fill-a-Pix",
+  },
+  {
+    // E8: ordered sight lines. See docs/e8-new-mechanic.md.
+    id: "skyline",
+    category: "tower_sight",
+    label: "Skyline",
+    pattern:
+      "Edge numbers count towers in view. A 1 stands beside the tallest; a big number keeps the tallest far back.",
+    n: 5,
+    icon: "skyline",
+    paint: ["var(--cat-4)", "var(--cat-6)"],
+    spirit: "Skyscrapers",
+  },
+  {
     id: "cross-lights",
     category: "lights_toggle",
     label: "Cross lights",
@@ -238,6 +262,8 @@ const CATEGORY_PAINT: Record<
   lights_toggle: ["var(--cat-2)"],
   tile_rotate_connect: ["var(--cat-1)"],
   lamp_rays: ["var(--cat-2)", "var(--cat-6)"],
+  mosaic_count: ["var(--cat-5)", "var(--cat-3)"],
+  tower_sight: ["var(--cat-4)", "var(--cat-6)"],
 }
 
 /** Ribbon color for a dealt board. Unknown ids fall back to the mechanic. */

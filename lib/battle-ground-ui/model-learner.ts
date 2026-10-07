@@ -174,6 +174,30 @@ export const gameLearnerBoardSchema = z
           .max(36),
       }),
     }),
+    z.strictObject({
+      ...common,
+      category: z.literal("mosaic_count"),
+      clues: z.strictObject({
+        clues: z
+          .array(
+            z.strictObject({
+              cell: index,
+              shaded: z.number().int().min(0).max(9),
+            })
+          )
+          .max(36),
+      }),
+    }),
+    z.strictObject({
+      ...common,
+      category: z.literal("tower_sight"),
+      clues: z.strictObject({
+        top: z.array(z.number().int().min(1).max(6).nullable()).max(6),
+        bottom: z.array(z.number().int().min(1).max(6).nullable()).max(6),
+        left: z.array(z.number().int().min(1).max(6).nullable()).max(6),
+        right: z.array(z.number().int().min(1).max(6).nullable()).max(6),
+      }),
+    }),
   ])
   .superRefine((board, context) => {
     const fail = (message: string) =>
@@ -239,7 +263,9 @@ export const gameLearnerBoardSchema = z
                   ...board.clues.walls,
                   ...board.clues.numbers.map((clue) => clue.cell),
                 ]
-              : []
+              : board.category === "mosaic_count"
+                ? board.clues.clues.map((clue) => clue.cell)
+                : []
     if (ids.some((cell) => cell >= count)) fail("Clue outside board")
     if (
       board.category === "tile_rotate_connect" &&
