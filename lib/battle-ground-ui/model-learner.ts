@@ -5,6 +5,7 @@ import {
   type ModelLearnerResult,
 } from "../puzzle/model-learner"
 import type { LearnerMemory } from "../puzzle/learner"
+import { serverStepSchema, type ServerStep } from "./agent-trace"
 import type { BoardProps, SharedActions } from "./controller"
 import {
   expandPlacements,
@@ -204,6 +205,8 @@ export type GameLearnerDecision = ModelLearnerResult & {
   policy?: LearnerPolicy
   /** Counted taps produced in the browser from a Code policy. */
   steps?: CountedAction[]
+  /** Model calls the server made for this decision, with ms and tokens. */
+  trace?: ServerStep[]
 }
 export type GameDecisionProvider = (
   visible: GameLearnerRequest,
@@ -305,6 +308,7 @@ export async function fetchGameLearnerDecision(
         .optional(),
       placements: z.array(placementSchema).max(6).optional(),
       policy: policySchema.optional(),
+      trace: z.array(serverStepSchema).max(8).optional(),
     })
     .parse(await response.json())
 }
@@ -464,10 +468,7 @@ export function createGameLearnerRunner(options: {
  * Bare board-only Decisions is never the default scored path.
  */
 export type LearnerDecisionBackendId =
-  | "openai-generate-text"
-  | "typesafe-jev"
-  | "convai-laya"
-  | "openai-decisions"
+  "openai-generate-text" | "typesafe-jev" | "convai-laya" | "openai-decisions"
 
 export type LearnerDecisionBackend = {
   id: LearnerDecisionBackendId

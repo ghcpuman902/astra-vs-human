@@ -791,10 +791,10 @@ body {
 }
 .score-side {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
-    "name clock"
-    "progress status";
+    "name name clock"
+    "progress status status";
   align-items: center;
   gap: 6px var(--s-4);
   min-width: 0;
@@ -912,6 +912,366 @@ body {
 @keyframes thinking {
   50% {
     opacity: 0.2;
+  }
+}
+
+/* ---------- Agent status: compact phase + meter, opens the trace ---------- */
+
+.agent-status {
+  grid-area: status;
+  justify-self: end;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--s-2);
+  height: 28px;
+  margin: -4px -6px -4px 0;
+  padding: 0 4px 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink-secondary);
+  font: var(--t-badge);
+  font-weight: 500;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 160ms var(--ease-out);
+}
+.agent-status:active {
+  transform: scale(0.97);
+}
+.agent-status:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: 1px;
+}
+.agent-status[data-popup-open] {
+  border-color: var(--hairline-strong);
+  background: var(--surface-muted);
+}
+.agent-status-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-status-label::first-letter {
+  text-transform: uppercase;
+}
+.agent-status[data-thinking="true"] .agent-status-label::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--ink);
+  vertical-align: 1px;
+  animation: thinking 1200ms ease-in-out infinite;
+}
+.agent-status[data-phase="retrying"] .agent-status-label {
+  color: var(--ink);
+}
+.agent-meter {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  padding-left: var(--s-2);
+  border-left: 1px solid var(--hairline);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.agent-meter span + span::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--ink-secondary);
+}
+.agent-status-chevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-secondary);
+}
+@media (hover: hover) and (pointer: fine) {
+  .agent-status:hover {
+    border-color: var(--hairline);
+    background: var(--surface-muted);
+  }
+}
+
+/* ---------- Trace sheet: read-only, slides from the right (bottom on phones) ---------- */
+
+.trace-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: color-mix(in oklab, var(--ink) 14%, transparent);
+  transition: opacity 240ms ease;
+}
+.trace-backdrop[data-starting-style],
+.trace-backdrop[data-ending-style] {
+  opacity: 0;
+}
+.trace-sheet {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 41;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(30rem, 100%);
+  border-left: 2px solid var(--border-strong);
+  background: var(--canvas);
+  color: var(--ink);
+  font: var(--t-body);
+  outline: none;
+  transition: transform 320ms var(--ease-drawer);
+}
+.trace-sheet[data-starting-style],
+.trace-sheet[data-ending-style] {
+  transform: translateX(100%);
+}
+.trace-sheet[data-ending-style] {
+  transition-duration: 200ms;
+}
+.trace-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5) var(--s-3);
+  padding-top: max(var(--s-4), env(safe-area-inset-top));
+}
+.trace-title {
+  margin: 0;
+  font: var(--t-title);
+  letter-spacing: -0.01em;
+}
+.trace-description {
+  margin: 2px 0 0;
+  color: var(--ink-secondary);
+  font: 400 13px/18px var(--font-sans);
+}
+.trace-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-block: 1px solid var(--hairline);
+}
+.trace-stats > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-5);
+}
+.trace-stats > div + div {
+  padding-left: var(--s-3);
+  border-left: 1px solid var(--hairline);
+}
+.trace-stats dt {
+  color: var(--ink-secondary);
+  font: 500 12px/16px var(--font-sans);
+}
+.trace-stats dd {
+  display: grid;
+  margin: 0;
+  font: 650 20px/24px var(--font-sans);
+  letter-spacing: -0.01em;
+}
+.trace-stats small {
+  color: var(--ink-secondary);
+  font: 500 12px/16px var(--font-sans);
+  letter-spacing: 0;
+}
+.trace-now {
+  margin: 0;
+  padding: var(--s-3) var(--s-5);
+  border-bottom: 1px solid var(--hairline);
+  font: var(--t-ui);
+}
+.trace-now > span {
+  margin-right: var(--s-2);
+  color: var(--ink-secondary);
+  font: var(--t-badge);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.trace-now q {
+  display: block;
+  margin-top: var(--s-2);
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--ink);
+  color: var(--ink);
+  font: 400 13px/18px var(--font-sans);
+  quotes: none;
+}
+.trace-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--s-5) max(var(--s-5), env(safe-area-inset-bottom));
+}
+.trace-board h3 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px var(--s-3);
+  margin: 0;
+  padding: var(--s-4) 0 var(--s-2);
+  border-bottom: 1px solid var(--hairline-strong);
+  background: var(--canvas);
+  font: 650 13px/16px var(--font-sans);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.trace-board-meter {
+  color: var(--ink-secondary);
+  font: var(--t-badge);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+.trace-messages,
+.trace-parts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.trace-message {
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.trace-message-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font: var(--t-badge);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.trace-time,
+.trace-message-ms {
+  color: var(--ink-secondary);
+}
+.trace-message-state {
+  flex: 1;
+  color: var(--ink);
+  font-weight: 650;
+}
+.trace-message[data-state="streaming"] .trace-message-state::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--ink);
+  vertical-align: 1px;
+  animation: thinking 1200ms ease-in-out infinite;
+}
+.trace-message[data-state="error"] .trace-message-state {
+  color: var(--ink-secondary);
+}
+.trace-parts {
+  display: grid;
+  gap: 6px;
+  margin-top: var(--s-2);
+  padding-left: 2px;
+}
+.trace-part {
+  display: grid;
+  grid-template-columns: 16px 6.5rem minmax(0, 1fr);
+  column-gap: var(--s-2);
+  align-items: baseline;
+  font: 400 13px/18px var(--font-sans);
+}
+.trace-part svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-secondary);
+  translate: 0 2px;
+}
+.trace-part-name {
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+.trace-part-text {
+  min-width: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.trace-part-meta {
+  grid-column: 3;
+  color: var(--ink-secondary);
+  font: 500 12px/16px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.trace-part[data-state="error"] .trace-part-text,
+.trace-part[data-tone="error"] .trace-part-text {
+  color: oklch(52% 0.18 25);
+}
+.trace-part[data-tone="error"] svg,
+.trace-part[data-state="error"] svg {
+  color: oklch(52% 0.18 25);
+}
+q.trace-part-text {
+  quotes: "\201C" "\201D";
+}
+.trace-empty {
+  margin: var(--s-5) 0;
+  color: var(--ink-secondary);
+  font: 400 14px/20px var(--font-sans);
+}
+@media (max-width: 640px) {
+  .trace-sheet {
+    inset: auto 0 0;
+    width: 100%;
+    max-height: 88svh;
+    border-top: 2px solid var(--border-strong);
+    border-left: 0;
+    border-radius: 12px 12px 0 0;
+  }
+  .trace-sheet[data-starting-style],
+  .trace-sheet[data-ending-style] {
+    transform: translateY(100%);
+  }
+  .trace-head {
+    padding: var(--s-4) var(--s-4) var(--s-3);
+  }
+  .trace-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .trace-stats > div,
+  .trace-stats > div + div {
+    padding: var(--s-2) var(--s-4);
+    border-left: 0;
+  }
+  .trace-stats > div:nth-child(even) {
+    border-left: 1px solid var(--hairline);
+  }
+  .trace-stats > div:nth-child(n + 3) {
+    border-top: 1px solid var(--hairline);
+  }
+  .trace-now {
+    padding-inline: var(--s-4);
+  }
+  .trace-scroll {
+    padding-inline: var(--s-4);
+  }
+  .trace-part {
+    grid-template-columns: 16px 5.5rem minmax(0, 1fr);
   }
 }
 
@@ -1675,8 +2035,34 @@ body {
   }
   .score-side {
     grid-template-areas:
-      "name clock"
-      "progress progress";
+      "name name clock"
+      "progress progress progress"
+      "status status status";
+  }
+  /* Too narrow for one line: phase on top, meter under it. */
+  .agent-status {
+    justify-self: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "label chevron"
+      "meter chevron";
+    gap: 0 4px;
+    height: auto;
+    margin: 2px -6px 0 -8px;
+    padding: 2px 4px 2px 8px;
+    text-align: left;
+  }
+  .agent-status-label {
+    grid-area: label;
+  }
+  .agent-meter {
+    grid-area: meter;
+    padding-left: 0;
+    border-left: 0;
+  }
+  .agent-status-chevron {
+    grid-area: chevron;
   }
   .dock-row .icon-text {
     width: 44px;
@@ -1742,8 +2128,22 @@ body {
   .score-status::first-letter {
     text-transform: uppercase;
   }
-  .score-status[data-thinking="true"]::before {
+  .score-status[data-thinking="true"]::before,
+  .agent-status[data-thinking="true"] .agent-status-label::before,
+  .trace-message[data-state="streaming"] .trace-message-state::before {
     animation: none;
+  }
+  .agent-status:active {
+    transform: none;
+  }
+  .trace-sheet,
+  .trace-sheet[data-ending-style] {
+    transition: opacity 200ms ease;
+  }
+  .trace-sheet[data-starting-style],
+  .trace-sheet[data-ending-style] {
+    opacity: 0;
+    transform: none;
   }
 }
 @media (prefers-reduced-transparency: reduce) {

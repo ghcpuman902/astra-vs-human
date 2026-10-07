@@ -78,6 +78,25 @@ export type BoardProps = {
   readOnly: boolean
   hints: "practice-only"
 }
+/** Plain JSON copy of a match in progress. Clock values are elapsed ms, not timestamps. */
+export type BattleDump = {
+  cursor: Record<Side, number>
+  records: BattleRecord[]
+  attempts: Record<
+    Side,
+    {
+      state: GameState
+      status: RoundStatus
+      claim: string | null
+      /** Elapsed on this attempt when dumped (or its end time once it ended). */
+      elapsedMs: number
+    }
+  >
+  /** Elapsed on each side's whole-match clock. */
+  matchMs: Record<Side, number>
+  /** This side's match clock already stopped at matchMs. */
+  stopped: Record<Side, boolean>
+}
 export type BattleOptions = {
   actionCap?: number
   timeCapMs?: number
@@ -91,6 +110,8 @@ export type BattleOptions = {
    * `side` is one clock per player. Advancing does not reset it or stop the other side.
    */
   clock?: "attempt" | "side"
+  /** Resume from `dump()`. The match comes back paused; `start()` resumes both clocks. */
+  restore?: BattleDump
 }
 const SIDES = ["human", "learner"] as const
 
@@ -140,12 +161,44 @@ export function createBattleGround(
   const now = options.now ?? (() => performance.now())
   const clock = options.clock ?? "attempt"
   const listeners = new Set<() => void>()
-  let cursor: Record<Side, number> = { human: 0, learner: 0 }
-  let running = !options.startPaused
-  let records: BattleRecord[] = []
+  const restore = options.restore
+  if (
+    restore &&
+    SIDES.some(
+      (side) =>
+        !Number.isInteger(restore.cursor[side]) ||
+        restore.cursor[side] < 0 ||
+        restore.cursor[side] >= packs.length ||
+        restore.attempts[side].state.cells.length !==
+          packs[restore.cursor[side]].n ** 2
+    )
+  )
+    throw new Error("Saved match does not fit these packs")
+  let cursor: Record<Side, number> = restore
+    ? { ...restore.cursor }
+    : { human: 0, learner: 0 }
+  let running = !options.startPaused && !restore
+  let records: BattleRecord[] = restore ? [...restore.records] : []
+  // Time already on the clocks from before a reload. Applied once on start().
+  const carry = {
+    attempt: {
+      human: restore?.attempts.human.elapsedMs ?? 0,
+      learner: restore?.attempts.learner.elapsedMs ?? 0,
+    },
+    match: {
+      human: restore?.matchMs.human ?? 0,
+      learner: restore?.matchMs.learner ?? 0,
+    },
+  }
   const openedAt = running ? now() : null
-  let origin: Record<Side, number | null> = { human: openedAt, learner: openedAt }
-  let stoppedAt: Record<Side, number | null> = { human: null, learner: null }
+  let origin: Record<Side, number | null> = {
+    human: openedAt,
+    learner: openedAt,
+  }
+  let stoppedAt: Record<Side, number | null> = {
+    human: restore?.stopped.human ? carry.match.human : null,
+    learner: restore?.stopped.learner ? carry.match.learner : null,
+  }
   const fresh = (side: Side, startedAt: number | null): Attempt => ({
     state: initialGameState(packs[cursor[side]]),
     status: "playing",
@@ -153,10 +206,22 @@ export function createBattleGround(
     endedAtMs: null,
     claim: null,
   })
-  let attempts: Record<Side, Attempt> = {
-    human: fresh("human", openedAt),
-    learner: fresh("learner", openedAt),
+  const restored = (side: Side): Attempt => {
+    const saved = restore!.attempts[side]
+    return {
+      state: structuredClone(saved.state),
+      status: saved.status,
+      startedAt: null,
+      endedAtMs: saved.status === "playing" ? null : saved.elapsedMs,
+      claim: saved.claim,
+    }
   }
+  let attempts: Record<Side, Attempt> = restore
+    ? { human: restored("human"), learner: restored("learner") }
+    : {
+        human: fresh("human", openedAt),
+        learner: fresh("learner", openedAt),
+      }
   let snapshot: BattleSnapshot
   const position = (index: number): SideCursor => ({
     index,
@@ -165,13 +230,13 @@ export function createBattleGround(
   })
   const attemptElapsed = (side: Side) => {
     const attempt = attempts[side]
-    if (attempt.startedAt == null) return 0
     if (attempt.status !== "playing") return attempt.endedAtMs ?? 0
+    if (attempt.startedAt == null) return carry.attempt[side]
     return Math.max(0, now() - attempt.startedAt)
   }
   const matchElapsed = (side: Side) => {
     if (stoppedAt[side] != null) return stoppedAt[side]!
-    if (origin[side] == null) return 0
+    if (origin[side] == null) return carry.match[side]
     return Math.max(0, now() - origin[side]!)
   }
   const remaining = (side: Side) =>
@@ -339,13 +404,47 @@ export function createBattleGround(
       if (running) return false
       running = true
       const startedAt = now()
-      origin = { human: startedAt, learner: startedAt }
-      attempts = {
-        human: { ...attempts.human, startedAt },
-        learner: { ...attempts.learner, startedAt },
+      origin = {
+        human: startedAt - carry.match.human,
+        learner: startedAt - carry.match.learner,
       }
+      attempts = {
+        human: {
+          ...attempts.human,
+          startedAt: startedAt - carry.attempt.human,
+        },
+        learner: {
+          ...attempts.learner,
+          startedAt: startedAt - carry.attempt.learner,
+        },
+      }
+      carry.attempt = { human: 0, learner: 0 }
+      carry.match = { human: 0, learner: 0 }
       publish()
       return true
+    },
+    /** True while clocks run. False before Start and after a restore until resumed. */
+    running: () => running,
+    dump: (): BattleDump => {
+      const side = (key: Side) => ({
+        state: structuredClone(attempts[key].state) as GameState,
+        status: attempts[key].status,
+        claim: attempts[key].claim,
+        elapsedMs: Math.round(attemptElapsed(key)),
+      })
+      return {
+        cursor: { ...cursor },
+        records: records.map((entry) => ({ ...entry })),
+        attempts: { human: side("human"), learner: side("learner") },
+        matchMs: {
+          human: Math.round(matchElapsed("human")),
+          learner: Math.round(matchElapsed("learner")),
+        },
+        stopped: {
+          human: stoppedAt.human != null,
+          learner: stoppedAt.learner != null,
+        },
+      }
     },
     subscribe: (listener: () => void) => {
       listeners.add(listener)

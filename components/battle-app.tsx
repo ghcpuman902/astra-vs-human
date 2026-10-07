@@ -19,6 +19,7 @@ import {
   Waypoints,
 } from "lucide-react"
 
+import { AgentTrace } from "@/components/agent-trace"
 import { BattleField, statusWord } from "@/components/lovable/battle-field"
 import { MiniBoard } from "@/components/lovable/mini-board"
 import {
@@ -28,6 +29,7 @@ import {
 } from "@/hooks/use-deal-memory"
 import { useLearnerModel } from "@/hooks/use-learner-model"
 import { useSideLearner } from "@/hooks/use-side-learner"
+import { createAgentTrace } from "@/lib/battle-ground-ui/agent-trace"
 import {
   compareBlitz,
   createBattleGround,
@@ -54,6 +56,12 @@ import {
   type DealtMatch,
   type MatchLength,
 } from "@/lib/battle-ground-ui/match-deck"
+import {
+  clearMatch,
+  readMatch,
+  saveMatch,
+  type SavedMatch,
+} from "@/lib/match-memory"
 import { packSchema, type GamePack } from "@/lib/mini-game-rules/schema"
 import { verifyGame } from "@/lib/mini-game-rules/verifier"
 
@@ -201,7 +209,14 @@ export function BattleApp() {
   const [session, setSession] = useState(0)
   const [source, setSource] = useState("fresh local boards")
   const [servers, setServers] = useState<Servers | null>(null)
+  // A match saved in this browser before a reload, read once after mount.
+  const [checked, setChecked] = useState(false)
+  const [resume, setResume] = useState<SavedMatch | null>(null)
   const avoid = useMemo(() => new Set(memory.boards), [memory.boards])
+  const setup = useMemo(
+    () => ({ arena, leftMix, rightMix, length, marks, practice }),
+    [arena, leftMix, rightMix, length, marks, practice]
+  )
   useEffect(() => {
     let cancelled = false
     fetch("/api/learner-mix")
@@ -231,8 +246,26 @@ export function BattleApp() {
       { ...nextMarks, recent: memory.recent },
       { familyId, avoid }
     )
-  if (mounted && !dealt && !preview) setPreview(dealFor(length, marks))
+  if (mounted && !checked) {
+    setChecked(true)
+    const saved = readMatch()
+    if (saved) {
+      setArena(saved.setup.arena)
+      setLeftMix(saved.setup.leftMix)
+      setRightMix(saved.setup.rightMix)
+      setLength(saved.setup.length)
+      setMarks(saved.setup.marks)
+      setPractice(saved.setup.practice)
+      setSource(saved.source)
+      setDealt(saved.dealt)
+      setResume(saved)
+    }
+  }
+  if (mounted && checked && !dealt && !preview)
+    setPreview(dealFor(length, marks))
   const play = (next: DealtMatch, label = "fresh local boards") => {
+    clearMatch()
+    setResume(null)
     rememberDeal(next)
     setDealt(next)
     setSource(label)
@@ -279,10 +312,16 @@ export function BattleApp() {
       practice={practice}
       source={source}
       servers={servers}
+      resume={resume}
+      setup={setup}
       onPractice={() => setPractice((value) => !value)}
       onRematch={() => play(dealFor(dealt.length, marks, dealt.familyId))}
       onNextFamily={() => play(dealFor("deep", marks))}
-      onSetup={() => setDealt(null)}
+      onSetup={() => {
+        clearMatch()
+        setResume(null)
+        setDealt(null)
+      }}
       onInvent={(pack, label) => {
         const next = dealFor(dealt.length, marks, dealt.familyId)
         const rest = next.packs
@@ -669,6 +708,8 @@ function BattleSession({
   practice,
   source,
   servers,
+  resume,
+  setup,
   sameFamilyLabel,
   onPractice,
   onRematch,
@@ -677,6 +718,8 @@ function BattleSession({
   onInvent,
 }: {
   dealt: DealtMatch
+  resume: SavedMatch | null
+  setup: SavedMatch["setup"]
   arena: "play" | "watch"
   leftMix: LearnerMixId
   rightMix: LearnerMixId
@@ -692,15 +735,35 @@ function BattleSession({
 }) {
   const { packs, length, gameCount, roundsPerGame, clock } = dealt
   const cap = dealt.timeCapMs ?? 600_000
-  const [battle] = useState(() =>
-    createBattleGround(packs, {
+  // A saved match that no longer fits these packs is dropped, not half-restored.
+  const [{ battle, restored }] = useState(() => {
+    const options = {
       timeCapMs: cap,
       actionCap: 300,
       startPaused: true,
       roundsPerGame,
       clock,
       practice,
-    })
+    }
+    if (resume)
+      try {
+        return {
+          battle: createBattleGround(packs, {
+            ...options,
+            restore: resume.battle,
+          }),
+          restored: resume,
+        }
+      } catch {}
+    return { battle: createBattleGround(packs, options), restored: null }
+  })
+  const [traces] = useState(() => ({
+    human: createAgentTrace(restored?.traces.human),
+    learner: createAgentTrace(restored?.traces.learner),
+  }))
+  // Restored mid-match: clocks stay paused until Resume. A finished match reopens on its results.
+  const [paused] = useState(() =>
+    Boolean(restored?.started && !restored.finished)
   )
   const snapshot = useSyncExternalStore(
     battle.subscribe,
@@ -708,9 +771,12 @@ function BattleSession({
     battle.getSnapshot
   )
   const models = useLearnerModel()
-  const { getModel, endRound, startRound } = models
-  const [started, setStarted] = useState(false)
-  const [rulesShown, setRulesShown] = useState(false)
+  const { getModel, endRound, startRound, selectModel } = models
+  const [started, setStarted] = useState(() => Boolean(restored?.finished))
+  const [rulesShown, setRulesShown] = useState(
+    () => restored?.rulesShown ?? false
+  )
+  const awaitingResume = paused && !started
   const watching = arena === "watch"
   const [lastCell, setLastCell] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
@@ -730,6 +796,7 @@ function BattleSession({
     started,
     mix: leftMix,
     getModel,
+    trace: traces.human,
   })
   const rightLearner = useSideLearner({
     enabled: true,
@@ -739,6 +806,7 @@ function BattleSession({
     started,
     mix: rightMix,
     getModel,
+    trace: traces.learner,
   })
   const agentStatus = rightLearner.status
   const claim = rightLearner.claim
@@ -844,7 +912,9 @@ function BattleSession({
     humanPack.category !== "tile_rotate_connect" &&
     humanPack.category !== "lights_toggle"
   const handleStart = () => {
-    if (models.status !== "ready" || !startRound(MATCH_ID)) return
+    if (models.status !== "ready") return
+    if (restored?.model) selectModel(restored.model)
+    if (!startRound(MATCH_ID)) return
     if (!battle.start()) return
     setStarted(true)
   }
@@ -919,6 +989,66 @@ function BattleSession({
           : "You win"
         : `${rightName} wins`
   const learnerCursor = snapshot.cursors.learner
+  const roundModel = models.roundModel ?? restored?.model ?? null
+  // Keep this match in localStorage so a reload lands back here, not on setup.
+  useEffect(() => {
+    let dirty = true
+    const save = () => {
+      if (!dirty) return
+      dirty = false
+      saveMatch({
+        finished: matchOver,
+        setup,
+        dealt,
+        source,
+        rulesShown,
+        started: started || paused,
+        model: roundModel,
+        battle: battle.dump(),
+        traces: {
+          human: watching ? traces.human.getSnapshot() : null,
+          learner: traces.learner.getSnapshot(),
+        },
+      })
+    }
+    const mark = () => {
+      dirty = true
+    }
+    const flush = () => {
+      dirty = true
+      save()
+    }
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") flush()
+    }
+    const off = [
+      battle.subscribe(mark),
+      traces.human.subscribe(mark),
+      traces.learner.subscribe(mark),
+    ]
+    save()
+    const timer = setInterval(save, 1000)
+    window.addEventListener("pagehide", flush)
+    document.addEventListener("visibilitychange", onHidden)
+    return () => {
+      clearInterval(timer)
+      off.forEach((stop) => stop())
+      window.removeEventListener("pagehide", flush)
+      document.removeEventListener("visibilitychange", onHidden)
+    }
+  }, [
+    battle,
+    dealt,
+    matchOver,
+    paused,
+    roundModel,
+    rulesShown,
+    setup,
+    source,
+    started,
+    traces,
+    watching,
+  ])
   const phase = !rulesShown ? "rules" : !started ? "start" : "next"
   const sides = [
     {
@@ -934,8 +1064,9 @@ function BattleSession({
       status: agentStatus,
     },
   ]
-  const hint =
-    watching && started
+  const hint = awaitingResume
+    ? "Restored after a reload. Both clocks are paused until you resume."
+    : watching && started
       ? "You are watching. Each agent keeps its own clock."
       : !rulesShown
         ? "Rules are the same for both players."
@@ -1016,11 +1147,13 @@ function BattleSession({
           <Play aria-hidden="true" />
           {!rulesShown
             ? "Show rules"
-            : !started
-              ? "Start both"
-              : watching
-                ? "Watching"
-                : nextLabel}
+            : awaitingResume
+              ? "Resume match"
+              : !started
+                ? "Start both"
+                : watching
+                  ? "Watching"
+                  : nextLabel}
         </button>
       </div>
     </div>
@@ -1057,7 +1190,7 @@ function BattleSession({
           <span className="mode-badge">{humanPack.mode}</span>
         </div>
         <div className="battle-tools">
-          {!started ? (
+          {!started && !paused ? (
             <button
               type="button"
               className="paper-button icon-text"
@@ -1072,7 +1205,7 @@ function BattleSession({
             <button
               type="button"
               aria-pressed={!practice}
-              disabled={armed || busy || !practice}
+              disabled={armed || paused || busy || !practice}
               onClick={onPractice}
             >
               Scored
@@ -1080,7 +1213,7 @@ function BattleSession({
             <button
               type="button"
               aria-pressed={practice}
-              disabled={armed || busy || practice}
+              disabled={armed || paused || busy || practice}
               onClick={onPractice}
             >
               Test
@@ -1094,11 +1227,7 @@ function BattleSession({
       >
         {sides.map(({ side, label, ability, status }) => {
           const cursor = snapshot.cursors[side]
-          const thinking =
-            started &&
-            snapshot.attempts[side].status === "playing" &&
-            (side === "learner" || watching) &&
-            /think/i.test(status)
+          const agent = side === "learner" || watching
           return (
             <section
               key={side}
@@ -1151,9 +1280,21 @@ function BattleSession({
                   </ol>
                 )}
               </div>
-              <p className="score-status" data-thinking={thinking || undefined}>
-                {started ? status : "Ready"}
-              </p>
+              {agent ? (
+                <AgentTrace
+                  name={label}
+                  ability={ability}
+                  trace={
+                    side === "learner" ? rightLearner.trace : leftLearner.trace
+                  }
+                  live={started && snapshot.attempts[side].status === "playing"}
+                  boardLabel={(board) =>
+                    `Board ${board + 1} · ${familyLabel(packs[board])}`
+                  }
+                />
+              ) : (
+                <p className="score-status">{started ? status : "Ready"}</p>
+              )}
             </section>
           )
         })}
@@ -1178,6 +1319,7 @@ function BattleSession({
         claim={claim}
         invalidIndex={showInvalid ? lastCell : null}
         rulesShown={rulesShown}
+        paused={awaitingResume}
         humanDone={humanDone}
         agentWorking={!watching && humanDone && learnerPlaying}
         splitBoards={snapshot.seeds.human !== snapshot.seeds.learner}

@@ -1,4 +1,5 @@
 import { allowedLearnerModel } from "@/lib/learner-models"
+import { type ServerStep } from "@/lib/battle-ground-ui/agent-trace"
 import {
   bareLearnerControl,
   codeLearnerPolicy,
@@ -66,6 +67,8 @@ export async function POST(request: Request) {
       { status: 400, headers }
     )
   const mix = parsed.data.mix ?? "astra"
+  // One entry per model call: kind, model, ms, tokens. No prompts, no keys.
+  const trace: ServerStep[] = []
   const visibleInput = {
     ...parsed.data,
     model: selectedModel,
@@ -81,7 +84,12 @@ export async function POST(request: Request) {
     visibleInput,
     async (visible, signal) => {
       if (mix === "openai-decisions") {
-        const decided = await openaiDecisionsControl(visible, signal)
+        const decided = await openaiDecisionsControl(
+          visible,
+          signal,
+          process.env,
+          trace
+        )
         if (decided.status === "unconfigured") {
           return {
             action: null,
@@ -94,11 +102,22 @@ export async function POST(request: Request) {
         }
       }
       if (mix === "code") {
-        const policy = await codeLearnerPolicy(visible, signal)
+        const policy = await codeLearnerPolicy(
+          visible,
+          signal,
+          process.env,
+          trace
+        )
         return { action: null, patternClaim: policy.note, policy }
       }
       if (mix === "jev-bare" || mix === "laya-bare") {
-        const choice = await bareLearnerControl(visible, mix, signal)
+        const choice = await bareLearnerControl(
+          visible,
+          mix,
+          signal,
+          process.env,
+          trace
+        )
         if (choice === "unconfigured") {
           return {
             action: null,
@@ -113,7 +132,13 @@ export async function POST(request: Request) {
           patternClaim: null,
         }
       }
-      const plan = await planLearnerMix(visible, mix, signal)
+      const plan = await planLearnerMix(
+        visible,
+        mix,
+        signal,
+        process.env,
+        trace
+      )
       return {
         action: null,
         patternClaim: plan.patternClaim,
@@ -122,5 +147,5 @@ export async function POST(request: Request) {
     },
     request.signal
   )
-  return Response.json(result, { headers })
+  return Response.json({ ...result, trace: trace.slice(0, 8) }, { headers })
 }

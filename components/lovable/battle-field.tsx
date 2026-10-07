@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react"
-import { Eye } from "lucide-react"
+import { Eye, Pause } from "lucide-react"
 
 import { postcards } from "@/components/lovable/marks"
 import { PaperBoard } from "@/components/lovable/paper-board"
@@ -42,6 +42,8 @@ type BattleFieldProps = {
   claim: string
   invalidIndex: number | null
   rulesShown: boolean
+  /** Restored after a reload; boards stay covered until Resume. */
+  paused?: boolean
   humanDone: boolean
   agentWorking: boolean
   splitBoards: boolean
@@ -55,10 +57,13 @@ function Cover({
   board,
   text,
   label,
+  locked = false,
 }: {
   board: BoardProps
   text: string
   label: string
+  /** No peeking while a restored match is paused: the clock is not running. */
+  locked?: boolean
 }) {
   const [peek, setPeek] = useState(false)
   return (
@@ -67,7 +72,8 @@ function Cover({
       className="puzzle-cover"
       style={coverStyle(board)}
       data-peek={peek || undefined}
-      aria-pressed={peek}
+      aria-pressed={locked ? undefined : peek}
+      disabled={locked}
       onClick={() => setPeek((value) => !value)}
     >
       {peek ? (
@@ -81,7 +87,7 @@ function Cover({
         />
       ) : (
         <span className="cover-copy">
-          <Eye aria-hidden="true" />
+          {locked ? <Pause aria-hidden="true" /> : <Eye aria-hidden="true" />}
           {text}
         </span>
       )}
@@ -107,6 +113,7 @@ export const BattleField = ({
   claim,
   invalidIndex,
   rulesShown,
+  paused = false,
   humanDone,
   agentWorking,
   splitBoards,
@@ -150,10 +157,13 @@ export const BattleField = ({
             <Cover
               board={humanBoard}
               label={`Peek at ${humanTitle} board`}
+              locked={paused}
               text={
-                humanInteractive
-                  ? "Your board. Tap to peek."
-                  : "Agent A board. Tap to peek."
+                paused
+                  ? "Paused. Resume to continue."
+                  : humanInteractive
+                    ? "Your board. Tap to peek."
+                    : "Agent A board. Tap to peek."
               }
             />
           )}
@@ -183,11 +193,13 @@ export const BattleField = ({
         )}
         <div className="learner-note" aria-live="polite">
           {agentWorking ? `${learnerTitle} is still on its own round. ` : null}
-          {!started
-            ? `${learnerTitle} waits for Start.`
-            : learnerStatus === "playing"
-              ? agentStatus
-              : `${learnerTitle} ${statusWord(learnerStatus)}.`}
+          {paused
+            ? `${learnerTitle} is paused with you.`
+            : !started
+              ? `${learnerTitle} waits for Start.`
+              : learnerStatus === "playing"
+                ? agentStatus
+                : `${learnerTitle} ${statusWord(learnerStatus)}.`}
           {finished && claim ? <blockquote>{claim}</blockquote> : null}
         </div>
       </aside>
@@ -223,7 +235,12 @@ export const BattleField = ({
             <Cover
               board={learnerBoard}
               label={`Peek at ${learnerTitle} board`}
-              text={`${learnerTitle} board. Tap to peek.`}
+              locked={paused}
+              text={
+                paused
+                  ? "Paused. Resume to continue."
+                  : `${learnerTitle} board. Tap to peek.`
+              }
             />
           )}
         </div>

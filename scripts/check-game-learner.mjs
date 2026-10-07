@@ -8,7 +8,7 @@ try {
   for (const [folder, files] of Object.entries({
     puzzle: ["author", "types", "verifier", "model-learner"],
     "mini-game-rules": ["schema", "runtime", "verifier", "assembler"],
-    "battle-ground-ui": ["controller", "learner-mix", "model-learner"],
+    "battle-ground-ui": ["agent-trace", "controller", "learner-mix", "model-learner"],
   })) {
     await mkdir(join(output, folder))
     for (const file of files) {

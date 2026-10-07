@@ -395,6 +395,96 @@ try {
     "learner"
   )
 
+  // Reload resilience: dump() → JSON → restore comes back paused with the same
+  // cursors, taps, records and clocks; start() resumes from the saved elapsed time.
+  {
+    let t = 0
+    const deal = dealMatch("blitz")
+    const options = {
+      timeCapMs: BLITZ_MATCH_MS,
+      clock: "side",
+      roundsPerGame: deal.roundsPerGame,
+      actionCap: 1,
+      startPaused: true,
+      now: () => t,
+    }
+    const live = createBattleGround(deal.packs, options)
+    assert.equal(live.running(), false)
+    live.start()
+    const cell = live
+      .boardProps("human")
+      .cells.find((item) => item.visible && !item.locked)
+    live.actions("human").selectCell(cell.index)
+    assert.equal(live.advance("human"), true)
+    t = 40_000
+    live.tick()
+    const dump = JSON.parse(JSON.stringify(live.dump()))
+    assert.equal(dump.matchMs.human, 40_000)
+    assert.equal(dump.cursor.human, 1)
+    t = 999_999
+    const back = createBattleGround(deal.packs, { ...options, restore: dump })
+    assert.equal(back.running(), false)
+    assert.equal(back.getSnapshot().cursors.human.index, 1)
+    assert.equal(back.getSnapshot().cursors.learner.index, 0)
+    assert.equal(back.getSnapshot().records.length, 1)
+    assert.equal(back.getSnapshot().remainingMs.human, 140_000)
+    assert.equal(back.getSnapshot().remainingMs.learner, 140_000)
+    back.tick()
+    assert.equal(back.getSnapshot().remainingMs.human, 140_000)
+    back.start()
+    t += 10_000
+    back.tick()
+    assert.equal(back.getSnapshot().remainingMs.human, 130_000)
+    assert.equal(back.getSnapshot().remainingMs.learner, 130_000)
+    assert.throws(() =>
+      createBattleGround(deal.packs.slice(0, 2), {
+        ...options,
+        restore: { ...dump, cursor: { human: 9, learner: 0 } },
+      })
+    )
+  }
+  {
+    const { createAgentTrace, parseAgentTrace, sumUsage, traced } =
+      await import(out + "/battle-ground-ui/agent-trace.js")
+    const steps = []
+    await traced(
+      steps,
+      { kind: "plan", model: "gpt-test" },
+      async () => ({ usage: { inputTokens: 120, outputTokens: 30, outputTokenDetails: { reasoningTokens: 8 } } }),
+      (value) => ({ usage: value.usage, note: "2 placements" })
+    )
+    await assert.rejects(
+      traced(steps, { kind: "decide", model: "luna" }, async () => {
+        throw new Error("boom")
+      })
+    )
+    assert.deepEqual(
+      steps.map((step) => [step.kind, step.status]),
+      [["plan", "ok"], ["decide", "error"]]
+    )
+    assert.deepEqual(sumUsage(steps), {
+      inputTokens: 120,
+      outputTokens: 30,
+      reasoningTokens: 8,
+    })
+    const trace = createAgentTrace()
+    const id = trace.begin(7, 0, "Planning taps")
+    assert.equal(trace.getSnapshot().phase, "thinking")
+    trace.add(id, { type: "reasoning", text: "Pairs never repeat." })
+    trace.end(id, "done", sumUsage(steps))
+    const open = trace.begin(7, 0, "Planning taps")
+    const meters = trace.getSnapshot().meters
+    assert.equal(meters.calls, 1)
+    assert.equal(meters.inputTokens + meters.outputTokens, 150)
+    assert.equal(meters.boards["7"].tokens, 150)
+    const restored = parseAgentTrace(JSON.parse(JSON.stringify(trace.getSnapshot())))
+    assert.ok(restored)
+    assert.equal(restored.pendingSince, null)
+    assert.equal(restored.messages.find((m) => m.id === open).state, "error")
+    assert.equal(restored.meters.calls, 1)
+    assert.equal(createAgentTrace(restored).begin(7, 1, "x"), open + 1)
+  }
+
   // Click path without a browser: family marks order the deck, Start is paused
   // until Start both, both boards are live, and human Next does not abort or
   // move an agent that is still thinking.
