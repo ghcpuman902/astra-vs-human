@@ -62,10 +62,10 @@ const TOOL: Record<
   { label: string; icon: LucideIcon }
 > = {
   plan: { label: "Plan", icon: ListTree },
-  policy: { label: "Write policy", icon: Code2 },
+  policy: { label: "Write program", icon: Code2 },
   decide: { label: "Decide", icon: GitFork },
   commit: { label: "Commit", icon: Stamp },
-  "run-policy": { label: "Run policy", icon: Play },
+  "run-policy": { label: "Run program", icon: Play },
   apply: { label: "Play taps", icon: MousePointerClick },
   check: { label: "Check rules", icon: CircleCheck },
 }

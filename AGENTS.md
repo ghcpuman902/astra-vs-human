@@ -24,7 +24,7 @@ Next.js 16.3 (App Router, Turbopack) · React 19.3 · TypeScript · Tailwind 4 �
 | --- | --- |
 | Any Next.js API | `node_modules/next/dist/docs/` |
 | Verify a change in the running app | `next-dev-loop` skill + [browser override](./docs/agent-skills.md#browser-tooling-override) |
-| Agent skills (installed in `.agents/skills/`) | [docs/agent-skills.md](./docs/agent-skills.md) |
+| Agent skills (installed in `.agents/skills/`) | [docs/agent-skills.md](./docs/agent-skills.md). Read `SKILL.md` when the task matches. Do not paste a skill into a rule. |
 | UI, tokens, shadcn | [docs/design-system.md](./docs/design-system.md) + `shadcn` skill |
 | TS / React style | [docs/coding-style.md](./docs/coding-style.md) |
 | Branches, PRs, validation | [docs/agent-workflow.md](./docs/agent-workflow.md) |

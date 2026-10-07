@@ -1,6 +1,12 @@
 "use client"
 
-import { useId, useState, type ComponentType, type SVGProps } from "react"
+import {
+  useId,
+  useState,
+  type ComponentType,
+  type CSSProperties,
+  type SVGProps,
+} from "react"
 import { Menu } from "@base-ui/react/menu"
 import { Check, ChevronDown, Earth, Moon, Sun } from "lucide-react"
 
@@ -30,47 +36,47 @@ export const mixCopy: Record<
   { label: string; detail: string }
 > = {
   astra: {
-    label: "Astra",
+    label: "LLM",
     detail:
       "Same public board as you. The LLM names one cell or a short burst of taps.",
   },
   code: {
     label: "Code",
     detail:
-      "The LLM writes a tiny policy. This browser runs it. No JavaScript is eval'd.",
+      "The model writes one program. This browser keeps running it on later boards, and asks for a change only after that program fails.",
   },
   "astra-jev": {
-    label: "Astra + Jev",
+    label: "LLM + Jev",
     detail:
       "The LLM writes the plan and captions. Jev commits wait/one/batch when a Jev credential is set.",
   },
   "jev-bare": {
-    label: "Jev bare",
+    label: "Jev",
     detail: "Control only: Jev sees the public board with no LLM plan.",
   },
   "astra-laya": {
-    label: "Astra + Laya",
+    label: "LLM + Laya",
     detail:
       "The LLM writes the plan as context. Laya commits it when a Laya credential is set.",
   },
   "laya-bare": {
-    label: "Laya bare",
+    label: "Laya",
     detail: "Laya sees the public board only. No LLM plan is wrapped around it.",
   },
   "openai-decisions": {
-    label: "OpenAI Decisions",
+    label: "LLM + Decisions",
     detail:
       "The LLM writes a short plan and captions. Decisions picks the single next tap.",
   },
   "openai-bare": {
-    label: "Decisions bare",
+    label: "Decisions",
     detail:
       "Control only: OpenAI Decisions sees the public board with no LLM plan.",
   },
 }
 
 export const modeName = (mix: LearnerMixId) =>
-  mixCopy[mix as (typeof learnerModeIds)[number]]?.label ?? "Astra"
+  mixCopy[mix as (typeof learnerModeIds)[number]]?.label ?? "LLM"
 
 export type AgentStack = "llm" | "dm" | "both"
 export type DecisionModel = "jev" | "laya" | "openai"
@@ -183,6 +189,7 @@ export function Choice<T extends string>({
   value,
   options,
   onChange,
+  busyId = null,
 }: {
   legend: string
   value: T
@@ -191,8 +198,12 @@ export function Choice<T extends string>({
     label: string
     title?: string
     icon?: ChipIcon | null
+    /** Category color tokens. Rendered as a saturated chip mark. */
+    swatch?: readonly string[]
   }[]
   onChange: (id: T) => void
+  /** The chip whose board is still being built. */
+  busyId?: T | null
 }) {
   const name = useId()
   return (
@@ -201,11 +212,22 @@ export function Choice<T extends string>({
       <div className="chip-row">
         {options.map((option) => {
           const Icon = option.icon
+          const swatch = option.swatch
+          const pending = busyId === option.id
+          const className = [
+            "option-chip",
+            Icon ? "has-icon" : "",
+            swatch ? "has-mark" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")
           return (
             <label
               key={option.id}
-              className={Icon ? "option-chip has-icon" : "option-chip"}
+              className={className}
               title={option.title}
+              data-pending={pending ? "true" : undefined}
+              aria-busy={pending ? true : undefined}
             >
               <input
                 type="radio"
@@ -216,6 +238,18 @@ export function Choice<T extends string>({
                 onChange={() => onChange(option.id)}
               />
               {Icon ? <Icon className="chip-icon" aria-hidden="true" /> : null}
+              {swatch ? (
+                <span
+                  className="family-swatch"
+                  style={
+                    {
+                      "--swatch-a": swatch[0],
+                      "--swatch-b": swatch[1] ?? swatch[0],
+                    } as CSSProperties
+                  }
+                  aria-hidden="true"
+                />
+              ) : null}
               <Check className="chip-check" aria-hidden="true" />
               {option.label}
             </label>
@@ -228,9 +262,11 @@ export function Choice<T extends string>({
 
 export function LengthChoice({
   value,
+  busyId = null,
   onChange,
 }: {
   value: MatchLength
+  busyId?: MatchLength | null
   onChange: (length: MatchLength) => void
 }) {
   return (
@@ -238,6 +274,7 @@ export function LengthChoice({
       <Choice
         legend="Match"
         value={value}
+        busyId={busyId}
         options={MATCH_LENGTHS.map((id) => ({
           id,
           label: LENGTH_COPY[id].label,
@@ -399,9 +436,9 @@ const DECISIONS: readonly { id: DecisionModel; label: string }[] = [
 
 /**
  * Stack, then the pieces that stack allows.
- * LLM alone can write code. A bare decision model has no language model.
- * LLM + DM reviews a written plan; code stays off because these decision
- * models do not run a policy.
+ * The browser runs a code program, so Writes code is an LLM control.
+ * A decision model commits a plan or one tap. Combining the two needs a runner.
+ * A bare decision model does not use the language-model picker.
  */
 export function AgentStack({
   legend,

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { ArrowLeft, Play, RotateCcw, SlidersHorizontal, Undo2 } from "lucide-react"
 
 import { AgentTrace } from "@/components/agent-trace"
@@ -9,7 +9,6 @@ import {
   BoardStage,
   Phone,
   Rules,
-  statusWord,
 } from "@/components/lovable/battle-field"
 import { RoundStrip } from "@/components/lovable/round-strip"
 import {
@@ -50,6 +49,8 @@ import type { LearnerMixId } from "@/lib/battle-ground-ui/learner-mix"
 import {
   DEFAULT_MATCH_LENGTH,
   freshDeal,
+  freshDealIdle,
+  randomDeepFamily,
   type DealtMatch,
   type MatchLength,
 } from "@/lib/battle-ground-ui/match-deck"
@@ -79,6 +80,39 @@ const spentMs = (records: readonly BattleRecord[], side: Side) =>
     .filter((record) => record.side === side)
     .reduce((sum, record) => sum + record.elapsedMs, 0)
 
+const historyBase = () =>
+  history.state && typeof history.state === "object"
+    ? { ...(history.state as Record<string, unknown>) }
+    : {}
+
+const hrefWithoutMatch = () => {
+  const url = new URL(window.location.href)
+  url.searchParams.delete("match")
+  return url.pathname + url.search + url.hash
+}
+
+const hrefWithMatch = () => {
+  const url = new URL(window.location.href)
+  url.searchParams.set("match", "1")
+  return url.pathname + url.search + url.hash
+}
+
+/** One history entry per visit to a match, so the browser Back button returns to setup. */
+const ensureMatchHistory = () => {
+  const url = new URL(window.location.href)
+  const has = url.searchParams.get("match") === "1"
+  const base = historyBase()
+  if (!has) {
+    history.pushState({ ...base, battle: "match" }, "", hrefWithMatch())
+    return
+  }
+  if (base.battle === "match") return
+  history.replaceState({ ...base, battle: "setup" }, "", hrefWithoutMatch())
+  history.pushState({ ...history.state, battle: "match" }, "", hrefWithMatch())
+}
+
+const isMatchHistory = () => history.state?.battle === "match"
+
 export function BattleApp() {
   const mounted = useMounted()
   const memory = useDealMemory()
@@ -90,6 +124,9 @@ export function BattleApp() {
   const [marks, setMarks] = useState<FamilyMarks>({ played: [], disliked: [] })
   const [preview, setPreview] = useState<DealtMatch | null>(null)
   const [dealt, setDealt] = useState<DealtMatch | null>(null)
+  const [dealing, setDealing] = useState(false)
+  const [pendingFamilyId, setPendingFamilyId] = useState<string | null>(null)
+  const dealGen = useRef(0)
   const [session, setSession] = useState(0)
   const [source, setSource] = useState("fresh local boards")
   const [servers, setServers] = useState<Servers | null>(null)
@@ -144,8 +181,36 @@ export function BattleApp() {
       setResume(saved)
     }
   }
-  if (mounted && checked && !dealt && !preview)
-    setPreview(dealFor(length, marks))
+  const queueDeal = (
+    nextLength: MatchLength,
+    nextMarks: FamilyMarks,
+    familyId?: string
+  ) => {
+    const gen = ++dealGen.current
+    setDealing(true)
+    setPendingFamilyId(nextLength === "deep" ? (familyId ?? null) : null)
+    const recentMarks = { ...nextMarks, recent: memory.recent }
+    void freshDealIdle(nextLength, recentMarks, { familyId, avoid })
+      .then((next) => {
+        if (dealGen.current !== gen) return
+        setPreview(next)
+        setDealing(false)
+        setPendingFamilyId(null)
+      })
+      .catch(() => {
+        if (dealGen.current !== gen) return
+        setDealing(false)
+        setPendingFamilyId(null)
+      })
+  }
+
+  useEffect(() => {
+    if (!mounted || !checked || dealt || preview) return
+    queueDeal(length, marks)
+    // Length and marks are whatever the form holds when the board is empty.
+    // A fresh queueDeal identity must not start another deal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, checked, dealt, preview])
   const play = (next: DealtMatch, label = "fresh local boards") => {
     clearMatch()
     models.endRound(MATCH_ID)
@@ -155,6 +220,51 @@ export function BattleApp() {
     setSource(label)
     setSession((value) => value + 1)
   }
+
+  const leaveMatch = () => {
+    clearMatch()
+    models.endRound(MATCH_ID)
+    setResume(null)
+    setDealt(null)
+  }
+  const dealtRef = useRef(dealt)
+  dealtRef.current = dealt
+  const leaveRef = useRef(leaveMatch)
+  leaveRef.current = leaveMatch
+
+  useEffect(() => {
+    if (!dealt) return
+    ensureMatchHistory()
+  }, [dealt])
+
+  useEffect(() => {
+    const onPop = () => {
+      const onMatchUrl =
+        new URL(window.location.href).searchParams.get("match") === "1"
+      if (!onMatchUrl && dealtRef.current) {
+        leaveRef.current()
+        return
+      }
+      if (onMatchUrl && !dealtRef.current) {
+        history.replaceState(
+          { ...historyBase(), battle: "setup" },
+          "",
+          hrefWithoutMatch()
+        )
+      }
+    }
+    window.addEventListener("popstate", onPop, true)
+    return () => window.removeEventListener("popstate", onPop, true)
+  }, [])
+
+  const backToSetup = () => {
+    if (isMatchHistory()) {
+      history.back()
+      return
+    }
+    leaveMatch()
+  }
+
   if (!dealt) {
     return (
       <SetupScreen
@@ -168,15 +278,30 @@ export function BattleApp() {
         onArena={setArena}
         onLeftMix={setLeftMix}
         onRightMix={setRightMix}
+        dealing={dealing}
+        pendingFamilyId={pendingFamilyId}
         onLength={(next) => {
           setLength(next)
-          setPreview(dealFor(next, marks))
+          const familyId =
+            next === "deep" ? (preview?.familyId ?? undefined) : undefined
+          queueDeal(next, marks, familyId)
         }}
-        onRespawn={() => setPreview(dealFor(length, marks, preview?.familyId))}
+        onFamily={(familyId) => {
+          setLength("deep")
+          queueDeal("deep", marks, familyId)
+        }}
+        onRespawn={() => {
+          if (length !== "deep") {
+            queueDeal(length, marks)
+            return
+          }
+          const next = randomDeepFamily(marks, preview?.familyId)
+          queueDeal(length, marks, next.id)
+        }}
         onPlay={() => {
-          const next = preview ?? dealFor(length, marks)
+          if (!preview || dealing) return
           setPreview(null)
-          play(next)
+          play(preview)
         }}
       />
     )
@@ -202,12 +327,7 @@ export function BattleApp() {
       }}
       onRematch={() => play(dealFor(dealt.length, marks, dealt.familyId))}
       onNextFamily={() => play(dealFor("deep", marks))}
-      onSetup={() => {
-        clearMatch()
-        models.endRound(MATCH_ID)
-        setResume(null)
-        setDealt(null)
-      }}
+      onSetup={backToSetup}
       sameFamilyLabel={
         dealt.length === "deep" ? familyLabel(dealt.packs[0]) : null
       }
@@ -257,6 +377,7 @@ function BattleSession({
     const options = {
       timeCapMs: cap,
       actionCap: 300,
+      limitHumanTaps: false,
       startPaused: true,
       roundsPerGame,
       clock,
@@ -420,13 +541,16 @@ function BattleSession({
     snapshot.attempts.learner.status !== "playing" &&
     !snapshot.canAdvance.human &&
     !snapshot.canAdvance.learner
-  const nextLabel = !snapshot.hasNext.human
-    ? "Match complete"
-    : length === "tour"
-      ? "Next family"
-      : length === "blitz"
-        ? "Next board"
-        : "Next round"
+  const nextLabel =
+    humanAttempt.status === "time-cap"
+      ? "Out of time"
+      : !snapshot.hasNext.human
+        ? "Match complete"
+        : length === "tour"
+          ? "Next family"
+          : length === "blitz"
+            ? "Next board"
+            : "Next round"
   // A side is finished when its attempt ended and nothing is left to advance to.
   const sideFinished = (side: Side) =>
     started &&
@@ -520,8 +644,13 @@ function BattleSession({
   )
   const humanStatus =
     watching && started ? leftLearner.status : humanAttempt.status
-  const tapLine = (actions: number, status: string) =>
-    `${actions} taps${started ? ` · ${statusWord(status)}` : ""}`
+  const roundLine = (side: Side) => {
+    const pack = side === "human" ? humanPack : learnerPack
+    return `${familyLabel(pack)} · ${roundText(length, snapshot.cursors[side], gameCount, roundsPerGame)}`
+  }
+  const abilityPill = (label: string) => (
+    <span className="ability-pill">{label}</span>
+  )
   const roundDots = (side: Side, name: string) => {
     const played = new Set(
       snapshot.records.flatMap((record) => {
@@ -655,13 +784,8 @@ function BattleSession({
         <button
           type="button"
           className="icon-button"
-          disabled={armed && !humanFinished}
           aria-label="Back to setup"
-          title={
-            armed && !humanFinished
-              ? "Finish or wait for the match to end"
-              : "Back to setup"
-          }
+          title="Back to setup"
           onClick={onSetup}
         >
           <ArrowLeft aria-hidden="true" />
@@ -683,11 +807,15 @@ function BattleSession({
           side="human"
           name={leftName}
           titleExtra={
-            watching && mixUsesLanguageModel(leftMix) ? modelMenu() : null
+            watching ? (
+              <>
+                {mixUsesLanguageModel(leftMix) ? modelMenu() : null}
+                {abilityPill(leftAbility)}
+              </>
+            ) : null
           }
-          sub={`${familyLabel(humanPack)} · ${roundText(length, snapshot.cursors.human, gameCount, roundsPerGame)}`}
+          sub={roundLine("human")}
           clock={formatClock(snapshot.remainingMs.human)}
-          tally={tapLine(humanAttempt.state.actions, humanStatus)}
           rounds={roundDots("human", leftName)}
           done={humanDone && humanStatus === "finished"}
           footer={
@@ -713,13 +841,22 @@ function BattleSession({
         <Phone
           side="learner"
           name={rightName}
-          titleExtra={mixUsesLanguageModel(rightMix) ? modelMenu() : null}
-          sub={rightAbility}
+          titleExtra={
+            <>
+              {mixUsesLanguageModel(rightMix) ? modelMenu() : null}
+              {abilityPill(rightAbility)}
+            </>
+          }
+          sub={roundLine("learner")}
           clock={formatClock(snapshot.remainingMs.learner)}
-          tally={tapLine(learnerAttempt.state.actions, learnerAttempt.status)}
           rounds={roundDots("learner", rightName)}
           behind={!watching && humanDone && learnerAttempt.status === "playing"}
-          footer={trace("learner")}
+          footer={
+            <>
+              {trace("learner")}
+              <Rules pack={learnerPack} />
+            </>
+          }
         >
           <BoardStage
             board={learnerBoard}

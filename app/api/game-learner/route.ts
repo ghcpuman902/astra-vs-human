@@ -16,9 +16,9 @@ import {
 export const runtime = "nodejs"
 export const maxDuration = 300
 
-// Astra plays or writes a policy / planner wrap. Jev, Laya, and OpenAI
-// Decisions commit only when their credentials exist. Decisions and scored
-// Jev paths are planner-wrapped — never bare board-only by default.
+// The selected model writes a plan or a kept program. Jev, Laya, and OpenAI
+// Decisions commit when their credentials exist. Bare mixes (jev-bare,
+// laya-bare, openai-bare) choose from the public board with no plan.
 export async function POST(request: Request) {
   const started = performance.now()
   const headers = { "cache-control": "no-store" }
@@ -97,7 +97,9 @@ export async function POST(request: Request) {
         process.env,
         trace
       ),
-    request.signal
+    request.signal,
+    // Code writes one program before any tap. It must not hold the round open.
+    mix === "code" ? 25_000 : undefined
   )
   return Response.json({ ...result, trace: trace.slice(0, 8) }, { headers })
 }

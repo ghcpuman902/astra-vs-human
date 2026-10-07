@@ -79,13 +79,13 @@ export function learnerCredentials(env: NodeJS.ProcessEnv = process.env) {
     layaKey,
     impossibl,
     layaBase,
-    /** Astra can answer through OpenAI or the Vercel AI Gateway. */
+    /** The selected model can answer through OpenAI or the Vercel AI Gateway. */
     astra: openAI || gateway,
     /** Jev is called only when a direct key or the gateway credential exists. */
     jev: jevDirect || gateway,
     /**
      * Laya is called only when a Laya key, an Impossibl key, or a base URL is set.
-     * An AI Gateway credential does not stand in for Laya.
+     * Laya is not a Gateway model. Jev is (`typesafe-ai/jev`).
      */
     laya: layaKey || impossibl || layaBase,
   }
@@ -172,9 +172,98 @@ export const policySchema = z.strictObject({
 export type LearnerPolicy = z.infer<typeof policySchema>
 
 /**
- * In-browser sandbox for a Code-mode policy.
- * It reads engine affordances only. It does not eval JavaScript,
- * search hidden values, or call the network.
+ * One program the Code mix keeps. The browser calls `source` as a function
+ * body with the public board. The same source is reused on later boards.
+ */
+export const programSchema = z.strictObject({
+  source: z.string().min(1).max(6000),
+  note: z.string().max(160).nullable(),
+})
+
+export type LearnerProgram = z.infer<typeof programSchema>
+
+export function normalizeProgramSource(source: string) {
+  const trimmed = source.trim()
+  const fenced = trimmed.match(/^```(?:javascript|js)?\s*([\s\S]*?)```$/i)
+  return (fenced?.[1] ?? trimmed).trim().slice(0, 6000)
+}
+
+const programDenied =
+  /\b(?:import|require|fetch|eval|Function|globalThis|window|document|XMLHttpRequest)\b/
+
+const programView = (board: BoardView) => ({
+  clues: board.clues,
+  affordances: board.affordances,
+  cells: board.cells.map((cell) => ({
+    index: cell.index,
+    value: cell.visible ? cell.value : null,
+    role: cell.role,
+    locked: cell.locked,
+  })),
+})
+
+const readProgramPlacements = (returned: unknown): Placement[] | null => {
+  const raw = Array.isArray(returned)
+    ? returned
+    : returned && typeof returned === "object" && "placements" in returned
+      ? (returned as { placements: unknown }).placements
+      : null
+  if (!Array.isArray(raw)) return null
+  const parsed = z.array(placementSchema).max(6).safeParse(raw.slice(0, 6))
+  return parsed.success ? parsed.data : null
+}
+
+/** Run a kept program against the public board. Illegal intents are dropped. */
+export function runProgram(
+  source: string,
+  board: BoardView
+): { steps: CountedAction[]; failure: string | null } {
+  const body = normalizeProgramSource(source)
+  if (!body) return { steps: [], failure: "Program was empty." }
+  if (programDenied.test(body))
+    return { steps: [], failure: "Program used a forbidden word." }
+  let returned: unknown
+  try {
+    returned = new Function(
+      "board",
+      `"use strict";\n${body}`
+    )(JSON.parse(JSON.stringify(programView(board))))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "threw"
+    return {
+      steps: [],
+      failure: `Program threw: ${message}`.slice(0, 400),
+    }
+  }
+  const placements = readProgramPlacements(returned)
+  if (!placements)
+    return { steps: [], failure: "Program did not return placements." }
+  const steps = expandPlacements(placements, board)
+  if (!steps.length)
+    return { steps: [], failure: "Program returned no legal taps." }
+  return { steps, failure: null }
+}
+
+/**
+ * Reuse the held program. A new category does not ask for a new program.
+ * `failure` is set only when a held program cannot play this board.
+ */
+export function codeTurn(
+  held: LearnerProgram | null,
+  board: BoardView
+):
+  | { reuse: true; steps: CountedAction[]; program: LearnerProgram }
+  | { reuse: false; failure: string | null } {
+  if (!held) return { reuse: false, failure: null }
+  const ran = runProgram(held.source, board)
+  if (ran.failure)
+    return { reuse: false, failure: ran.failure }
+  return { reuse: true, steps: ran.steps, program: held }
+}
+
+/**
+ * In-browser reader for a legacy tiny policy.
+ * It reads engine affordances only. It does not search hidden values.
  */
 export function interpretPolicy(
   policy: LearnerPolicy,
@@ -293,9 +382,8 @@ export const captionSchema = z.strictObject({
 export type Caption = z.infer<typeof captionSchema>
 
 /**
- * Choice over legal controls with Astra planner captions.
- * Mirrors labs: Decisions/Jev see precomputed outcomes + a short instruction,
- * never a bare board-only state.
+ * Legal controls plus the writer's captions, for a plan a decision model commits.
+ * Board-only choice uses bareControlQuestions.
  */
 export function plannedControlQuestions(
   cells: readonly number[],

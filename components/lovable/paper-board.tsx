@@ -40,7 +40,14 @@ type Trace = {
   direction: 1 | -1 | 0
   cells: (number | null)[]
   moved: boolean
+  /** When the line last grew. A pointer wobble must not erase that step. */
+  grewAt: number
+  /** This step was a too-soon reverse, so the cell should not flash invalid. */
+  guarded: boolean
 }
+
+/** A flick back onto the cell just left is jitter, not an erase. */
+const REVERSE_GUARD_MS = 180
 
 const quotaFor = (board: BoardProps, line: number, axis: "row" | "column") => {
   if (!("constraints" in board.clues)) return undefined
@@ -254,6 +261,10 @@ export const PaperBoard = ({
         current.direction = -delta as 1 | -1
       // Back along the line erases the cell being left; forward just follows it.
       if (current.direction !== 0 && delta === -current.direction) {
+        if (performance.now() - current.grewAt < REVERSE_GUARD_MS) {
+          current.guarded = true
+          return false
+        }
         if (editable(current.head) && !send(current.head, null)) return false
       } else current.direction = delta as 1 | -1
       current.head = to
@@ -273,6 +284,7 @@ export const PaperBoard = ({
     if (!send(to, value + direction)) return false
     current.direction = direction
     current.head = to
+    current.grewAt = performance.now()
     return true
   }
 
@@ -289,6 +301,8 @@ export const PaperBoard = ({
             direction: 0,
             cells: board.cells.map((item) => item.value),
             moved: false,
+            grewAt: 0,
+            guarded: false,
           }
           setHead(cell)
         },
@@ -310,8 +324,9 @@ export const PaperBoard = ({
               Math.abs(dc) >= Math.abs(dr)
                 ? current.head + Math.sign(dc)
                 : current.head + Math.sign(dr) * n
+            current.guarded = false
             if (!stepTo(current, to)) {
-              setRejected(to)
+              if (!current.guarded) setRejected(to)
               break
             }
           }

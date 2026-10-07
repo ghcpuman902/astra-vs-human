@@ -115,7 +115,7 @@ This round did no new survey. It took the next two rows of the §3 table that ad
 | New operator | **Overlapping window counts.** Two 3×3 sums share cells, so their difference is pinned to the cells only one of them owns. | **Ordered visibility.** An edge number counts record heights along a line, so taller towers hide shorter ones. |
 | Friend pattern (the claim) | *Overlap subtraction:* two overlapping numbers bound their shared shade, and the rest must sit in the cells only one owns. | *Edge distance:* a clue k keeps the tallest at least k − 1 cells in, and a 1 puts the tallest right beside it. |
 | Supporting patterns | A met number empties its block. A number as large as its open cells fills them. | A line with one gap takes its missing height. At 5×5, whole-line reasoning with two edge clues. |
-| Postcard | A number counts shade in its 3×3, itself included. Numbered cells can be shaded. | Heights 1..n once per row and column. An edge number counts towers seen; taller hides shorter. |
+| Postcard | A number counts shade in its 3×3, itself included. Numbered cells can be shaded. | Heights 1..n once per row and column. Count the towers seen from an edge number; hidden ones fade. A 1 sees only n. An n sees them climb 1 to n. |
 | Input | `null → × → shade`, like crown and lamp | `null → 1 → … → n`, the numeric cycle |
 | Reject rule | Fewer than 6 overlap steps at 6×6 | Edge or line reasoning must place at least one height; no givens at ≤5×5 |
 | Certificate | Every-cell backtracking count | Row-permutation backtracking count |
@@ -137,6 +137,18 @@ Measured at authoring time (60 seeds each, prototype harness):
 - All boards were distinct.
 
 Done-when is the same as §6, applied to each pick. Live human solve times are still unmeasured.
+
+### Postcard lesson from Skyline
+
+The first Skyline postcard was correct, but players couldn't use it. "An edge number counts towers seen; taller hides shorter" missed three things a new player needs:
+
+- **Direction.** It didn't say you look in from the number, along its row or column.
+- **What counts.** The strip showed four heights but not which ones were seen. Hidden towers now fade, so the count can be checked by eye.
+- **Size.** The strips were always four cells of 1–4, even on a 5×5 board. `skylineCard(n)` in `components/lovable/marks.tsx` now builds them from the board size. It also computes each edge number from its own strip, so the picture and the rule can't disagree.
+
+The postcard now also shows the two extreme clues: a 1 sees only the tallest, and the largest clue sees a climb from 1 to n. They are the rule's endpoints, not strategy, and they give a first-time player somewhere to start.
+
+For the next mechanic: if a rule counts something, the postcard picture must show which things count, at the board's real size.
 
 ## Sources
 

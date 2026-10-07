@@ -8,6 +8,8 @@ type Mini = {
   v: number | null
   blocked?: boolean
   wrong?: boolean
+  /** Skyline: a tower hidden behind a taller one nearer the edge. */
+  hidden?: boolean
   mask?: number
   cross?: boolean
   /** Lamplight: a numbered wall, or an open cell in a lamp's light. Mosaic: a clue on an open cell. */
@@ -104,6 +106,7 @@ const Strip = ({
         key={index}
         className={`game-cell mg-cell ${cellFill(category, cell.v, !!cell.blocked)}`}
         data-invalid={cell.wrong || undefined}
+        data-hidden={cell.hidden || undefined}
         data-cross={cell.cross || undefined}
         data-lit={cell.lit || undefined}
         data-wall={category === "lamp_rays" && cell.blocked ? true : undefined}
@@ -152,27 +155,46 @@ const lit = { v: null, lit: true }
 const wall = (num?: number) => ({ v: null, blocked: true, num })
 const shade = { v: 1 }
 const clue = (num: number, v: number | null = null) => ({ v, num })
-const tower = (v: number | null) => ({ v })
+/** An edge number, then the row of towers it looks along; hidden ones fade. */
+const SightStrip = ({ heights }: { heights: number[] }) => {
+  const cells = heights.map((v, i) => ({
+    v,
+    hidden: heights.slice(0, i).some((nearer) => nearer > v),
+  }))
+  const seen = cells.filter((cell) => !cell.hidden).length
+  return (
+    <span className="sight-edge">
+      <b className="rule-num">{seen}</b>
+      <Strip
+        category="tower_sight"
+        cells={cells}
+        tallest={heights.length}
+      />
+    </span>
+  )
+}
 
-/** An edge number, then the short row of towers it looks along. */
-const SightStrip = ({
-  edge,
-  heights,
-  tallest,
-}: {
-  edge: number
-  heights: (number | null)[]
-  tallest: number
-}) => (
-  <span className="sight-edge">
-    <b className="rule-num">{edge}</b>
-    <Strip
-      category="tower_sight"
-      cells={heights.map(tower)}
-      tallest={tallest}
-    />
-  </span>
-)
+/** Skyline postcard sized to the board, so the strips use the real heights. */
+const skylineCard = (n: number) => {
+  const mixed = [1, 3, 2, 5, 4, 7, 6, 9, 8].filter((h) => h <= n)
+  const climbing = Array.from({ length: n }, (_, i) => i + 1)
+  return {
+    goal: <>Fill heights 1–{n}, each once per row and column</>,
+    rules: [
+      <>
+        <SightStrip heights={mixed} /> count the towers seen from the number;
+        faded ones hide behind a taller one
+      </>,
+      <>
+        <SightStrip heights={[n, ...mixed.filter((h) => h !== n)]} /> a 1 sees
+        only the {n}
+      </>,
+      <>
+        <SightStrip heights={climbing} /> {n} means they climb 1 to {n}
+      </>,
+    ],
+  }
+}
 
 /** Picture postcards from the newer Lovable gallery. Text only where a strip cannot say it. */
 export const postcards: Record<
@@ -326,19 +348,7 @@ export const postcards: Record<
       </>,
     ],
   },
-  tower_sight: {
-    goal: <>Heights 1–5, once per row and column</>,
-    rules: [
-      <>
-        <SightStrip edge={3} heights={[1, 3, 2, 4]} tallest={4} /> edge number counts
-        towers seen
-      </>,
-      <>
-        <SightStrip edge={1} heights={[4, null, null, null]} tallest={4} />{" "}
-        taller hides shorter
-      </>,
-    ],
-  },
+  tower_sight: skylineCard(4),
   lights_toggle: {
     goal: (
       <>
@@ -437,11 +447,7 @@ export function postcardFor(pack: GamePack): {
       ],
     }
   }
-  if (pack.category === "tower_sight")
-    return {
-      goal: <>Heights 1–{pack.n}, once per row and column</>,
-      rules: card.rules,
-    }
+  if (pack.category === "tower_sight") return skylineCard(pack.n)
   return card
 }
 

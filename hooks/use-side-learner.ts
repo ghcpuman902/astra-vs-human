@@ -13,9 +13,11 @@ import {
   createBattleGround,
 } from "@/lib/battle-ground-ui/controller"
 import {
+  codeTurn,
   expandPlacements,
-  interpretPolicy,
+  runProgram,
   type LearnerMixId,
+  type LearnerProgram,
 } from "@/lib/battle-ground-ui/learner-mix"
 import {
   createGameLearnerRunner,
@@ -30,7 +32,7 @@ type BattleController = ReturnType<typeof createBattleGround>
 const THINKING: Record<LearnerMixId, string> = {
   astra: "Planning taps",
   "astra-hybrid": "Planning taps",
-  code: "Writing a policy",
+  code: "Writing a program",
   "astra-jev": "Planning · Jev commits",
   "jev-bare": "Jev is choosing",
   "astra-laya": "Planning · Laya commits",
@@ -40,7 +42,7 @@ const THINKING: Record<LearnerMixId, string> = {
 }
 const ENDED: Record<string, string> = {
   finished: "Finished",
-  "action-cap": "Out of taps",
+  "action-cap": "Move budget used",
   "time-cap": "Out of time",
 }
 const WAIT: Record<string, string> = {
@@ -105,6 +107,8 @@ export function useSideLearner({
     const closed = new Set<number>(mine.map((record) => record.seed))
     let family: string | null = null
     let halt = false
+    // One program for this side. A new category does not clear it.
+    let heldProgram: LearnerProgram | null = null
     // The message for the request this loop turn opened, if any.
     let open: { id: number; planned: number } | null = null
     const syncMemory = () => {
@@ -138,11 +142,59 @@ export function useSideLearner({
       mix,
       decide: async (request, signal) => {
         const board = battle.getSnapshot().cursors[side].index
-        const id = trace.begin(request.board.seed, board, THINKING[mix])
+        const turn = mix === "code" ? codeTurn(heldProgram, request.board) : null
+        const id = trace.begin(
+          request.board.seed,
+          board,
+          turn?.reuse
+            ? "Running the program"
+            : turn?.failure
+              ? "Adjusting the program"
+              : turn
+                ? "Writing a program"
+                : THINKING[mix]
+        )
         open = { id, planned: 0 }
+        if (turn?.reuse) {
+          const note = turn.program.note
+          trace.add(id, {
+            type: "tool",
+            tool: "run-policy",
+            state: "done",
+            text: `Reused the program → ${turn.steps.length} taps`,
+          })
+          if (note) trace.add(id, { type: "reasoning", text: note })
+          const batch = turn.steps.filter((step) => step.type === "selectCell")
+            .length
+          open.planned = turn.steps.length
+          trace.end(id, "done")
+          if (!disposed) {
+            trace.phase(
+              "playing",
+              batch > 1 ? `Playing · ${batch} cells` : "Playing · program"
+            )
+            if (note) trace.claim(note)
+          }
+          return {
+            action: null,
+            state: "decision" as const,
+            steps: turn.steps,
+            ...(note ? { patternClaim: note } : {}),
+            program: turn.program,
+          }
+        }
         let result
         try {
-          result = await fetchGameLearnerDecision(request, signal)
+          result = await fetchGameLearnerDecision(
+            turn
+              ? {
+                  ...request,
+                  ...(heldProgram ? { program: heldProgram.source } : {}),
+                  ...(turn.failure ? { failure: turn.failure } : {}),
+                }
+              : request,
+            signal
+          )
         } catch (error) {
           if (unloading) throw error
           trace.add(id, {
@@ -169,17 +221,32 @@ export function useSideLearner({
           ms: step.ms,
           ...(step.usage ? { usage: step.usage } : {}),
         }))
-        const steps = result.policy
-          ? interpretPolicy(result.policy, request.board)
-          : undefined
-        if (result.policy && steps)
-          parts.push({
-            type: "tool",
-            tool: "run-policy",
-            state: "done",
-            text: `Ran ${result.policy.rule} in this browser → ${steps.length} taps`,
-          })
-        const played = steps ? { ...result, steps } : result
+        let played = result
+        if (mix === "code" && result.program) {
+          heldProgram = result.program
+          const ran = runProgram(heldProgram.source, request.board)
+          if (ran.failure) {
+            parts.push({
+              type: "status",
+              tone: "retry",
+              text: ran.failure,
+            })
+            played = {
+              ...result,
+              action: null,
+              state: "wait",
+              reason: "invalid-decision",
+            }
+          } else {
+            parts.push({
+              type: "tool",
+              tool: "run-policy",
+              state: "done",
+              text: `Ran the program → ${ran.steps.length} taps`,
+            })
+            played = { ...result, steps: ran.steps, state: "decision" }
+          }
+        }
         const batch = played.steps?.length
           ? played.steps.filter((step) => step.type === "selectCell").length
           : (played.placements?.length ?? 0)
@@ -286,7 +353,7 @@ export function useSideLearner({
             attempt.status === "finished"
               ? "Rules met. Board solved."
               : attempt.status === "action-cap"
-                ? "Out of taps."
+                ? "Move budget used."
                 : `Not solved yet · ${attempt.state.actions} taps on this board`,
         }
       )
@@ -314,6 +381,14 @@ export function useSideLearner({
       }
       try {
         await runner.step()
+        const rewound = runner.note()
+        if (rewound) {
+          heldProgram = null
+          if (!disposed) {
+            trace.phase("playing", rewound)
+            trace.claim(rewound)
+          }
+        }
         if (runner.reason() === "stuck") {
           halt = true
           if (!disposed)

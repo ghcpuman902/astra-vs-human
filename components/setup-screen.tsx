@@ -8,6 +8,7 @@ import { RoundStrip } from "@/components/lovable/round-strip"
 import {
   AgentStack,
   ArenaChoice,
+  Choice,
   LENGTH_COPY,
   LengthChoice,
   mixUsesLanguageModel,
@@ -16,6 +17,7 @@ import {
   type Arena,
   type Servers,
 } from "@/components/match-options"
+import { matchFamilies } from "@/lib/battle-ground-ui/family-bias"
 import { dealTitle } from "@/lib/battle-ground-ui/labels"
 import type { LearnerMixId } from "@/lib/battle-ground-ui/learner-mix"
 import type { DealtMatch, MatchLength } from "@/lib/battle-ground-ui/match-deck"
@@ -33,16 +35,22 @@ type ModelPick = {
 function UpFirst({
   preview,
   length,
+  dealing,
   onRespawn,
 }: {
   preview: DealtMatch | null
   length: MatchLength
+  dealing: boolean
   onRespawn: () => void
 }) {
   const [turns, setTurns] = useState(0)
   const first = preview?.packs[0]
   return (
-    <section className="up-next" aria-label="Boards for this match">
+    <section
+      className="up-next"
+      aria-label="Boards for this match"
+      data-pending={dealing ? "true" : undefined}
+    >
       <div className="up-next-board">
         {first ? (
           <div key={first.seed} className="board-swap">
@@ -54,7 +62,7 @@ function UpFirst({
       </div>
       <p className="up-next-copy" aria-live="polite">
         <span>Up first</span>
-        <strong>{preview ? dealTitle(preview) : "Dealing…"}</strong>
+        <strong>{dealing || !preview ? "Dealing…" : dealTitle(preview)}</strong>
         <span>{LENGTH_COPY[length].hint}</span>
       </p>
       <button
@@ -66,11 +74,12 @@ function UpFirst({
           onRespawn()
         }}
       >
-        <RefreshCw
+        <span
           className="respawn-icon"
           style={{ rotate: `${turns * 180}deg` }}
-          aria-hidden="true"
-        />
+        >
+          <RefreshCw aria-hidden="true" />
+        </span>
         {length === "deep" ? "Different game" : "Reshuffle"}
       </button>
       {preview ? (
@@ -97,12 +106,15 @@ export function SetupScreen({
   rightMix,
   length,
   preview,
+  dealing,
+  pendingFamilyId,
   servers,
   model,
   onArena,
   onLeftMix,
   onRightMix,
   onLength,
+  onFamily,
   onRespawn,
   onPlay,
 }: {
@@ -111,16 +123,22 @@ export function SetupScreen({
   rightMix: LearnerMixId
   length: MatchLength
   preview: DealtMatch | null
+  dealing: boolean
+  pendingFamilyId: string | null
   servers: Servers | null
   model: ModelPick
   onArena: (arena: Arena) => void
   onLeftMix: (mix: LearnerMixId) => void
   onRightMix: (mix: LearnerMixId) => void
   onLength: (length: MatchLength) => void
+  onFamily: (familyId: string) => void
   onRespawn: () => void
   onPlay: () => void
 }) {
   const watching = arena === "watch"
+  const families =
+    length === "deep" ? matchFamilies().filter((family) => !family.demote) : []
+  const familyValue = pendingFamilyId ?? preview?.familyId ?? ""
   return (
     <main className="battle-ground is-setup">
       <p className="site-name">astra-vs-human.vercel.app</p>
@@ -132,7 +150,11 @@ export function SetupScreen({
         }}
       >
         <header className="hero">
-          <h1>Agents are faster, but are they smarter than humans?</h1>
+          <h1>
+            Agents are good.
+            <br />
+            But are they faster AND smarter than humans?
+          </h1>
           <p className="hero-cta">Battle them on mini games!</p>
         </header>
         <ModelChoice
@@ -151,12 +173,17 @@ export function SetupScreen({
           }
           onChange={model.chooseModel}
         />
-        <UpFirst preview={preview} length={length} onRespawn={onRespawn} />
+        <UpFirst
+          preview={preview}
+          length={length}
+          dealing={dealing}
+          onRespawn={onRespawn}
+        />
         <button
           id="start-match"
           type="submit"
           className="primary-button start-button"
-          disabled={!preview || model.status !== "ready"}
+          disabled={!preview || dealing || model.status !== "ready"}
         >
           <Play aria-hidden="true" />
           Start match
@@ -172,7 +199,27 @@ export function SetupScreen({
             </span>
           </summary>
           <div className="more-body">
-            <LengthChoice value={length} onChange={onLength} />
+            <LengthChoice
+              value={length}
+              busyId={dealing ? length : null}
+              onChange={onLength}
+            />
+            {length === "deep" ? (
+              <div className="deep-families">
+                <Choice
+                  legend="Family"
+                  value={familyValue}
+                  busyId={dealing ? familyValue : null}
+                  options={families.map((family) => ({
+                    id: family.id,
+                    label: family.label,
+                    title: family.label,
+                    swatch: family.paint,
+                  }))}
+                  onChange={onFamily}
+                />
+              </div>
+            ) : null}
             <ArenaChoice value={arena} onChange={onArena} />
             {watching ? (
               <>

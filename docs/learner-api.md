@@ -86,7 +86,7 @@ runner.dispose()
 
 The Learner board's `readOnly` flag controls the human viewing that tab. The Learner still acts through its own shared controls. Every response is checked against the current seed, board, clues, selected cell, counters, and status before it can produce a tap. The adapter supplies structured public data, with no screenshot or tools. Preserve prior claims across respawns and clear `memory.currentClaim` when starting the next round.
 
-A bare mix only selects or cycles. It is not placed on a cell's first option. The runner sends up to eight `recent` taps (action, cell, whether the board changed) and drops a control that already failed to change the board. `runner.reason()` returns `"stuck"` after the same cell values repeat or three taps in a row change nothing, and the side loop stops instead of calling the model again. `runner.step()` still returns a boolean.
+A bare mix only selects or cycles. It is not placed on a cell's first option. The runner sends up to eight `recent` taps (action, cell, whether the board changed) and drops a control that already failed to change the board. When the same cell values come back a fourth time, the runner undoes that loop itself, up to three times in a round, parks the cells that were flipping, and asks again with that note in prior claims. A parked cell stays off the question until a different cell changes, so the model can redo it later. `runner.note()` returns that rewind line once. `runner.reason()` returns `"stuck"` when a rewind cannot leave the loop, the rewind budget is spent, or three taps in a row change nothing. The side loop stops instead of calling the model again. `runner.step()` still returns a boolean.
 
 Headless checks use pinned packs in `fixtures/agent-games/index.json` (six categories at three seeds, plus a Summer Moons board). `pnpm check:agents` drives every Learner mix with a stubbed decider: an oracle must finish each pack, and adversarial choosers (repeat the first cell, cycle, wait, undo/clear, invalid) must stop inside a call budget. `pnpm check:games` checks pack schema, certification, and that the agent question set lists every cell a human can tap, with the same cycle options. `pnpm check:agent-suite` runs both. `node scripts/save-agent-fixtures.mjs` rewrites the pins from the assembler. None of these call a model.
 
@@ -136,11 +136,19 @@ The SDK implementation follows the installed AI SDK structured output docs. The 
 
 ## Decision backends
 
-The live Learner path is `openai-generate-text` through `/api/game-learner`. The match can also ask for a short placement plan:
+The selected model writes, through `openai-generate-text` on `/api/game-learner`. `gpt-6-luna` is the OpenAI Decisions model. A direct OpenAI key posts that decide step to `POST /v1/decisions` (public beta, `gpt-6-luna` only). Jev is `typesafe-ai/jev` on the Gateway, or a direct TypeSafe key. Laya is a direct key or base URL. A Gateway credential is not a Laya credential.
 
-- **Astra + Jev** sends that plan to TypeSafe only when `TYPESAFE_API_KEY` is set (`POST /v1/systemone`) or, if not, to the Vercel AI Gateway decision model `typesafe-ai/jev` when `AI_GATEWAY_API_KEY` or `VERCEL_OIDC_TOKEN` is set. With neither credential, Jev is not called.
-- **Astra + batch** returns `{ cell, value }` placements. The browser compiles each intent through the engine affordance contract into `selectCell` and `cycle` taps. It does not search for a hidden solution.
-- **OpenAI Decisions**: Astra or Sol writes a short placement plan plus outcome captions, then `gpt-6-luna` Decisions chooses the single next counted control via `experimental_decide`. Requires `OPENAI_API_KEY` (preferred) or an AI Gateway credential. Board-only Decisions is available as `openai-bare` (same `gpt-6-luna` decision, no written plan); like `jev-bare` / `laya-bare` it is a labeled control, not the scored path.
-- **Astra + Jev**: same planner/captions wrap; Jev commits wait/one/batch when `TYPESAFE_API_KEY` or Gateway is set.
+- **LLM** (`astra`): the selected model names `{ cell, value }` placements. The browser compiles them into taps.
+- **Code** (`code`): the selected model writes one program. This browser keeps it and runs it again on later boards.
+- **LLM + DM** (`astra-jev`, `astra-laya`, `openai-decisions`): the selected model writes the plan. Jev, Laya, or Decisions commits it.
+- **DM** (`jev-bare`, `laya-bare`, `openai-bare`): that model sees the public board and chooses one tap. No plan is written.
+
+Hard lessons, still in force:
+
+- Score the pattern carried forward, not the puzzle class. `exposeLearnerClassLabel` stays false, so model JSON omits `category` and `mode`.
+- The learner sees the public board only. Solutions and hidden cells stay on the host.
+- A decision call is one short choice (5s). The writer may think longer.
+- A wait from a wrapped decision still plays the first planned cell, so a commit cannot stall the match.
+- Code runs in the browser. A decision model commits a plan or one tap. Combining them needs a runner, so Writes code stays on LLM.
 
 `assertLearnerBackendWired("typesafe-jev")` throws when no Jev credential is present, and does not itself send a request. `assertLearnerBackendWired("openai-decisions")` throws when neither OpenAI nor Gateway credentials exist. `jevActionRequest` / `openAIDecisionsRequest` still only build objects.

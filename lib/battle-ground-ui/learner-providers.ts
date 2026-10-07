@@ -23,12 +23,13 @@ import {
   placementToPlay,
   plannedChoiceCells,
   plannedControlQuestions,
-  policySchema,
+  normalizeProgramSource,
+  programSchema,
   readBareControl,
   readJevCommit,
   type CountedAction,
   type JevCommit,
-  type LearnerPolicy,
+  type LearnerProgram,
   type Placement,
 } from "./learner-mix"
 import type { GameLearnerRequest } from "./model-learner"
@@ -108,21 +109,77 @@ const decisionSignal = (parent: AbortSignal) => {
   return limited.signal
 }
 
-const policyPrompt = `Write a tiny policy for this public board. rule is first-unlocked, selected-cycle, or named-cells. cells lists up to four open indexes from affordances.controls.selectCell. value is the target from that cell's options (or null for empty). note is one local pattern claim or null. Return only that policy. Do not return JavaScript. The browser runs only these fields and never sees hidden cells.`
+/**
+ * OpenAI Decisions public beta (`POST /v1/decisions`, `gpt-6-luna` only).
+ * Installed `@ai-sdk/openai` `decisionModel` still wraps the Responses API.
+ */
+const openAIDecisionChoice = async (input: {
+  apiKey: string | undefined
+  organization?: string
+  state: string
+  questions: {
+    control: { instructions: string; criteria: Record<string, string> }
+  }
+  signal: AbortSignal
+}) => {
+  if (!input.apiKey) {
+    throw new Error("OpenAI Decisions needs OPENAI_API_KEY")
+  }
+  const question = input.questions.control
+  const response = await fetch("https://api.openai.com/v1/decisions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${input.apiKey}`,
+      "Content-Type": "application/json",
+      ...(input.organization
+        ? { "OpenAI-Organization": input.organization }
+        : {}),
+    },
+    body: JSON.stringify({
+      model: "gpt-6-luna",
+      input: input.state,
+      questions: [
+        {
+          type: "choice",
+          name: "control",
+          instructions: question.instructions,
+          choices: Object.entries(question.criteria).map(
+            ([value, description]) => ({ value, description })
+          ),
+        },
+      ],
+    }),
+    signal: input.signal,
+  })
+  if (!response.ok) {
+    throw new Error(`OpenAI Decisions returned ${response.status}`)
+  }
+  const body = (await response.json()) as {
+    answers?: Array<{ type?: string; name?: string; choice?: unknown }>
+  }
+  const answer = body.answers?.find((item) => item.name === "control")
+  const choice =
+    answer?.type === "choice" && typeof answer.choice === "string"
+      ? answer.choice
+      : null
+  return { answers: { control: { choice } } }
+}
+
+const programPrompt = `Write one JavaScript program for public boards like this one.
+source is the body of a function. It receives board, whose fields are clues, affordances, and cells. It must return { placements: [{ cell, value }] }, at most six.
+cell must be listed in affordances.controls.selectCell. value must be one of that cell's options, or null to clear it.
+This source is kept and called again on later boards, including every later game of this kind. Write that one program in a single pass. Do not hard-code only this board's cell indexes.
+Do not use import, fetch, eval, or any global. Do not read hidden cells. note is one short claim, or null.
+If previous is present, it is the program already being reused. Change it only to fix failure. Do not start a new program when the previous one can be repaired.`
+
+/** Same budget as other live calls. High effort left the board on "Waiting on the server" for minutes. */
+const codeReasoning = openaiReasoning
 
 export type PlannedMix = "astra" | "astra-hybrid" | "astra-jev" | "astra-laya"
 export type BareMix = "jev-bare" | "laya-bare" | "openai-bare"
 
 function gatewayModelId(model: string) {
   return model.includes("/") ? model : `openai/${model}`
-}
-
-/** Prefer cheap Sol for the planner-writer step; fall back to the round model. */
-function plannerWriterModel(roundModel: string, env: NodeJS.ProcessEnv) {
-  const pack = env.OPENAI_PACK_MODEL?.trim()
-  if (pack) return pack
-  if (allowedLearnerModel("gpt-6.1-sol")) return "gpt-6.1-sol"
-  return roundModel
 }
 
 function captionMap(
@@ -296,20 +353,28 @@ function publicBoardState(input: GameLearnerRequest) {
   })
 }
 
-const policyNote = (policy: LearnerPolicy) =>
-  `${policy.rule} · ${policy.cells.length} cells · →${policy.value}`
+const programNote = (program: LearnerProgram) =>
+  `${program.source.length} chars${program.note ? ` · ${program.note}` : ""}`
+
+const writtenProgram = (output: LearnerProgram): LearnerProgram => {
+  const source = normalizeProgramSource(output.source)
+  if (!source) throw new Error("Empty program")
+  return programSchema.parse({ source, note: output.note })
+}
 
 async function planCodePolicy(
   input: GameLearnerRequest,
   signal: AbortSignal,
   env: NodeJS.ProcessEnv,
   steps?: ServerStep[]
-): Promise<LearnerPolicy> {
+): Promise<LearnerProgram> {
   const model = allowedLearnerModel(input.model)
   if (!model) throw new Error("Model is not allowed")
   const prompt = JSON.stringify({
     board: publicBoardState(input),
     priorClaims: input.priorClaims,
+    ...(input.program ? { previous: input.program } : {}),
+    ...(input.failure ? { failure: input.failure } : {}),
   })
   const credentials = learnerCredentials(env)
   if (credentials.openAI && env.OPENAI_API_KEY) {
@@ -323,16 +388,16 @@ async function planCodePolicy(
       () =>
         generateText({
           model: openai.responses(model),
-          output: Output.object({ schema: providerSchema(policySchema) }),
-          system: policyPrompt,
+          output: Output.object({ schema: providerSchema(programSchema) }),
+          system: programPrompt,
           prompt,
           abortSignal: signal,
           maxRetries: 0,
-          providerOptions: openaiReasoning,
+          providerOptions: codeReasoning,
         }),
-      (result) => ({ usage: result.usage, note: policyNote(result.output) })
+      (result) => ({ usage: result.usage, note: programNote(result.output) })
     )
-    return policySchema.parse(output)
+    return writtenProgram(output)
   }
   if (!credentials.gateway) throw new Error("Unconfigured")
   const { output } = await traced(
@@ -341,15 +406,15 @@ async function planCodePolicy(
     () =>
       generateText({
         model: gateway.languageModel(gatewayModelId(model)),
-        output: Output.object({ schema: providerSchema(policySchema) }),
-        system: policyPrompt,
+        output: Output.object({ schema: providerSchema(programSchema) }),
+        system: programPrompt,
         prompt,
         abortSignal: signal,
         maxRetries: 0,
       }),
-    (result) => ({ usage: result.usage, note: policyNote(result.output) })
+    (result) => ({ usage: result.usage, note: programNote(result.output) })
   )
-  return policySchema.parse(output)
+  return writtenProgram(output)
 }
 
 export async function codeLearnerPolicy(
@@ -357,7 +422,7 @@ export async function codeLearnerPolicy(
   signal: AbortSignal,
   env: NodeJS.ProcessEnv = process.env,
   steps?: ServerStep[]
-): Promise<LearnerPolicy> {
+): Promise<LearnerProgram> {
   return planCodePolicy(input, signal, env, steps)
 }
 
@@ -410,30 +475,24 @@ async function bareChoice(
       controlNote
     )
   }
-  if (mix === "openai-bare") {
-    if (credentials.openAI && env.OPENAI_API_KEY) {
-      const openai = createOpenAI({
-        apiKey: env.OPENAI_API_KEY,
-        organization: env.OPENAI_ORG_ID,
-      })
-      const result = await traced(
-        steps,
-        { kind: "decide", model: "gpt-6-luna" },
-        () =>
-          experimental_decide({
-            model: openai.decisionModel("gpt-6-luna"),
-            state,
-            questions,
-            abortSignal: decisionSignal(signal),
-            maxRetries: 0,
-          }),
-        (decided) => ({
-          usage: decided.usage,
-          ...controlNote(readBareControl({ answers: decided.answers }, cells)),
-        })
-      )
-      return readBareControl({ answers: result.answers }, cells)
-    }
+    if (mix === "openai-bare") {
+      if (credentials.openAI && env.OPENAI_API_KEY) {
+        const result = await traced(
+          steps,
+          { kind: "decide", model: "gpt-6-luna" },
+          () =>
+            openAIDecisionChoice({
+              apiKey: env.OPENAI_API_KEY,
+              organization: env.OPENAI_ORG_ID,
+              state,
+              questions,
+              signal: decisionSignal(signal),
+            }),
+          (decided) =>
+            controlNote(readBareControl({ answers: decided.answers }, cells))
+        )
+        return readBareControl({ answers: result.answers }, cells)
+      }
     if (!credentials.gateway) return null
     const result = await traced(
       steps,
@@ -577,6 +636,7 @@ export async function planLearnerMix(
     choice = null
   }
   const committed = applyCommit(parsed.placements, choice)
+  // A wait commit still plays the first planned cell, so a decision cannot stall the match.
   const fallback =
     committed.length > 0
       ? null
@@ -598,8 +658,9 @@ export async function planLearnerMix(
 }
 
 /**
- * OpenAI Decisions path: Astra/Sol writes planner + captions, then Decisions
- * chooses the single next legal control. Never posts a bare board-only state.
+ * LLM + Decisions. The selected model writes the plan and captions.
+ * gpt-6-luna then chooses the next legal control.
+ * Board-only Decisions is openai-bare, through bareLearnerControl.
  */
 export async function openaiDecisionsControl(
   input: GameLearnerRequest,
@@ -621,11 +682,10 @@ export async function openaiDecisionsControl(
     }
   const roundModel = allowedLearnerModel(input.model)
   if (!roundModel) throw new Error("Model is not allowed")
-  const writer = plannerWriterModel(roundModel, env)
   let plan: z.infer<typeof hybridSchema>
   try {
     plan = hybridSchema.parse(
-      await astraPlan(input, writer, signal, env, steps, true)
+      await astraPlan(input, roundModel, signal, env, steps, true)
     )
   } catch (error) {
     const refusal = modelRefusal(error, signal.aborted)
@@ -668,25 +728,19 @@ export async function openaiDecisionsControl(
   try {
     let choice: CountedAction | "wait" | null = null
     if (credentials.openAI && env.OPENAI_API_KEY) {
-      const openai = createOpenAI({
-        apiKey: env.OPENAI_API_KEY,
-        organization: env.OPENAI_ORG_ID,
-      })
       const result = await traced(
         steps,
         { kind: "decide", model: "gpt-6-luna" },
         () =>
-          experimental_decide({
-            model: openai.decisionModel("gpt-6-luna"),
+          openAIDecisionChoice({
+            apiKey: env.OPENAI_API_KEY,
+            organization: env.OPENAI_ORG_ID,
             state,
             questions,
-            abortSignal: decisionSignal(signal),
-            maxRetries: 0,
+            signal: decisionSignal(signal),
           }),
-        (decided) => ({
-          usage: decided.usage,
-          ...controlNote(readBareControl({ answers: decided.answers }, cells)),
-        })
+        (decided) =>
+          controlNote(readBareControl({ answers: decided.answers }, cells))
       )
       choice = readBareControl({ answers: result.answers }, cells)
     } else if (credentials.gateway) {
@@ -714,6 +768,7 @@ export async function openaiDecisionsControl(
         status: "unconfigured",
       }
     }
+    // A wait still plays the first planned cell, so a decision cannot stall the match.
     const placement = placementToPlay(
       plan.placements,
       input.board.affordances,

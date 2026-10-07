@@ -220,8 +220,33 @@ function assembleDistinct(
 let shelves: readonly FamilyShelf[] | null = null
 let shelvesSalt = 0
 
+type BuiltRound = {
+  pack: GamePack
+  solution: readonly (number | null)[]
+}
+
+function finishShelf(def: FamilyDef, built: readonly BuiltRound[]): FamilyShelf {
+  const packs = built.map((item) => item.pack)
+  const solutions = Object.fromEntries(
+    built.map((item) => [String(item.pack.seed), item.solution])
+  )
+  const group = transferGroup(packs[0])
+  if (packs.some((pack) => pack.transfer.family !== def.id))
+    throw new Error(`${def.id} rounds left their transfer family`)
+  if (new Set(packs.map((pack) => pack.seed)).size !== packs.length)
+    throw new Error(`${def.id} repeated a seed`)
+  return {
+    familyId: def.id,
+    category: def.category,
+    label: def.label,
+    transferGroup: group,
+    packs,
+    solutions,
+  }
+}
+
 function assembleShelves(
-  defs: readonly (typeof FAMILY_DEFS)[number][],
+  defs: readonly FamilyDef[],
   salt: number,
   avoid: ReadonlySet<string>
 ): FamilyShelf[] {
@@ -240,24 +265,45 @@ function assembleShelves(
         avoid
       )
     )
-    const packs = built.map((item) => item.pack)
-    const solutions = Object.fromEntries(
-      built.map((item) => [String(item.pack.seed), item.solution])
-    )
-    const group = transferGroup(packs[0])
-    if (packs.some((pack) => pack.transfer.family !== def.id))
-      throw new Error(`${def.id} rounds left their transfer family`)
-    if (new Set(packs.map((pack) => pack.seed)).size !== packs.length)
-      throw new Error(`${def.id} repeated a seed`)
-    return {
-      familyId: def.id,
-      category: def.category,
-      label: def.label,
-      transferGroup: group,
-      packs,
-      solutions,
-    }
+    return finishShelf(def, built)
   })
+}
+
+function yieldPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0)
+  })
+}
+
+/** One round at a time so the setup form can paint between boards. */
+async function assembleShelvesIdle(
+  defs: readonly FamilyDef[],
+  salt: number,
+  avoid: ReadonlySet<string>
+): Promise<FamilyShelf[]> {
+  const usedSeeds = new Set<number>()
+  const builtShelves: FamilyShelf[] = []
+  for (const def of defs) {
+    const index = FAMILY_DEFS.indexOf(def)
+    const usedBoards = new Set<string>()
+    const built: BuiltRound[] = []
+    for (let round = 0; round < FAMILY_PACKS; round += 1) {
+      built.push(
+        assembleDistinct(
+          def,
+          index,
+          round,
+          salt,
+          usedSeeds,
+          usedBoards,
+          avoid
+        )
+      )
+      await yieldPaint()
+    }
+    builtShelves.push(finishShelf(def, built))
+  }
+  return builtShelves
 }
 
 function familyShelves(
@@ -280,6 +326,22 @@ export function pickDeepFamily(
 ): MatchFamily {
   const ranked = rankMatchFamilies(marks)
   return ranked[0] ?? matchFamilies()[0]
+}
+
+/** A different family than the one on screen. Dealing it builds a new board. */
+export function randomDeepFamily(
+  marks: FamilyMarks = { played: [], disliked: [] },
+  currentId?: string | null
+): MatchFamily {
+  const ranked = rankMatchFamilies(marks).filter((family) => !family.demote)
+  const fallback = matchFamilies().filter((family) => !family.demote)
+  const list = ranked.length ? ranked : fallback
+  const others = currentId
+    ? list.filter((family) => family.id !== currentId)
+    : list
+  const pool = others.length > 0 ? others : list
+  const index = Math.floor(Math.random() * pool.length)
+  return pool[index] ?? list[0] ?? matchFamilies()[0]
 }
 
 /**
@@ -326,6 +388,41 @@ export function freshDeal(
     length,
     marks,
     assembleShelves(FAMILY_DEFS, librarySalt(), avoid)
+  )
+}
+
+/**
+ * Same deal as freshDeal, but the first await yields so the setup chip
+ * can paint, then each board yields again.
+ */
+export async function freshDealIdle(
+  length: MatchLength,
+  marks: FamilyMarks,
+  options: { familyId?: string | null; avoid?: ReadonlySet<string> } = {}
+): Promise<DealtMatch> {
+  await yieldPaint()
+  const avoid = options.avoid ?? new Set<string>()
+  if (length === "deep") {
+    const familyId = options.familyId ?? pickDeepFamily(marks).id
+    const def = FAMILY_DEFS.find((item) => item.id === familyId)
+    if (!def) throw new Error(`No family ${familyId}`)
+    const [shelf] = await assembleShelvesIdle([def], librarySalt(), avoid)
+    return {
+      length,
+      packs: shelf.packs,
+      gameCount: 1,
+      roundsPerGame: shelf.packs.length,
+      clock: "attempt",
+      timeCapMs: null,
+      category: def.category,
+      familyId,
+      solutions: shelf.solutions,
+    }
+  }
+  return dealMatch(
+    length,
+    marks,
+    await assembleShelvesIdle(FAMILY_DEFS, librarySalt(), avoid)
   )
 }
 

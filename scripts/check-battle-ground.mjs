@@ -69,6 +69,7 @@ try {
     freshDeal,
     boardId,
     pickDeepFamily,
+    randomDeepFamily,
     DEFAULT_MATCH_LENGTH,
     BLITZ_MATCH_MS,
   } = await import(out + "/battle-ground-ui/match-deck.js")
@@ -179,6 +180,35 @@ try {
     assert.equal(battle.getSnapshot().attempts.human.status, "time-cap")
     assert.equal(battle.getSnapshot().attempts.learner.status, "time-cap")
   }
+  const freePack = assembleGamePack({ category: "binary_fill", seed: 91, n: 4 }).pack
+  const free = createBattleGround([freePack], {
+    actionCap: 2,
+    limitHumanTaps: false,
+  })
+  const freeCell =
+    free.boardProps("human").affordances.controls.selectCell[0]
+  const freeTap = () => {
+    free.actions("human").selectCell(freeCell)
+    free.actions("human").cycle()
+  }
+  freeTap()
+  const afterPlace = free.getSnapshot().attempts.human.state.actions
+  free.actions("human").undo()
+  assert.equal(
+    free.getSnapshot().attempts.human.state.actions,
+    afterPlace,
+    "Undo does not spend a tap"
+  )
+  free.actions("human").clear()
+  assert.equal(
+    free.getSnapshot().attempts.human.state.actions,
+    afterPlace,
+    "Clear does not spend a tap"
+  )
+  freeTap()
+  freeTap()
+  assert.equal(free.getSnapshot().attempts.human.status, "playing")
+  assert.equal(free.boardProps("human").readOnly, false)
   let readingClock = 0
   const pausedPack = assembleGamePack({
     category: "binary_fill",
@@ -472,6 +502,16 @@ try {
       assert.equal(verifyGame(pack, deal.solutions[String(pack.seed)]).complete, true)
     }
   }
+  // Different game skips the family on screen and the demoted pipe shelf.
+  const spun = new Set()
+  for (let i = 0; i < 24; i++) {
+    const next = randomDeepFamily(noMarks, firstDeal.familyId)
+    assert.notEqual(next.id, firstDeal.familyId)
+    assert.notEqual(next.id, "pipe-boundaries")
+    assert.notEqual(next.demote, true)
+    spun.add(next.id)
+  }
+  assert.ok(spun.size > 1)
   // Ties go to the family dealt least recently, so reloads rotate families.
   assert.notEqual(
     freshDeal("deep", { ...noMarks, recent: [firstDeal.familyId] }).familyId,
@@ -847,14 +887,14 @@ try {
   assert.match(optionSource, /Writes code/)
   assert.match(optionSource, /writeAgentStack/)
   for (const label of [
-    "Astra",
+    "LLM",
     "Code",
-    "Astra + Jev",
-    "Jev bare",
-    "Astra + Laya",
-    "Laya bare",
-    "OpenAI Decisions",
-    "Decisions bare",
+    "LLM + Jev",
+    "Jev",
+    "LLM + Laya",
+    "Laya",
+    "LLM + Decisions",
+    "Decisions",
     "You vs Agent",
     "Agent vs Agent",
     "Deep",
@@ -870,12 +910,18 @@ try {
   assert.match(setupSource, /legend="Agent B"/)
   // Hero: host, one punchline, one call to action. No eyebrow.
   assert.match(setupSource, /astra-vs-human\.vercel\.app/)
-  assert.match(setupSource, /Agents are faster, but are they smarter than humans\?/)
+  assert.match(setupSource, /Agents are good\./)
+  assert.match(setupSource, /faster AND smarter than humans\?/)
   assert.match(setupSource, /Battle them on mini games!/)
   // Setup shows every model and Deep by default; the rest sits behind More options.
+  // Deep families live in that panel, each with a color mark. Up first stays a board.
   assert.match(setupSource, /<ModelChoice/)
-  assert.doesNotMatch(setupSource, /matchFamilies|Families you/)
+  assert.match(setupSource, /className="deep-families"/)
+  assert.match(setupSource, /swatch: family\.paint/)
+  assert.match(setupSource, /length === "deep" \? matchFamilies\(\)/)
+  assert.doesNotMatch(setupSource, /Families you/)
   assert.match(setupSource, /More options/)
+  assert.match(appSource, /randomDeepFamily\(marks, preview\?\.familyId\)/)
   assert.match(appSource, /useState<MatchLength>\(DEFAULT_MATCH_LENGTH\)/)
   assert.equal(DEFAULT_MATCH_LENGTH, "deep")
   assert.match(optionSource, /3 min/)
@@ -883,6 +929,7 @@ try {
   assert.match(appSource, /<Phone/)
   assert.match(appSource, /<MatchInfo/)
   assert.doesNotMatch(appSource, /New boards|Scored|Invent a board/)
+  assert.doesNotMatch(appSource, /Out of taps|out of taps/)
   assert.match(settingsSource, /Apply settings and restart/)
   assert.doesNotMatch(settingsSource, /Leave to setup/)
   assert.match(appSource, /<AgentModelMenu|modelMenu\(/)
@@ -913,7 +960,8 @@ try {
   assert.doesNotMatch(shellSource, /\.option-chip:has\(input:checked\) \{[^}]*background: var\(--ink\)/)
   assert.match(shellSource, /\.primary-button \{[^}]*background: var\(--ink\)/)
   const sideLearnerSource = await read("../hooks/use-side-learner.ts")
-  assert.match(sideLearnerSource, /interpretPolicy\(result\.policy/)
+  assert.match(sideLearnerSource, /codeTurn\(heldProgram/)
+  assert.match(sideLearnerSource, /runProgram\(heldProgram\.source/)
   assert.match(sideLearnerSource, /mix/)
   assert.match(sideLearnerSource, /fetchGameLearnerDecision/)
   assert.match(appSource, /useSideLearner/)

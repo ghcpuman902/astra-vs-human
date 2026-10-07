@@ -74,6 +74,8 @@ export async function loadGameRuntime(label = "agent-suite") {
     bareControlQuestions: mix.bareControlQuestions,
     plannedControlQuestions: mix.plannedControlQuestions,
     interpretPolicy: mix.interpretPolicy,
+    runProgram: mix.runProgram,
+    codeTurn: mix.codeTurn,
     learnerBoardPayload: mix.learnerBoardPayload,
     dispatchMix: dispatch.dispatchMix,
     packSchema: schema.packSchema,

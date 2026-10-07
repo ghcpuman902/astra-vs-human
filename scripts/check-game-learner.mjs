@@ -64,6 +64,8 @@ try {
   const {
     expandPlacements,
     interpretPolicy,
+    codeTurn,
+    runProgram,
     bareCandidateCells,
     bareControlQuestions,
     plannedChoiceCells,
@@ -419,6 +421,23 @@ try {
       ),
       board.affordances.controls.cycle ? [{ type: "cycle" }] : []
     )
+    const source = `return { placements: [{ cell: ${cell}, value: ${JSON.stringify(target)} }] }`
+    const held = { source, note: "kept" }
+    const firstPlay = codeTurn(held, board)
+    const secondPlay = codeTurn(held, board)
+    assert.equal(firstPlay.reuse, true)
+    assert.equal(secondPlay.reuse, true)
+    assert.equal(firstPlay.steps[0].type, "selectCell")
+    assert.equal(firstPlay.steps[0].cell, cell)
+    assert.equal(codeTurn(null, board).reuse, false)
+    assert.equal(codeTurn(null, board).failure, null)
+    const broken = codeTurn(
+      { source: "throw new Error('miss')", note: null },
+      board
+    )
+    assert.equal(broken.reuse, false)
+    assert.match(broken.failure, /threw/)
+    assert.equal(runProgram(source, board).failure, null)
     const expanded = expandPlacements([{ cell, value: target }], board)
     assert.ok(expanded.length >= 1)
     assert.equal(expanded[0].type, "selectCell")

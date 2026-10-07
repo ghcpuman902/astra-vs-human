@@ -206,6 +206,8 @@ export type MatchFamily = {
   pattern: string
   n: 4 | 5 | 6
   icon: FamilyDef["icon"]
+  /** Category color tokens. Setup chips saturate these; the board keeps the wash. */
+  paint: FamilyDef["paint"]
   spirit?: FamilyDef["spirit"]
   demote?: boolean
 }
@@ -226,6 +228,7 @@ export function matchFamilies(): readonly MatchFamily[] {
     pattern: def.pattern,
     n: def.n,
     icon: def.icon,
+    paint: def.paint,
     spirit: def.spirit,
     demote: def.demote,
   }))

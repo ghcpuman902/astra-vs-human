@@ -19,7 +19,6 @@ const coverStyle = (board: BoardProps): CSSProperties => {
 const STATUS: Record<string, string> = {
   playing: "playing",
   finished: "solved",
-  "action-cap": "out of taps",
   "time-cap": "out of time",
 }
 export const statusWord = (status: string) => STATUS[status] ?? status
@@ -95,7 +94,6 @@ export function Phone({
   titleExtra,
   sub,
   clock,
-  tally,
   rounds,
   done = false,
   behind = false,
@@ -107,7 +105,6 @@ export function Phone({
   titleExtra?: ReactNode
   sub: ReactNode
   clock: string
-  tally: string
   rounds?: ReactNode
   done?: boolean
   behind?: boolean
@@ -132,7 +129,6 @@ export function Phone({
         </div>
         <div className="phone-clock">
           <strong>{clock}</strong>
-          <span>{tally}</span>
         </div>
       </header>
       {rounds}
@@ -183,7 +179,7 @@ export function BoardStage({
   )
 }
 
-/** The shared rules, shown once under the left board. */
+/** Rules for this board, under the phone. */
 export function Rules({ pack }: { pack: GamePack }) {
   const card = postcardFor(pack)
   return (

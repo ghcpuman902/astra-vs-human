@@ -278,6 +278,23 @@ body {
 .option-chip:active {
   transform: scale(0.97);
 }
+.option-chip[data-pending="true"] {
+  cursor: progress;
+}
+.option-chip[data-pending="true"]::after {
+  content: "";
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  animation: chip-spin 0.7s linear infinite;
+}
+@keyframes chip-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
 .chip-check {
   display: none;
   width: 14px;
@@ -298,8 +315,24 @@ body {
   flex: none;
 }
 .option-chip.has-icon .chip-check,
-.option-chip.has-icon:has(input:checked) .chip-check {
+.option-chip.has-icon:has(input:checked) .chip-check,
+.option-chip.has-mark .chip-check,
+.option-chip.has-mark:has(input:checked) .chip-check {
   display: none;
+}
+
+/* Saturated cousin of the board wash. One color is solid; two split on the diagonal. */
+.family-swatch {
+  width: 0.7em;
+  height: 0.7em;
+  flex: none;
+  border-radius: 3px;
+  background: linear-gradient(
+    135deg,
+    oklch(from var(--swatch-a) 58% 0.16 h) 50%,
+    oklch(from var(--swatch-b) 58% 0.16 h) 50%
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ink) 22%, transparent);
 }
 .model-none {
   margin: 0;
@@ -446,8 +479,18 @@ body {
     transform: scale(0.96);
   }
 }
+/* Spin the wrapper. Rotating the SVG itself grows its box and shoves the label. */
 .respawn-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
   transition: rotate 280ms var(--ease-out);
+}
+.respawn-icon svg {
+  width: 16px;
+  height: 16px;
 }
 .start-button {
   width: 100%;
@@ -540,6 +583,9 @@ body {
 .up-next .small-rounds {
   grid-column: 1 / -1;
 }
+.up-next[data-pending="true"] .up-next-board {
+  opacity: 0.55;
+}
 .more summary span {
   min-width: 0;
   margin-left: var(--s-2);
@@ -615,6 +661,19 @@ body {
 .phone-name strong {
   flex: none;
   font: 650 15px/20px var(--font-sans);
+}
+.ability-pill {
+  flex: none;
+  max-width: 9rem;
+  overflow: hidden;
+  padding: 1px 7px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--ink-secondary);
+  font: 600 11px/16px var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .phone[data-behind="true"] .phone-name strong::after {
   content: " · still solving";
@@ -725,11 +784,6 @@ body {
 }
 .phone-clock strong {
   font: 650 20px/24px var(--font-sans);
-}
-.phone-clock span {
-  color: var(--ink-secondary);
-  font: 500 11px/14px var(--font-sans);
-  white-space: nowrap;
 }
 .phone .small-rounds {
   padding: var(--s-2) var(--s-4) 0;
@@ -1539,76 +1593,92 @@ q.trace-part-text {
   color: var(--ink-secondary);
   font: 400 13px/18px var(--font-sans);
 }
-.verdict-marks {
-  display: flex;
-  gap: 4px;
-  margin-top: 6px;
-}
-.verdict-marks span {
-  width: 10px;
-  height: 10px;
-  background: var(--ink);
-  animation: verdict-stamp 280ms var(--ease-out) both;
-}
-@keyframes verdict-stamp {
-  from {
-    opacity: 0;
-    transform: translateY(4px) scale(0.92);
-  }
-}
 .results-body {
+  --score-col: minmax(4.5rem, max-content);
   display: grid;
-  gap: var(--s-3);
+  grid-template-columns: minmax(0, 1fr) var(--score-col) var(--score-col);
+  column-gap: var(--s-5);
+  row-gap: var(--s-3);
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
   padding: 0 var(--s-5) var(--s-2);
 }
+.results-body[hidden] {
+  display: none;
+}
+.pace-block,
+.results-table,
+.results-actions {
+  grid-column: 1 / -1;
+}
+.pace-block,
+.pace-list,
+.results-table {
+  display: grid;
+  grid-template-columns: subgrid;
+}
+.results-section {
+  color: var(--ink-secondary);
+  font: 500 13px/18px var(--font-sans);
+  text-align: left;
+}
+.pace-block .results-section {
+  grid-column: 1 / -1;
+  padding-bottom: var(--s-1);
+}
 .pace-list {
   --round: 16px;
-  display: grid;
-  gap: 0;
+  grid-column: 1 / -1;
+  row-gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .pace-key,
-.pace-round {
+.pace-round,
+.pace-total,
+.score-row,
+.results-table > .results-section {
   display: grid;
-  grid-template-columns: 16px 1.5rem minmax(0, 1fr) 3.25rem 3.25rem;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: 0 var(--s-2);
 }
 .pace-key {
   padding-bottom: var(--s-1);
   color: var(--ink-secondary);
   font: 500 13px/18px var(--font-sans);
 }
-.pace-key span:nth-child(1) {
-  grid-column: 4;
-}
-.pace-key span:nth-child(2) {
-  grid-column: 5;
-}
-.pace-key span {
+.pace-key span:not(:first-child) {
   text-align: right;
 }
-.pace-round {
+.pace-mark {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.pace-round,
+.pace-total {
   padding: var(--s-2) 0;
   border-top: 1px solid var(--hairline);
   font: 400 13px/18px var(--font-sans);
+}
+.pace-total-label {
+  font-weight: 600;
+  text-align: left;
 }
 .pace-time {
   color: var(--ink-secondary);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
   text-align: right;
+  white-space: nowrap;
 }
-.pace-time[data-side="human"] {
-  grid-column: 4;
-}
-.pace-time[data-side="learner"] {
-  grid-column: 5;
+.pace-total .pace-time {
+  color: var(--ink);
+  font-weight: 650;
 }
 .pace-time[data-better="true"] {
   color: var(--ink);
@@ -1617,47 +1687,30 @@ q.trace-part-text {
 .pace-time[data-even="true"] {
   color: var(--ink);
 }
-.results-body[hidden] {
-  display: none;
-}
 .results-table {
-  width: 100%;
-  border-collapse: collapse;
+  grid-column: 1 / -1;
   font: 400 14px/20px var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
-.results-table th,
-.results-table td {
+.score-row {
   padding: var(--s-2) 0;
   border-top: 1px solid var(--hairline);
+}
+.score-row [role="cell"] {
   text-align: right;
+  white-space: nowrap;
 }
-.results-table thead th {
-  padding-top: 0;
-  border-top: 0;
-  color: var(--ink-secondary);
-  font: var(--t-badge);
-  font-weight: 500;
-}
-.results-table th[scope="row"] {
+.score-row [role="rowheader"] {
+  min-width: 0;
   font-weight: 600;
   text-align: left;
+  white-space: normal;
 }
-.results-table thead th[data-winner="true"]::before {
-  content: "";
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: var(--s-2);
-  background: var(--ink);
-  vertical-align: 0;
-}
-.results-model tr:first-child th {
+.results-table > .results-section {
   padding-top: var(--s-4);
-  border-top: 0;
-  color: var(--ink-secondary);
-  font: 500 13px/18px var(--font-sans);
-  text-align: left;
+}
+.results-table > .results-section [role="columnheader"] {
+  grid-column: 1 / -1;
 }
 .results-live {
   color: var(--ink-secondary);
@@ -1983,6 +2036,10 @@ q.trace-part-text {
   .option-chip:active {
     transform: none;
   }
+  .option-chip[data-pending="true"]::after {
+    animation: none;
+    border-right-color: currentColor;
+  }
   .switch-track,
   .switch-track::after {
     transition: none;
@@ -2017,9 +2074,6 @@ q.trace-part-text {
   }
   .match-results {
     transition: opacity 200ms ease;
-  }
-  .verdict-marks span {
-    animation: none;
   }
   @starting-style {
     .match-results {

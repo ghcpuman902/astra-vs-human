@@ -2,7 +2,7 @@ import type { ServerStep } from "./agent-trace"
 import type {
   CountedAction,
   LearnerMixId,
-  LearnerPolicy,
+  LearnerProgram,
   Placement,
 } from "./learner-mix"
 import type { GameLearnerRequest } from "./model-learner"
@@ -14,7 +14,7 @@ export type MixDecision = {
   action: CountedAction | null
   patternClaim: string | null
   placements?: Placement[]
-  policy?: LearnerPolicy
+  program?: LearnerProgram
 }
 
 type BareChoice = CountedAction | "wait" | "unconfigured" | null
@@ -57,7 +57,7 @@ export type MixProviders = {
     signal: AbortSignal,
     env: NodeJS.ProcessEnv,
     steps?: ServerStep[]
-  ) => Promise<LearnerPolicy>
+  ) => Promise<LearnerProgram>
 }
 
 const unconfiguredClaim = (mix: BareMixId) =>
@@ -71,8 +71,9 @@ const unconfiguredClaim = (mix: BareMixId) =>
  * Turn one mix's provider results into the decision `decideGameLearner` parses.
  * A bare select is only a select. The chooser cycles to a value the same way a
  * human does, so it is not forced onto the cell's first option. Planned mixes
- * pass {cell, value} placements through. Code returns a policy the browser
- * interprets. No provider is called unless the mix needs it.
+ * pass {cell, value} placements through. Code returns one program. The
+ * browser keeps it and runs it again until that run fails. No provider is
+ * called unless the mix needs it.
  */
 export async function dispatchMix(
   mix: LearnerMixId,
@@ -94,8 +95,8 @@ export async function dispatchMix(
     }
   }
   if (mix === "code") {
-    const policy = await providers.policy(visible, signal, env, trace)
-    return { action: null, patternClaim: policy.note, policy }
+    const program = await providers.policy(visible, signal, env, trace)
+    return { action: null, patternClaim: program.note, program }
   }
   if (mix === "jev-bare" || mix === "laya-bare" || mix === "openai-bare") {
     const choice = await providers.bare(visible, mix, signal, env, trace)

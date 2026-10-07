@@ -284,10 +284,6 @@ export function MatchResults({
     records.filter(
       (record) => record.side === side && record.status === "finished"
     ).length
-  const markCount =
-    matchOver && winner !== "tie"
-      ? Math.min(8, solved(winner))
-      : 0
   const modelFor = (side: Side) => side === "learner" || watching
   const modelValue = (side: Side, key: (typeof MODEL_ROWS)[number]["key"]) => {
     if (!modelFor(side)) return "—"
@@ -324,16 +320,6 @@ export function MatchResults({
           <span className="results-headline">
             <strong>{headline}</strong>
             <span>{open || matchOver ? detail : progress}</span>
-            {markCount > 0 ? (
-              <span className="verdict-marks" aria-hidden="true">
-                {Array.from({ length: markCount }, (_, index) => (
-                  <span
-                    key={index}
-                    style={{ animationDelay: `${index * 36}ms` }}
-                  />
-                ))}
-              </span>
-            ) : null}
           </span>
         </button>
         <button type="button" className="primary-button" onClick={onRematch}>
@@ -342,116 +328,136 @@ export function MatchResults({
         </button>
       </div>
       <div className="results-body" hidden={!open}>
-        <ol className="pace-list" aria-label="Round speed">
-          <li className="pace-key" aria-hidden="true">
-            <span>{leftName}</span>
-            <span>{rightName}</span>
-          </li>
-          {pace.map((round) => (
+        <div className="pace-block">
+          <div className="results-section" id="match-time">
+            Time
+          </div>
+          <ol className="pace-list" aria-labelledby="match-time">
+            <li className="pace-key" aria-hidden="true">
+              <span />
+              <span>{leftName}</span>
+              <span>{rightName}</span>
+            </li>
+            {pace.map((round) => (
+              <li
+                key={round.seed}
+                className="pace-round"
+                aria-label={`Round ${round.index + 1}, ${round.name}. ${round.verdict}. ${leftName} ${paceLine(round.human)}. ${rightName} ${paceLine(round.learner)}.`}
+              >
+                <span className="pace-mark">
+                  <span
+                    className="small-round"
+                    data-split={round.paint[1] ? true : undefined}
+                    title={round.name}
+                    style={
+                      {
+                        "--round-a": round.paint[0],
+                        "--round-b": round.paint[1] ?? round.paint[0],
+                      } as CSSProperties
+                    }
+                  />
+                  <span className="pace-index">{round.index + 1}</span>
+                </span>
+                {SIDES.map((side) => (
+                  <span
+                    key={side}
+                    className="pace-time"
+                    data-side={side}
+                    data-better={round.faster === side || undefined}
+                    data-even={round.faster === "tie" || undefined}
+                    data-open={round.faster === "open" || undefined}
+                  >
+                    {paceClock(round[side])}
+                  </span>
+                ))}
+              </li>
+            ))}
             <li
-              key={round.seed}
-              className="pace-round"
-              aria-label={`Round ${round.index + 1}, ${round.name}. ${round.verdict}. ${leftName} ${paceLine(round.human)}. ${rightName} ${paceLine(round.learner)}.`}
+              className="pace-total"
+              aria-label={
+                length === "blitz"
+                  ? `Time left. ${leftName} ${times.human}. ${rightName} ${times.learner}.`
+                  : `Total time. ${leftName} ${times.human}. ${rightName} ${times.learner}.`
+              }
             >
-              <span
-                className="small-round"
-                data-split={round.paint[1] ? true : undefined}
-                title={round.name}
-                style={
-                  {
-                    "--round-a": round.paint[0],
-                    "--round-b": round.paint[1] ?? round.paint[0],
-                  } as CSSProperties
-                }
-              />
-              <span className="pace-index">{round.index + 1}</span>
+              <span className="pace-total-label">
+                {length === "blitz" ? "Left" : null}
+              </span>
               {SIDES.map((side) => (
-                <span
-                  key={side}
-                  className="pace-time"
-                  data-side={side}
-                  data-better={round.faster === side || undefined}
-                  data-even={round.faster === "tie" || undefined}
-                  data-open={round.faster === "open" || undefined}
-                >
-                  {paceClock(round[side])}
+                <span key={side} className="pace-time" data-side={side}>
+                  {times[side]}
                 </span>
               ))}
             </li>
-          ))}
-        </ol>
-        <table className="results-table">
-          <caption className="sr-only">
-            Boards, taps, time, cell precision and recall, then model cost
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">
-                <span className="sr-only">Stat</span>
-              </th>
-              {SIDES.map((side) => (
-                <th key={side} scope="col" data-winner={(matchOver && winner === side) || undefined}>
-                  {names[side]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Boards</th>
-              {SIDES.map((side) => (
-                <td key={side}>
-                  {tallies[side].rounds}/{packs.length}
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <th scope="row">Taps</th>
-              {SIDES.map((side) => (
-                <td key={side}>{tallies[side].actions}</td>
-              ))}
-            </tr>
-            <tr>
-              <th scope="row">{length === "blitz" ? "Left" : "Time"}</th>
-              {SIDES.map((side) => (
-                <td key={side}>{times[side]}</td>
-              ))}
-            </tr>
-            <tr>
-              <th scope="row" title="Correct fills divided by cells that were filled">
-                Precision
-              </th>
-              {SIDES.map((side) => (
-                <td key={side}>{formatRate(scores[side].precision)}</td>
-              ))}
-            </tr>
-            <tr>
-              <th scope="row" title="Correct fills divided by open cells">
-                Recall
-              </th>
-              {SIDES.map((side) => (
-                <td key={side}>{formatRate(scores[side].recall)}</td>
-              ))}
-            </tr>
-          </tbody>
-          <tbody className="results-model">
-            <tr>
-              <th scope="colgroup" colSpan={3}>
-                Model
-              </th>
-            </tr>
-            {MODEL_ROWS.map((row) => (
-              <tr key={row.key}>
-                <th scope="row" title={row.title}>
-                  {row.label}
-                </th>
-                {SIDES.map((side) => (
-                  <td key={side}>{modelValue(side, row.key)}</td>
-                ))}
-              </tr>
+          </ol>
+        </div>
+        <div
+          className="results-table"
+          role="table"
+          aria-label="Boards, taps, cell precision and recall, then model cost"
+        >
+          <div className="pace-key" role="row">
+            <span role="columnheader">
+              <span className="sr-only">Stat</span>
+            </span>
+            {SIDES.map((side) => (
+              <span key={side} role="columnheader">
+                {names[side]}
+              </span>
             ))}
-          </tbody>
-        </table>
+          </div>
+          <div className="score-row" role="row">
+            <span role="rowheader">Boards</span>
+            {SIDES.map((side) => (
+              <span key={side} role="cell">
+                {tallies[side].rounds}/{packs.length}
+              </span>
+            ))}
+          </div>
+          <div className="score-row" role="row">
+            <span role="rowheader">Taps</span>
+            {SIDES.map((side) => (
+              <span key={side} role="cell">
+                {tallies[side].actions}
+              </span>
+            ))}
+          </div>
+          <div className="score-row" role="row">
+            <span role="rowheader" title="Correct fills divided by cells that were filled">
+              Precision
+            </span>
+            {SIDES.map((side) => (
+              <span key={side} role="cell">
+                {formatRate(scores[side].precision)}
+              </span>
+            ))}
+          </div>
+          <div className="score-row" role="row">
+            <span role="rowheader" title="Correct fills divided by open cells">
+              Recall
+            </span>
+            {SIDES.map((side) => (
+              <span key={side} role="cell">
+                {formatRate(scores[side].recall)}
+              </span>
+            ))}
+          </div>
+          <div className="results-section" role="row">
+            <span role="columnheader">Model</span>
+          </div>
+          {MODEL_ROWS.map((row) => (
+            <div key={row.key} className="score-row" role="row">
+              <span role="rowheader" title={row.title}>
+                {row.label}
+              </span>
+              {SIDES.map((side) => (
+                <span key={side} role="cell">
+                  {modelValue(side, row.key)}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
         <div className="results-actions">
           {length === "deep" ? (
             <button type="button" className="paper-button" onClick={onNextFamily}>

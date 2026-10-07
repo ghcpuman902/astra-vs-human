@@ -9,7 +9,7 @@ const {
   decideGameLearner,
   createGameLearnerRunner,
   learnerMixIds,
-  interpretPolicy,
+  runProgram,
   dispatchMix,
   cleanup,
 } = runtime
@@ -18,6 +18,14 @@ const fingerprint = (board) =>
   board.cells.map((cell) => `${cell.value}:${cell.selected ? 1 : 0}`).join("|")
 
 const firstOpen = (board) => board.affordances.controls.selectCell[0]
+
+const programFor = (placement, note = null) => {
+  if (!placement) return { source: "return { placements: [] }", note }
+  return {
+    source: `return { placements: [{ cell: ${placement.cell}, value: ${JSON.stringify(placement.value)} }] }`,
+    note,
+  }
+}
 
 const placementFor = (board, cell, solution) => {
   const target = solution[cell]
@@ -95,14 +103,7 @@ function oracleProviders(game) {
     },
     policy: async (input) => {
       const [placement] = take(input.board, 1)
-      if (!placement)
-        return { rule: "named-cells", cells: [], value: null, note: null }
-      return {
-        rule: "named-cells",
-        cells: [placement.cell],
-        value: placement.value,
-        note: "Place the next forced cell.",
-      }
+      return programFor(placement, "Place the next forced cell.")
     },
   }
 }
@@ -179,17 +180,7 @@ function adversarialProviders(mode) {
         status: "ok",
       }
     },
-    policy: async (input) => {
-      const [placement] = planChoice(input.board)
-      if (!placement)
-        return { rule: "named-cells", cells: [], value: null, note: null }
-      return {
-        rule: "named-cells",
-        cells: [placement.cell],
-        value: placement.value,
-        note: null,
-      }
-    },
+    policy: async (input) => programFor(planChoice(input.board)[0]),
   }
 }
 
@@ -227,11 +218,10 @@ function harness(pack, mix, providers) {
       tally.visits.set(key, (tally.visits.get(key) ?? 0) + 1)
       const raw = await dispatchMix(mix, request, providers, signal, {})
       const decision = await decideGameLearner(request, async () => raw, signal)
-      if (!decision.policy) return decision
-      return {
-        ...decision,
-        steps: interpretPolicy(decision.policy, request.board),
-      }
+      if (!decision.program) return decision
+      const ran = runProgram(decision.program.source, request.board)
+      if (ran.failure) return { ...decision, action: null, state: "wait" }
+      return { ...decision, steps: ran.steps }
     },
   })
   return { battle, runner, played, tally }
@@ -332,6 +322,72 @@ try {
     )
   })
   assert.ok(repeated, "repeated first cell was dropped from the next question")
+
+  const garden = games.find((game) => game.pack.category === "binary_fill")
+  let seeded = false
+  let target
+  const place = (input, cell) => {
+    const options = input.board.affordances.cells[cell]?.options ?? []
+    const current = input.board.cells[cell]?.value
+    const value = options.find((option) => option !== current) ?? options[0]
+    return value === undefined ? [] : [{ cell, value }]
+  }
+  const oscillator = harness(garden.pack, "astra", {
+    bare: async () => "wait",
+    plan: async (input) => {
+      const open = input.board.affordances.controls.selectCell
+      if (!seeded) {
+        seeded = true
+        const seed = open[1] ?? open[0]
+        return {
+          placements: seed === undefined ? [] : place(input, seed),
+          patternClaim: null,
+        }
+      }
+      target ??= open[0]
+      if (target === undefined || !open.includes(target))
+        return { placements: [], patternClaim: null }
+      return { placements: place(input, target), patternClaim: null }
+    },
+    decisions: async () => ({
+      action: null,
+      patternClaim: null,
+      status: "wait",
+    }),
+    policy: async () => ({ source: "return { placements: [] }", note: null }),
+  })
+  for (
+    let step = 0;
+    step < 36 &&
+    oscillator.battle.boardProps("learner").status === "playing" &&
+    (oscillator.runner.reason?.() ?? null) !== "stuck";
+    step++
+  )
+    await oscillator.runner.step()
+  assert.equal(oscillator.runner.reason?.() ?? null, "stuck", "oscillator stops")
+  assert.ok(
+    oscillator.tally.calls <= 24,
+    `oscillator calls ${oscillator.tally.calls}`
+  )
+  assert.ok(
+    oscillator.tally.requests.some((request) =>
+      request.priorClaims?.some((claim) => claim.includes("undone"))
+    ),
+    "oscillator was told the repeat was undone"
+  )
+  assert.ok(
+    oscillator.played.includes("undo"),
+    "oscillator loop was undone without a new decision"
+  )
+  assert.ok(
+    oscillator.tally.requests.some(
+      (request) =>
+        request.priorClaims?.some((claim) => claim.includes("undone")) &&
+        target !== undefined &&
+        !request.board.affordances.controls.selectCell.includes(target)
+    ),
+    "repeated cell left the question after the rewind"
+  )
   console.log(`agent loops ok (${games.length} games, ${learnerMixIds.length} mixes)`)
 } finally {
   await cleanup()

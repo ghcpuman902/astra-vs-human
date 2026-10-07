@@ -18,6 +18,11 @@ Agents pick a skill from its `description`; you rarely need to name it. To force
 | `shadcn` | `shadcn-ui/ui` | Adding, composing and styling shadcn/ui components (this repo uses Base UI). Use `pnpm dlx shadcn@latest`, not `npx`. |
 | `ai-sdk` | `vercel/ai` | Building AI features with the AI SDK (`ai` package, AI Gateway). Not installed by default — the skill adds `ai` when needed. |
 
+Note on Vercel skills (`vercel-react-best-practices`, `vercel-composition-patterns`): each pack
+ships a large nested `AGENTS.md`. In this repo that file is renamed to `REFERENCE.md` so Cursor
+won't treat it as always-on/nested rules. Skills still read `REFERENCE.md` on demand via
+`SKILL.md`. After `npx skills update`, re-check and rename again if `AGENTS.md` returns.
+
 ## Browser tooling override
 
 This project overrides `next-dev-loop`'s browser choice. The vendored `SKILL.md` is left unedited so `skills-lock.json` hashes and `npx skills update` keep working.
