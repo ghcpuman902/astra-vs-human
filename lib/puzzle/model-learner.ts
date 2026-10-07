@@ -129,7 +129,7 @@ export async function decideWithModel(
   rawInput: unknown,
   provider: ModelDecisionProvider,
   signal?: AbortSignal,
-  requestCapMs = 8_000
+  requestCapMs?: number
 ): Promise<ModelLearnerResult> {
   const input = learnerRequestSchema.parse(rawInput)
   const view = input.observation
@@ -143,9 +143,10 @@ export async function decideWithModel(
   const abort = () => controller.abort()
   signal?.addEventListener("abort", abort, { once: true })
   if (signal?.aborted) abort()
-  const cap = Number.isFinite(requestCapMs)
-    ? Math.max(1, Math.min(8_000, requestCapMs))
-    : 8_000
+  const cap =
+    requestCapMs !== undefined && Number.isFinite(requestCapMs)
+      ? Math.max(1, requestCapMs)
+      : view.remainingMs
   const timer = setTimeout(abort, Math.max(1, Math.min(cap, view.remainingMs)))
   try {
     if (controller.signal.aborted)
@@ -281,7 +282,7 @@ export function createModelLearnerRunner(options: {
       pendingModel = parsed.data.model
       const timer = setTimeout(
         () => controller.abort(),
-        Math.min(8_000, view.remainingMs)
+        view.remainingMs
       )
       try {
         const result = await (options.decide ?? fetchLearnerDecision)(

@@ -1,6 +1,8 @@
 import { createOpenAI } from "@ai-sdk/openai"
 import { generateText, Output } from "ai"
+import { recordModelFailure } from "@/lib/failure-log"
 import { allowedLearnerModel } from "@/lib/learner-models"
+import { modelRefusal } from "@/lib/model-refusal"
 import { providerSchema } from "@/lib/provider-schema"
 
 import {
@@ -11,7 +13,7 @@ import {
 } from "@/lib/puzzle/model-learner"
 
 export const runtime = "nodejs"
-export const maxDuration = 15
+export const maxDuration = 300
 
 export async function POST(request: Request) {
   const started = performance.now()
@@ -78,19 +80,39 @@ export async function POST(request: Request) {
         apiKey: process.env.OPENAI_API_KEY,
         organization: process.env.OPENAI_ORG_ID,
       })
-      const { output } = await generateText({
-        model: openai.responses(selectedModel),
-        output: Output.object({ schema: providerSchema(learnerDecisionSchema) }),
-        system: learnerSystemPrompt,
-        prompt: JSON.stringify({
-          observation: visible.observation,
-          priorClaims: visible.priorClaims,
-        }),
-        abortSignal: signal,
-        maxRetries: 0,
-        providerOptions: { openai: { store: false, reasoningEffort: "low" } },
-      })
-      return output
+      const startedCall = performance.now()
+      try {
+        const { output } = await generateText({
+          model: openai.responses(selectedModel),
+          output: Output.object({
+            schema: providerSchema(learnerDecisionSchema),
+          }),
+          system: learnerSystemPrompt,
+          prompt: JSON.stringify({
+            observation: visible.observation,
+            priorClaims: visible.priorClaims,
+          }),
+          abortSignal: signal,
+          maxRetries: 0,
+          providerOptions: {
+            openai: {
+              store: false,
+              reasoningEffort: "low",
+              reasoningSummary: null,
+            },
+          },
+        })
+        return output
+      } catch (error) {
+        await recordModelFailure({
+          kind: "decide",
+          model: selectedModel,
+          ms: Math.round(performance.now() - startedCall),
+          refusal: modelRefusal(error, signal.aborted),
+          error,
+        })
+        throw error
+      }
     },
     request.signal
   )

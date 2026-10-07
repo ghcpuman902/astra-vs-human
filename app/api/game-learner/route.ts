@@ -13,7 +13,7 @@ import {
 } from "@/lib/battle-ground-ui/model-learner"
 
 export const runtime = "nodejs"
-export const maxDuration = 15
+export const maxDuration = 300
 
 // Astra plays or writes a policy / planner wrap. Jev, Laya, and OpenAI
 // Decisions commit only when their credentials exist. Decisions and scored
@@ -99,6 +99,9 @@ export async function POST(request: Request) {
         return {
           action: decided.action,
           patternClaim: decided.patternClaim,
+          ...(decided.placements?.length
+            ? { placements: decided.placements }
+            : {}),
         }
       }
       if (mix === "code") {
@@ -110,7 +113,11 @@ export async function POST(request: Request) {
         )
         return { action: null, patternClaim: policy.note, policy }
       }
-      if (mix === "jev-bare" || mix === "laya-bare") {
+      if (
+        mix === "jev-bare" ||
+        mix === "laya-bare" ||
+        mix === "openai-bare"
+      ) {
         const choice = await bareLearnerControl(
           visible,
           mix,
@@ -124,13 +131,25 @@ export async function POST(request: Request) {
             patternClaim:
               mix === "laya-bare"
                 ? "Laya is not configured."
-                : "Jev is not configured.",
+                : mix === "openai-bare"
+                  ? "OpenAI Decisions is not configured."
+                  : "Jev is not configured.",
           }
         }
-        return {
-          action: choice === "wait" ? null : choice,
-          patternClaim: null,
+        if (!choice || choice === "wait")
+          return { action: null, patternClaim: null }
+        if (choice.type === "selectCell") {
+          const options =
+            visible.board.affordances.cells[choice.cell]?.options ?? []
+          const value =
+            options[0] ?? visible.board.cells[choice.cell]?.value ?? null
+          return {
+            action: choice,
+            patternClaim: null,
+            placements: [{ cell: choice.cell, value }],
+          }
         }
+        return { action: choice, patternClaim: null }
       }
       const plan = await planLearnerMix(
         visible,

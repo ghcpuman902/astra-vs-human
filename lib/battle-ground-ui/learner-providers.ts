@@ -2,10 +2,13 @@ import { createOpenAI } from "@ai-sdk/openai"
 import { experimental_decide, gateway, generateText, Output } from "ai"
 import { z } from "zod"
 
+import { recordModelFailure } from "../failure-log"
 import { modelRefusal } from "../model-refusal"
 import { providerSchema } from "../provider-schema"
 import { allowedLearnerModel } from "../learner-models"
-import { traced, type ServerStep } from "./agent-trace"
+import { setModelFailureLog, traced, type ServerStep } from "./agent-trace"
+
+setModelFailureLog(recordModelFailure)
 import {
   applyCommit,
   bareCandidateCells,
@@ -14,8 +17,11 @@ import {
   jevCommitBody,
   layaCommitBody,
   layaSystemOneTarget,
+  learnerBoardPayload,
   learnerCredentials,
   placementSchema,
+  placementToPlay,
+  plannedChoiceCells,
   plannedControlQuestions,
   policySchema,
   readBareControl,
@@ -36,9 +42,16 @@ const hybridSchema = z.strictObject({
 
 /**
  * What OpenAI strict mode can request. Every key is present.
- * No captions is an empty array, not a missing key.
+ * A plan the game plays is placements and a claim. Captions are a second
+ * contract, used only when a later commit reads them.
  */
-const planWireSchema = providerSchema(
+const placementWireSchema = providerSchema(
+  z.strictObject({
+    placements: z.array(placementSchema).max(6),
+    patternClaim: z.string().max(240).nullable(),
+  })
+)
+const captionedWireSchema = providerSchema(
   z.strictObject({
     placements: z.array(placementSchema).max(6),
     patternClaim: z.string().max(240).nullable(),
@@ -46,21 +59,59 @@ const planWireSchema = providerSchema(
   })
 )
 
-const toPlan = (
-  wire: z.infer<typeof planWireSchema>
-): z.infer<typeof hybridSchema> => ({
+type WirePlan = {
+  placements: z.infer<typeof placementSchema>[]
+  patternClaim: string | null
+  captions?: z.infer<typeof captionSchema>[]
+}
+
+const toPlan = (wire: WirePlan): z.infer<typeof hybridSchema> => ({
   placements: wire.placements,
   patternClaim: wire.patternClaim,
-  ...(wire.captions.length ? { captions: wire.captions } : {}),
+  ...(wire.captions?.length ? { captions: wire.captions } : {}),
 })
 
-const hybridPrompt = `Propose up to four placements on the public board. Each placement names one visible editable cell and how many cycle taps follow the selection (1 to 3). Skip locked cells. This is a short plan of counted taps, not a puzzle-class name and not a hidden solution. If useful, add one local pattern claim.
-Also write short captions: for each legal next control you consider (wait, cycle, undo, clear, and cell-N for visible editable cells), give one precomputed outcome claim about what that single next tap would do on the visible board. Keep captions local and public — no hidden search.`
+const placementPrompt = `Propose up to four placements on the public board. Each placement names one open cell from affordances.controls.selectCell and a target value from that cell's affordances.options. The engine compiles each {cell, value} into the same counted select and cycle taps a human would need. Skip given and inert cells. This is a short plan of intents, not a puzzle-class name and not a hidden solution. If useful, add one local pattern claim.`
 
-const policyPrompt = `Write a tiny policy for this public board. rule is first-unlocked, selected-cycle, or named-cells. cells lists up to four visible editable indexes. cycles is 1 to 3. note is one local pattern claim or null. Return only that policy. Do not return JavaScript. The browser runs only these fields and never sees hidden cells.`
+const captionedPrompt = `${placementPrompt}
+Add a caption only for a control you might play: one short public outcome, at most six. An empty captions array means none. Do not caption every cell.`
+
+/**
+ * Low effort still thinks. The SDK otherwise asks for a detailed reasoning
+ * summary, which the game never reads.
+ */
+const openaiReasoning = {
+  openai: {
+    store: false,
+    reasoningEffort: "low",
+    reasoningSummary: null,
+  },
+} as const
+
+const decisionLimitMs = 5_000
+
+/** A decision is one short choice. The plan may keep thinking; this may not. */
+const decisionSignal = (parent: AbortSignal) => {
+  const limited = new AbortController()
+  const timer = setTimeout(() => limited.abort(), decisionLimitMs)
+  const abort = () => limited.abort()
+  if (parent.aborted) abort()
+  else parent.addEventListener("abort", abort, { once: true })
+  limited.signal.addEventListener(
+    "abort",
+    () => {
+      clearTimeout(timer)
+      parent.removeEventListener("abort", abort)
+    },
+    { once: true }
+  )
+  return limited.signal
+}
+
+const policyPrompt = `Write a tiny policy for this public board. rule is first-unlocked, selected-cycle, or named-cells. cells lists up to four open indexes from affordances.controls.selectCell. value is the target from that cell's options (or null for empty). note is one local pattern claim or null. Return only that policy. Do not return JavaScript. The browser runs only these fields and never sees hidden cells.`
 
 export type PlannedMix = "astra" | "astra-hybrid" | "astra-jev" | "astra-laya"
-export type BareMix = "jev-bare" | "laya-bare"
+export type BareMix = "jev-bare" | "laya-bare" | "openai-bare"
 
 function gatewayModelId(model: string) {
   return model.includes("/") ? model : `openai/${model}`
@@ -86,20 +137,23 @@ function captionMap(
   return map
 }
 
-const planNote = (plan: z.infer<typeof planWireSchema>) =>
-  `${plan.placements.length} placement${plan.placements.length === 1 ? "" : "s"}${plan.captions.length ? ` · ${plan.captions.length} captions` : ""}`
+const planNote = (plan: WirePlan) =>
+  `${plan.placements.length} placement${plan.placements.length === 1 ? "" : "s"}${plan.captions?.length ? ` · ${plan.captions.length} captions` : ""}`
 
 async function astraPlan(
   input: GameLearnerRequest,
   model: string,
   signal: AbortSignal,
   env: NodeJS.ProcessEnv,
-  steps?: ServerStep[]
+  steps?: ServerStep[],
+  captions = false
 ) {
   const prompt = JSON.stringify({
-    board: input.board,
+    board: publicBoardState(input),
     priorClaims: input.priorClaims,
   })
+  const schema = captions ? captionedWireSchema : placementWireSchema
+  const system = captions ? captionedPrompt : placementPrompt
   const credentials = learnerCredentials(env)
   if (credentials.openAI && env.OPENAI_API_KEY) {
     const openai = createOpenAI({
@@ -112,12 +166,12 @@ async function astraPlan(
       () =>
         generateText({
           model: openai.responses(model),
-          output: Output.object({ schema: planWireSchema }),
-          system: hybridPrompt,
+          output: Output.object({ schema }),
+          system,
           prompt,
           abortSignal: signal,
           maxRetries: 0,
-          providerOptions: { openai: { store: false, reasoningEffort: "low" } },
+          providerOptions: openaiReasoning,
         }),
       (result) => ({ usage: result.usage, note: planNote(result.output) })
     )
@@ -130,8 +184,8 @@ async function astraPlan(
     () =>
       generateText({
         model: gateway.languageModel(gatewayModelId(model)),
-        output: Output.object({ schema: planWireSchema }),
-        system: hybridPrompt,
+        output: Output.object({ schema }),
+        system,
         prompt,
         abortSignal: signal,
         maxRetries: 0,
@@ -185,7 +239,7 @@ async function jevCommit(
         model: gateway.decision("typesafe-ai/jev"),
         state,
         questions,
-        abortSignal: signal,
+        abortSignal: decisionSignal(signal),
         maxRetries: 0,
       }),
     (decided) => ({
@@ -225,17 +279,24 @@ async function layaCommit(
   )
 }
 
-function publicCells(input: GameLearnerRequest) {
-  return input.board.cells.map((cell) => ({
-    index: cell.index,
-    value: cell.visible ? cell.value : null,
-    locked: cell.visible && cell.locked,
-    selected: cell.visible && cell.selected,
-  }))
+function publicBoardState(input: GameLearnerRequest) {
+  return learnerBoardPayload({
+    category: input.board.category,
+    mode: input.board.mode,
+    postcard: input.board.postcard,
+    clues: input.board.clues,
+    affordances: input.board.affordances,
+    cells: input.board.cells.map((cell) => ({
+      index: cell.index,
+      value: cell.visible ? cell.value : null,
+      role: cell.role,
+      selected: cell.visible && cell.selected,
+    })),
+  })
 }
 
 const policyNote = (policy: LearnerPolicy) =>
-  `${policy.rule} · ${policy.cells.length} cells · ×${policy.cycles}`
+  `${policy.rule} · ${policy.cells.length} cells · →${policy.value}`
 
 async function planCodePolicy(
   input: GameLearnerRequest,
@@ -246,7 +307,7 @@ async function planCodePolicy(
   const model = allowedLearnerModel(input.model)
   if (!model) throw new Error("Model is not allowed")
   const prompt = JSON.stringify({
-    board: input.board,
+    board: publicBoardState(input),
     priorClaims: input.priorClaims,
   })
   const credentials = learnerCredentials(env)
@@ -266,7 +327,7 @@ async function planCodePolicy(
           prompt,
           abortSignal: signal,
           maxRetries: 0,
-          providerOptions: { openai: { store: false, reasoningEffort: "low" } },
+          providerOptions: openaiReasoning,
         }),
       (result) => ({ usage: result.usage, note: policyNote(result.output) })
     )
@@ -316,9 +377,10 @@ async function bareChoice(
   mix: BareMix,
   signal: AbortSignal,
   env: NodeJS.ProcessEnv,
-  steps?: ServerStep[]
+  steps?: ServerStep[],
+  controls: { cycle?: boolean; undo?: boolean; clear?: boolean } = {}
 ): Promise<CountedAction | "wait" | null> {
-  const questions = bareControlQuestions(cells)
+  const questions = bareControlQuestions(cells, controls)
   const credentials = learnerCredentials(env)
   if (mix === "laya-bare") {
     const target = layaSystemOneTarget(env)
@@ -346,6 +408,49 @@ async function bareChoice(
       },
       controlNote
     )
+  }
+  if (mix === "openai-bare") {
+    if (credentials.openAI && env.OPENAI_API_KEY) {
+      const openai = createOpenAI({
+        apiKey: env.OPENAI_API_KEY,
+        organization: env.OPENAI_ORG_ID,
+      })
+      const result = await traced(
+        steps,
+        { kind: "decide", model: "gpt-6-luna" },
+        () =>
+          experimental_decide({
+            model: openai.decisionModel("gpt-6-luna"),
+            state,
+            questions,
+            abortSignal: decisionSignal(signal),
+            maxRetries: 0,
+          }),
+        (decided) => ({
+          usage: decided.usage,
+          ...controlNote(readBareControl({ answers: decided.answers }, cells)),
+        })
+      )
+      return readBareControl({ answers: result.answers }, cells)
+    }
+    if (!credentials.gateway) return null
+    const result = await traced(
+      steps,
+      { kind: "decide", model: "openai/gpt-6-luna" },
+      () =>
+        experimental_decide({
+          model: gateway.decision("openai/gpt-6-luna"),
+          state,
+          questions,
+          abortSignal: decisionSignal(signal),
+          maxRetries: 0,
+        }),
+      (decided) => ({
+        usage: decided.usage,
+        ...controlNote(readBareControl({ answers: decided.answers }, cells)),
+      })
+    )
+    return readBareControl({ answers: result.answers }, cells)
   }
   if (credentials.jevDirect && env.TYPESAFE_API_KEY) {
     const base = (
@@ -380,7 +485,7 @@ async function bareChoice(
         model: gateway.decision("typesafe-ai/jev"),
         state,
         questions,
-        abortSignal: signal,
+        abortSignal: decisionSignal(signal),
         maxRetries: 0,
       }),
     (decided) => ({
@@ -391,7 +496,7 @@ async function bareChoice(
   return readBareControl({ answers: result.answers }, cells)
 }
 
-/** Bare decision model. No Astra plan is written into the state. */
+/** Bare decision model. No LLM plan is written into the state. */
 export async function bareLearnerControl(
   input: GameLearnerRequest,
   mix: BareMix,
@@ -400,16 +505,24 @@ export async function bareLearnerControl(
   steps?: ServerStep[]
 ): Promise<CountedAction | "wait" | "unconfigured" | null> {
   const credentials = learnerCredentials(env)
-  if (mix === "laya-bare" ? !credentials.laya : !credentials.jev)
-    return "unconfigured"
-  const cells = bareCandidateCells(input.board.cells)
-  const state = JSON.stringify({
-    category: input.board.category,
-    postcard: input.board.postcard,
-    clues: input.board.clues,
-    cells: publicCells(input),
+  const ready =
+    mix === "laya-bare"
+      ? credentials.laya
+      : mix === "openai-bare"
+        ? credentials.astra
+        : credentials.jev
+  if (!ready) return "unconfigured"
+  const selected = input.board.cells.findIndex((cell) => cell.selected)
+  const { cycle, undo, clear } = input.board.affordances.controls
+  const cells = bareCandidateCells(input.board.affordances).filter(
+    (cell) => cell !== selected
+  )
+  const state = JSON.stringify(publicBoardState(input))
+  return bareChoice(state, cells, mix, signal, env, steps, {
+    cycle,
+    undo,
+    clear,
   })
-  return bareChoice(state, cells, mix, signal, env, steps)
 }
 
 export async function planLearnerMix(
@@ -426,8 +539,6 @@ export async function planLearnerMix(
 }> {
   const model = allowedLearnerModel(input.model)
   if (!model) throw new Error("Model is not allowed")
-  const plan = await astraPlan(input, model, signal, env, steps)
-  const parsed = hybridSchema.parse(plan)
   const credentials = learnerCredentials(env)
   const decision =
     mix === "astra-laya" ? "laya" : mix === "astra-jev" ? "jev" : "off"
@@ -437,6 +548,8 @@ export async function planLearnerMix(
       : decision === "jev"
         ? credentials.jev
         : false
+  const plan = await astraPlan(input, model, signal, env, steps, ready)
+  const parsed = hybridSchema.parse(plan)
   if (!ready) {
     return {
       placements: parsed.placements,
@@ -446,10 +559,8 @@ export async function planLearnerMix(
     }
   }
   const state = JSON.stringify({
-    category: input.board.category,
-    postcard: input.board.postcard,
+    ...publicBoardState(input),
     context: parsed.patternClaim,
-    cells: publicCells(input),
     placements: parsed.placements,
     captions: parsed.captions ?? [],
     instruction:
@@ -464,8 +575,21 @@ export async function planLearnerMix(
   } catch {
     choice = null
   }
+  const committed = applyCommit(parsed.placements, choice)
+  const fallback =
+    committed.length > 0
+      ? null
+      : placementToPlay(parsed.placements, input.board.affordances, "wait")
+  if (fallback && steps)
+    steps.push({
+      kind: "commit",
+      model: "plan",
+      ms: 0,
+      status: "ok",
+      note: "Commit was wait. Playing the first planned cell.",
+    })
   return {
-    placements: applyCommit(parsed.placements, choice),
+    placements: committed.length > 0 ? committed : fallback ? [fallback] : [],
     patternClaim: parsed.patternClaim,
     jev: decision === "jev" ? "used" : "off",
     laya: decision === "laya" ? "used" : "off",
@@ -483,6 +607,7 @@ export async function openaiDecisionsControl(
   steps?: ServerStep[]
 ): Promise<{
   action: CountedAction | null
+  placements?: Placement[]
   patternClaim: string | null
   status: "ok" | "wait" | "unconfigured" | "unavailable"
 }> {
@@ -499,24 +624,37 @@ export async function openaiDecisionsControl(
   let plan: z.infer<typeof hybridSchema>
   try {
     plan = hybridSchema.parse(
-      await astraPlan(input, writer, signal, env, steps)
+      await astraPlan(input, writer, signal, env, steps, true)
     )
   } catch (error) {
-    if (modelRefusal(error, signal.aborted) === "rejected") throw error
+    const refusal = modelRefusal(error, signal.aborted)
+    if (refusal === "rejected" || refusal === "deadline") throw error
     return {
       action: null,
       patternClaim: null,
       status: "unavailable",
     }
   }
-  const cells = bareCandidateCells(input.board.cells)
+  const plannedCells = plannedChoiceCells(
+    plan.placements,
+    input.board.affordances
+  )
+  const cells = plannedCells.length
+    ? plannedCells
+    : bareCandidateCells(input.board.affordances)
   const captions = captionMap(plan.captions)
-  const questions = plannedControlQuestions(cells, captions, plan.patternClaim)
+  const questions = plannedControlQuestions(
+    cells,
+    captions,
+    plan.patternClaim,
+    {
+      cycle: input.board.affordances.controls.cycle,
+      undo: input.board.affordances.controls.undo,
+      clear: input.board.affordances.controls.clear,
+    }
+  )
   const state = JSON.stringify({
-    category: input.board.category,
-    postcard: input.board.postcard,
-    clues: input.board.clues,
-    cells: publicCells(input),
+    ...publicBoardState(input),
     plan: {
       placements: plan.placements,
       patternClaim: plan.patternClaim,
@@ -541,7 +679,7 @@ export async function openaiDecisionsControl(
             model: openai.decisionModel("gpt-6-luna"),
             state,
             questions,
-            abortSignal: signal,
+            abortSignal: decisionSignal(signal),
             maxRetries: 0,
           }),
         (decided) => ({
@@ -559,7 +697,7 @@ export async function openaiDecisionsControl(
             model: gateway.decision("openai/gpt-6-luna"),
             state,
             questions,
-            abortSignal: signal,
+            abortSignal: decisionSignal(signal),
             maxRetries: 0,
           }),
         (decided) => ({
@@ -575,6 +713,26 @@ export async function openaiDecisionsControl(
         status: "unconfigured",
       }
     }
+    const placement = placementToPlay(
+      plan.placements,
+      input.board.affordances,
+      choice
+    )
+    if (placement && (choice === "wait" || choice === null) && steps)
+      steps.push({
+        kind: "decide",
+        model: "plan",
+        ms: 0,
+        status: "ok",
+        note: "Chose wait. Playing the first planned cell.",
+      })
+    if (placement && (choice === "wait" || choice === null || choice.type === "selectCell"))
+      return {
+        action: { type: "selectCell", cell: placement.cell },
+        placements: [placement],
+        patternClaim: plan.patternClaim,
+        status: "ok",
+      }
     if (choice === "wait" || choice === null) {
       return {
         action: null,
@@ -588,7 +746,8 @@ export async function openaiDecisionsControl(
       status: "ok",
     }
   } catch (error) {
-    if (modelRefusal(error, signal.aborted) === "rejected") throw error
+    const refusal = modelRefusal(error, signal.aborted)
+    if (refusal === "rejected" || refusal === "deadline") throw error
     return {
       action: null,
       patternClaim: plan.patternClaim,

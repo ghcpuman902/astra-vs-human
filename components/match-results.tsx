@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import { RefreshCw } from "lucide-react"
 
 import { formatThink, formatTokens } from "@/components/agent-trace"
@@ -8,12 +8,15 @@ import {
   scoreBoards,
   type CellRates,
 } from "@/lib/battle-ground-ui/cell-f1"
+import type { AgentTraceSnapshot } from "@/lib/battle-ground-ui/agent-trace"
 import type {
   BattleRecord,
   BlitzTally,
+  RoundStatus,
   Side,
 } from "@/lib/battle-ground-ui/controller"
-import type { AgentTraceSnapshot } from "@/lib/battle-ground-ui/agent-trace"
+import { familyPaint } from "@/lib/battle-ground-ui/family-bias"
+import { familyLabel, formatClock } from "@/lib/battle-ground-ui/labels"
 import type { DealtMatch, MatchLength } from "@/lib/battle-ground-ui/match-deck"
 import type { GamePack } from "@/lib/mini-game-rules/schema"
 
@@ -84,6 +87,35 @@ const MODEL_ROWS = [
   },
 ] as const
 
+type RoundPace = {
+  status: RoundStatus
+  actions: number
+  elapsedMs: number
+}
+
+const paceClock = (pace: RoundPace | null) =>
+  pace ? formatClock(pace.elapsedMs) : "—"
+
+const paceLine = (pace: RoundPace | null) =>
+  pace ? `${formatClock(pace.elapsedMs)}, ${pace.actions} taps` : "no time"
+
+const roundFaster = (
+  human: RoundPace | null,
+  learner: RoundPace | null
+): "human" | "learner" | "tie" | "open" => {
+  if (!human || !learner) return "open"
+  if (human.status === "playing" || learner.status === "playing") return "open"
+  const humanCleared = human.status === "finished"
+  const learnerCleared = learner.status === "finished"
+  if (humanCleared !== learnerCleared) return humanCleared ? "human" : "learner"
+  if (!humanCleared) return "tie"
+  if (human.elapsedMs !== learner.elapsedMs)
+    return human.elapsedMs < learner.elapsedMs ? "human" : "learner"
+  if (human.actions !== learner.actions)
+    return human.actions < learner.actions ? "human" : "learner"
+  return "tie"
+}
+
 export function MatchResults({
   open,
   onToggle,
@@ -98,11 +130,9 @@ export function MatchResults({
   solutions,
   records,
   live,
-  playing,
   tallies,
   times,
   traces,
-  rounds,
   sameFamilyLabel,
   onRematch,
   onNextFamily,
@@ -120,12 +150,19 @@ export function MatchResults({
   packs: readonly GamePack[]
   solutions: DealtMatch["solutions"]
   records: readonly BattleRecord[]
-  live: Record<Side, { seed: number; cells: readonly (number | null)[] }>
-  playing: Record<Side, boolean>
+  live: Record<
+    Side,
+    {
+      seed: number
+      cells: readonly (number | null)[]
+      actions: number
+      elapsedMs: number
+      status: RoundStatus
+    }
+  >
   tallies: Record<Side, BlitzTally>
   times: Record<Side, string>
   traces: Record<Side, AgentTraceSnapshot>
-  rounds: Record<Side, ReactNode>
   sameFamilyLabel: string | null
   onRematch: () => void
   onNextFamily: () => void
@@ -166,6 +203,62 @@ export function MatchResults({
     }
     return { human: score("human"), learner: score("learner") }
   }, [live, packs, records, solutions])
+  const pace = useMemo(() => {
+    const forSide = (side: Side, seed: number): RoundPace | null => {
+      const closed = records.find(
+        (record) => record.side === side && record.seed === seed
+      )
+      if (closed)
+        return {
+          status: closed.status,
+          actions: closed.actions,
+          elapsedMs: closed.elapsedMs,
+        }
+      const current = live[side]
+      if (current.seed !== seed) return null
+      return {
+        status: current.status,
+        actions: current.actions,
+        elapsedMs: current.elapsedMs,
+      }
+    }
+    return packs.flatMap((pack, index) => {
+      const human = forSide("human", pack.seed)
+      const learner = forSide("learner", pack.seed)
+      if (!human && !learner) return []
+      const faster = roundFaster(human, learner)
+      const name = familyLabel(pack)
+      const paint = familyPaint(pack.transfer.family, pack.category)
+      const racing =
+        human?.status === "playing" || learner?.status === "playing"
+      const verdict =
+        faster === "human"
+          ? `${leftName} faster`
+          : faster === "learner"
+            ? `${rightName} faster`
+            : faster === "tie" &&
+                human?.status !== "finished" &&
+                learner?.status !== "finished"
+              ? "Neither cleared"
+              : faster === "tie"
+                ? "Same pace"
+                : racing
+                  ? "Still going"
+                  : "Waiting"
+      return [
+        {
+          seed: pack.seed,
+          index,
+          name,
+          paint,
+          human,
+          learner,
+          faster,
+          verdict,
+        },
+      ]
+    })
+  }, [leftName, live, packs, records, rightName])
   const names = { human: leftName, learner: rightName }
   const you = watching ? leftName : "You"
   const headline = !matchOver
@@ -195,15 +288,6 @@ export function MatchResults({
     matchOver && winner !== "tie"
       ? Math.min(8, solved(winner))
       : 0
-  const f1Known = scores.human.f1 != null || scores.learner.f1 != null
-  const peek =
-    matchOver && !open
-      ? f1Known
-        ? `F1 ${formatRate(scores.human.f1)} · ${formatRate(scores.learner.f1)}`
-        : "Show results"
-      : open
-        ? "Hide to see the boards"
-        : progress
   const modelFor = (side: Side) => side === "learner" || watching
   const modelValue = (side: Side, key: (typeof MODEL_ROWS)[number]["key"]) => {
     if (!modelFor(side)) return "—"
@@ -221,8 +305,6 @@ export function MatchResults({
       Math.round((meters.inputTokens + meters.outputTokens) / done)
     )
   }
-  const trail = (side: Side) =>
-    matchOver && winner !== "tie" && winner !== side
   return (
     <section
       className="match-results"
@@ -232,71 +314,72 @@ export function MatchResults({
       data-open={open || undefined}
       data-verdict={verdict}
     >
-      <button
-        type="button"
-        className="results-grip"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        <span className="results-headline">
-          <strong>{headline}</strong>
-          <span>{open ? detail : peek}</span>
-          {markCount > 0 ? (
-            <span className="verdict-marks" aria-hidden="true">
-              {Array.from({ length: markCount }, (_, index) => (
-                <span
-                  key={index}
-                  style={{ animationDelay: `${index * 36}ms` }}
-                />
-              ))}
-            </span>
-          ) : null}
-        </span>
-      </button>
-      <div className="results-body" hidden={!open}>
-        <div
-          className="f1-hero"
-          aria-label={`F1. ${leftName} ${formatRate(scores.human.f1)}. ${rightName} ${formatRate(scores.learner.f1)}. Open cells against the authored board.`}
+      <div className="results-head">
+        <button
+          type="button"
+          className="results-grip"
+          aria-expanded={open}
+          onClick={onToggle}
         >
-          <span className="f1-label">F1</span>
-          {SIDES.map((side) => (
-            <div key={side} data-side={side} data-trail={trail(side) || undefined}>
-              <strong data-empty={scores[side].f1 == null || undefined}>
-                {formatRate(scores[side].f1)}
-              </strong>
-              <span className="f1-name">
-                {names[side]}
-                {playing[side] ? (
-                  <span className="results-live"> · playing</span>
-                ) : null}
+          <span className="results-headline">
+            <strong>{headline}</strong>
+            <span>{open || matchOver ? detail : progress}</span>
+            {markCount > 0 ? (
+              <span className="verdict-marks" aria-hidden="true">
+                {Array.from({ length: markCount }, (_, index) => (
+                  <span
+                    key={index}
+                    style={{ animationDelay: `${index * 36}ms` }}
+                  />
+                ))}
               </span>
-            </div>
-          ))}
-        </div>
-        <div className="f1-track" aria-hidden="true">
-          {SIDES.map((side) => (
-            <span key={side} className="f1-lane" data-side={side}>
+            ) : null}
+          </span>
+        </button>
+        <button type="button" className="primary-button" onClick={onRematch}>
+          <RefreshCw aria-hidden="true" />
+          {sameFamilyLabel ? `Rematch ${sameFamilyLabel}` : "Rematch"}
+        </button>
+      </div>
+      <div className="results-body" hidden={!open}>
+        <ol className="pace-list" aria-label="Round speed">
+          <li className="pace-key" aria-hidden="true">
+            <span>{leftName}</span>
+            <span>{rightName}</span>
+          </li>
+          {pace.map((round) => (
+            <li
+              key={round.seed}
+              className="pace-round"
+              aria-label={`Round ${round.index + 1}, ${round.name}. ${round.verdict}. ${leftName} ${paceLine(round.human)}. ${rightName} ${paceLine(round.learner)}.`}
+            >
               <span
-                className="f1-fill"
-                data-trail={trail(side) || undefined}
-                style={{ transform: `scaleX(${scores[side].f1 ?? 0})` }}
+                className="small-round"
+                data-split={round.paint[1] ? true : undefined}
+                title={round.name}
+                style={
+                  {
+                    "--round-a": round.paint[0],
+                    "--round-b": round.paint[1] ?? round.paint[0],
+                  } as CSSProperties
+                }
               />
-            </span>
+              <span className="pace-index">{round.index + 1}</span>
+              {SIDES.map((side) => (
+                <span
+                  key={side}
+                  className="pace-time"
+                  data-side={side}
+                  data-better={round.faster === side || undefined}
+                  data-even={round.faster === "tie" || undefined}
+                  data-open={round.faster === "open" || undefined}
+                >
+                  {paceClock(round[side])}
+                </span>
+              ))}
+            </li>
           ))}
-        </div>
-        <p className="f1-note">
-          {f1Known
-            ? "Open cells against the authored board. A blank cell misses recall. A wrong fill misses both."
-            : "F1 needs the authored board from this deal. It shows after the next start."}
-        </p>
-        <div className="results-rounds">
-          {SIDES.map((side) => (
-            <div key={side} className="results-round">
-              <span>{names[side]}</span>
-              {rounds[side]}
-            </div>
-          ))}
-        </div>
+        </ol>
         <table className="results-table">
           <caption className="sr-only">
             Boards, taps, time, cell precision and recall, then model cost
@@ -370,10 +453,6 @@ export function MatchResults({
           </tbody>
         </table>
         <div className="results-actions">
-          <button type="button" className="primary-button" onClick={onRematch}>
-            <RefreshCw aria-hidden="true" />
-            {sameFamilyLabel ? `Rematch ${sameFamilyLabel}` : "Rematch"}
-          </button>
           {length === "deep" ? (
             <button type="button" className="paper-button" onClick={onNextFamily}>
               Next family

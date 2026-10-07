@@ -13,6 +13,7 @@ import {
   createBattleGround,
 } from "@/lib/battle-ground-ui/controller"
 import {
+  expandPlacements,
   interpretPolicy,
   type LearnerMixId,
 } from "@/lib/battle-ground-ui/learner-mix"
@@ -35,6 +36,7 @@ const THINKING: Record<LearnerMixId, string> = {
   "astra-laya": "Planning · Laya commits",
   "laya-bare": "Laya is choosing",
   "openai-decisions": "Planning · Luna decides",
+  "openai-bare": "Luna is choosing",
 }
 const ENDED: Record<string, string> = {
   finished: "Finished",
@@ -42,7 +44,7 @@ const ENDED: Record<string, string> = {
   "time-cap": "Out of time",
 }
 const WAIT: Record<string, string> = {
-  deadline: "No answer within 8 s. Asking again.",
+  deadline: "No answer in time. Asking again.",
   unavailable: "Server could not reach the model. Asking again.",
   rejected: "The model rejected the request shape. Asking stops.",
   "invalid-decision": "Answer broke the board rules, so nothing was played.",
@@ -151,7 +153,7 @@ export function useSideLearner({
               : request.model && getModel() !== request.model
                 ? "Model changed. Request cancelled."
                 : signal.aborted
-                  ? "No answer within 8 s. Request cancelled."
+                  ? "No answer before the round clock. Request cancelled."
                   : "Request failed before the server answered.",
           })
           trace.end(id, "error")
@@ -168,7 +170,7 @@ export function useSideLearner({
           ...(step.usage ? { usage: step.usage } : {}),
         }))
         const steps = result.policy
-          ? interpretPolicy(result.policy, request.board.cells)
+          ? interpretPolicy(result.policy, request.board)
           : undefined
         if (result.policy && steps)
           parts.push({
@@ -183,10 +185,8 @@ export function useSideLearner({
           : (played.placements?.length ?? 0)
         open.planned = played.steps?.length
           ? played.steps.length
-          : (played.placements?.reduce(
-              (sum, item) => sum + 1 + item.cycles,
-              0
-            ) ?? (played.action ? 1 : 0))
+          : expandPlacements(played.placements, request.board).length ||
+            (played.action ? 1 : 0)
         if (played.patternClaim)
           parts.push({ type: "reasoning", text: played.patternClaim })
         if (played.state !== "decision")
@@ -226,7 +226,7 @@ export function useSideLearner({
                 : played.patternClaim
                   ? played.patternClaim
                   : played.reason === "deadline"
-                    ? "Thinking took too long; retrying"
+                    ? "No answer in time; retrying"
                     : played.reason === "unavailable"
                       ? "Connection unavailable; retrying"
                       : "Considering next move"
@@ -320,7 +320,13 @@ export function useSideLearner({
       }
       if (!disposed) settle(before)
       if (halt) return
-      if (!disposed) timer = setTimeout(() => void loop(), 500)
+      if (!disposed) {
+        const after = battle.getSnapshot()
+        const tapped =
+          after.seeds[side] === before.seed &&
+          after.attempts[side].state.actions > before.actions
+        timer = setTimeout(() => void loop(), tapped ? 250 : 5_000)
+      }
     }
     void loop()
     return () => {

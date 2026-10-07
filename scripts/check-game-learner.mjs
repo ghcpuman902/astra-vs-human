@@ -19,7 +19,15 @@ try {
   )
   for (const [folder, files] of Object.entries({
     puzzle: ["author", "types", "verifier", "model-learner"],
-    "mini-game-rules": ["schema", "runtime", "verifier", "binary", "lamp", "assembler"],
+    "mini-game-rules": [
+      "schema",
+      "runtime",
+      "affordances",
+      "verifier",
+      "binary",
+      "lamp",
+      "assembler",
+    ],
     "battle-ground-ui": ["agent-trace", "controller", "learner-mix", "model-learner"],
   })) {
     await mkdir(join(output, folder))
@@ -56,6 +64,8 @@ try {
     interpretPolicy,
     bareCandidateCells,
     bareControlQuestions,
+    plannedChoiceCells,
+    placementToPlay,
     plannedControlQuestions,
     readBareControl,
     jevCommitBody,
@@ -89,7 +99,12 @@ try {
         }).success,
         false
       )
-    const cell = board.cells.find((cell) => !cell.locked && cell.visible).index
+    const cell =
+      board.affordances.cells.find(
+        (item) => item.role === "open" && item.options.length > 0
+      )?.index ??
+      board.cells.find((item) => item.role === "open")?.index ??
+      board.cells.find((item) => !item.locked && item.visible).index
     const decision = await decideGameLearner(input, async (visible) => {
       assert.equal("transfer" in visible.board, false)
       assert.equal("audit" in visible.board, false)
@@ -278,6 +293,11 @@ try {
       true
     )
     assert.equal(
+      gameLearnerRequestSchema.safeParse({ ...input, mix: "openai-bare" })
+        .success,
+      true
+    )
+    assert.equal(
       gameLearnerRequestSchema.safeParse({ ...input, mix: "code" }).success,
       true
     )
@@ -292,17 +312,24 @@ try {
       gameLearnerRequestSchema.safeParse({ ...input, mix: "solver" }).success,
       false
     )
-    const visible = board.cells.map((entry) => ({
-      visible: entry.visible,
-      locked: entry.locked,
-    }))
-    visible[cell] = { visible: true, locked: false }
-    if (cell > 0) visible[cell - 1] = { visible: true, locked: true }
-    const candidates = bareCandidateCells(visible)
+    assert.ok(board.affordances)
+    assert.equal(board.affordances.intents, "setCell")
+    assert.ok(board.affordances.controls.selectCell.includes(cell))
+    const candidates = bareCandidateCells(board.affordances)
     assert.equal(candidates.includes(cell), true)
-    assert.equal(candidates.includes(cell - 1), false)
-    const bare = bareControlQuestions(candidates)
+    const bare = bareControlQuestions(candidates, {
+      clear: true,
+      undo: board.affordances.controls.undo,
+    })
     assert.equal(JSON.stringify(bare).includes("solution"), false)
+    assert.equal("cycle" in bare.control.criteria, false)
+    assert.equal("undo" in bare.control.criteria, false)
+    assert.equal(
+      "cycle" in
+        bareControlQuestions(candidates, { cycle: true, clear: true }).control
+          .criteria,
+      true
+    )
     assert.deepEqual(
       readBareControl(
         { answers: { control: { choice: `cell-${cell}` } } },
@@ -321,7 +348,8 @@ try {
     const planned = plannedControlQuestions(
       candidates,
       { [`cell-${cell}`]: `Cell ${cell} settles a local neighbour.` },
-      "A local neighbour can settle the next move."
+      "A local neighbour can settle the next move.",
+      { clear: true }
     )
     assert.equal(planned.control.type, "choice")
     assert.match(
@@ -333,40 +361,69 @@ try {
       /settles a local neighbour/
     )
     assert.equal(JSON.stringify(planned).includes("solution"), false)
-    const coded = interpretPolicy(
-      { rule: "named-cells", cells: [cell - 1, cell], cycles: 1, note: null },
-      visible
+    assert.match(planned.control.criteria.wait, /first cell/i)
+    const target =
+      board.affordances.cells[cell].options[0] ?? board.cells[cell].value
+    assert.deepEqual(
+      plannedChoiceCells(
+        [
+          { cell, value: target },
+          { cell: cell - 1, value: target },
+        ],
+        board.affordances
+      ),
+      [cell]
     )
-    assert.deepEqual(coded, [
-      { type: "selectCell", cell },
-      { type: "cycle" },
-    ])
+    assert.deepEqual(
+      placementToPlay([{ cell, value: target }], board.affordances, "wait"),
+      { cell, value: target }
+    )
+    const coded = interpretPolicy(
+      {
+        rule: "named-cells",
+        cells: [cell - 1, cell],
+        value: target,
+        note: null,
+      },
+      board
+    )
+    assert.ok(coded.length >= 1)
+    assert.equal(coded[0].type, "selectCell")
+    assert.equal(coded[0].cell, cell)
+    const first =
+      candidates.find(
+        (index) => board.affordances.cells[index].options.length > 0
+      ) ?? candidates[0]
+    const firstValue =
+      board.affordances.cells[first].options[0] ?? board.cells[first].value
     assert.equal(
       interpretPolicy(
-        { rule: "first-unlocked", cells: [], cycles: 1, note: "local" },
-        visible
+        {
+          rule: "first-unlocked",
+          cells: [],
+          value: firstValue,
+          note: "local",
+        },
+        board
       )[0].cell,
-      candidates[0]
+      first
     )
     assert.deepEqual(
       interpretPolicy(
-        { rule: "selected-cycle", cells: [], cycles: 2, note: null },
-        visible
+        { rule: "selected-cycle", cells: [], value: null, note: null },
+        board
       ),
-      [{ type: "cycle" }, { type: "cycle" }]
+      board.affordances.controls.cycle ? [{ type: "cycle" }] : []
     )
-    const expanded = expandPlacements(
-      [{ cell, cycles: 1 }],
-      board.cells.map((entry) => ({
-        visible: entry.visible,
-        locked: entry.locked,
-      }))
-    )
-    assert.deepEqual(expanded, [
-      { type: "selectCell", cell },
-      { type: "cycle" },
-    ])
+    const expanded = expandPlacements([{ cell, value: target }], board)
+    assert.ok(expanded.length >= 1)
+    assert.equal(expanded[0].type, "selectCell")
+    assert.equal(expanded[0].cell, cell)
     const batch = createBattleGround([pack], { now: () => 0 })
+    const batchBoard = batch.boardProps("learner")
+    const batchTarget =
+      batchBoard.affordances.cells[cell].options[0] ??
+      batchBoard.cells[cell].value
     const batchRunner = createGameLearnerRunner({
       observe: () => batch.boardProps("learner"),
       api: batch.actions("learner"),
@@ -375,11 +432,11 @@ try {
         action: null,
         patternClaim: null,
         state: "decision",
-        placements: [{ cell, cycles: 1 }],
+        placements: [{ cell, value: batchTarget }],
       }),
     })
     assert.equal(await batchRunner.step(), true)
-    assert.equal(batch.boardProps("learner").actions, 2)
+    assert.ok(batch.boardProps("learner").actions >= 1)
     batchRunner.dispose()
     assert.throws(
       () => assertLearnerBackendWired("openai-decisions", {}),

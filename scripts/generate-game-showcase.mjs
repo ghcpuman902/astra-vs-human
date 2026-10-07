@@ -53,7 +53,13 @@ const requests = [
   { category: "lights_toggle", seed: 640505, n: 4, variant: "showcase-lights", preferences: { targetSeconds: 60 } },
 ]
 try {
-  for (const path of [...portablePaths, "lib/puzzle/author.ts", "lib/mini-game-rules/assembler.ts"]) {
+  for (const path of [
+    ...portablePaths,
+    "lib/puzzle/author.ts",
+    "lib/mini-game-rules/assembler.ts",
+    "lib/mini-game-rules/binary.ts",
+    "lib/mini-game-rules/lamp.ts",
+  ]) {
     const source = await readFile(path, "utf8")
     const destination = join(output, path.replace(/\.ts$/, ".js"))
     await mkdir(join(destination, ".."), { recursive: true })
@@ -69,17 +75,30 @@ try {
     let state = initialGameState(pack)
     assert.equal(verifyGame(pack, state.cells).complete, false)
     const cell = pack.cells.findIndex(value => !value.locked)
-    const actions = [{ type: "selectCell", cell }, { type: "cycle" }, { type: "cycle" }, { type: "undo" }, { type: "clear" }, { type: "undo" }]
+    const actions = [
+      { type: "selectCell", cell },
+      { type: "cycle" },
+      { type: "cycle" },
+      { type: "undo" },
+      { type: "clear" },
+    ]
     const snapshots = [{ step: 0, action: null, cells: [...state.cells], selectedCell: state.selectedCell, actions: state.actions, verification: verifyGame(pack, state.cells) }]
     for (const [index, action] of actions.entries()) {
       const before = state
-      state = applyGameAction(pack, state, action)
+      const result = applyGameAction(pack, state, action)
+      assert.ok(result.ok, result.reason)
+      state = result.state
       assert.notEqual(state, before)
       snapshots.push({ step: index + 1, action, cells: [...state.cells], selectedCell: state.selectedCell, actions: state.actions, verification: verifyGame(pack, state.cells) })
     }
     assert.deepEqual(snapshots[4].cells, snapshots[2].cells)
     assert.deepEqual(snapshots[5].cells, snapshots[0].cells)
-    assert.deepEqual(snapshots[6].cells, snapshots[4].cells)
+    assert.equal(state.history.length, 0)
+    assert.equal(
+      applyGameAction(pack, state, { type: "clear" }).ok,
+      false,
+      "Clear on a clean board is rejected"
+    )
     return { id: request.variant, pack, rendererRequirements: rendererRequirements[pack.category], inputOutputTrace: snapshots }
   })
   const files = Object.fromEntries(await Promise.all(portablePaths.map(async path => [path, await readFile(path, "utf8")])))

@@ -1,4 +1,5 @@
 import { REGION_FILLS } from "@/components/lovable/paper-board"
+import { cellInert } from "@/lib/mini-game-rules/affordances"
 import { rotatePorts } from "@/lib/mini-game-rules/runtime"
 import type { GamePack } from "@/lib/mini-game-rules/schema"
 
@@ -12,10 +13,6 @@ const ARMS = [
 /** Read-only SVG thumbnail of a fresh board: givens only, same craft tokens. */
 export function MiniBoard({ pack }: { pack: GamePack }) {
   const n = pack.n
-  const blocked = (id: number) =>
-    (pack.category === "crown" && pack.rules.blocked.includes(id)) ||
-    (pack.category === "path_cover" && !pack.rules.active.includes(id)) ||
-    (pack.category === "tile_rotate_connect" && pack.rules.ports[id] === 0)
   const lampWalls =
     pack.category === "lamp_rays" ? new Set(pack.rules.walls) : null
   const lampNumbers =
@@ -25,7 +22,7 @@ export function MiniBoard({ pack }: { pack: GamePack }) {
   const fill = (id: number) => {
     const value = pack.cells[id].value
     if (lampWalls?.has(id)) return "var(--ink)"
-    if (blocked(id)) return "var(--mini-blocked)"
+    if (cellInert(pack, id)) return "var(--mini-blocked)"
     if (pack.category === "binary_fill" && value !== null)
       return value === 0 ? "var(--cat-2)" : "var(--cat-5)"
     if (pack.category === "lights_toggle" && value === 1) return "var(--cat-2)"

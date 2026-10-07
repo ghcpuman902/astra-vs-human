@@ -96,46 +96,117 @@ export function rotatePorts(mask: number, turns: number) {
     mask = ((mask << 1) & 15) | (mask >> 3)
   return mask
 }
+export type ApplyResult =
+  | { ok: true; state: GameState }
+  | { ok: false; reason: string; state: GameState }
+
+const reject = (state: GameState, reason: string): ApplyResult => ({
+  ok: false,
+  reason,
+  state,
+})
+
 /** Pure shared action reducer. Human and Learner must dispatch through this same reducer. */
 export function applyGameAction(
   pack: GamePack,
   state: GameState,
   action: GameAction
-): GameState {
+): ApplyResult {
   if (action.type === "selectCell") {
     if (
       !Number.isInteger(action.cell) ||
       action.cell < 0 ||
       action.cell >= pack.n ** 2
     )
-      return state
+      return reject(state, "Cell outside board")
     if (
       pack.visibility.kind === "partial" &&
       !pack.visibility.visibleCells.includes(action.cell)
     )
-      return state
-    return { ...state, selectedCell: action.cell, actions: state.actions + 1 }
+      return reject(state, "Hidden cell")
+    if (pack.cells[action.cell].locked)
+      return reject(state, "Cell is locked")
+    if (
+      pack.category === "crown" &&
+      pack.rules.blocked.includes(action.cell)
+    )
+      return reject(state, "Blocked cell")
+    if (
+      pack.category === "path_cover" &&
+      !pack.rules.active.includes(action.cell)
+    )
+      return reject(state, "Inactive path cell")
+    if (
+      pack.category === "tile_rotate_connect" &&
+      pack.rules.ports[action.cell] === 0
+    )
+      return reject(state, "Empty tile")
+    if (
+      pack.category === "lamp_rays" &&
+      pack.rules.walls.includes(action.cell)
+    )
+      return reject(state, "Wall cell")
+    return {
+      ok: true,
+      state: {
+        ...state,
+        selectedCell: action.cell,
+        actions: state.actions + 1,
+      },
+    }
   }
   if (action.type === "undo") {
     const previous = state.history.at(-1)
-    return previous
-      ? {
-          ...state,
-          cells: [...previous],
-          history: state.history.slice(0, -1),
-          actions: state.actions + 1,
-        }
-      : state
-  }
-  if (action.type === "clear")
+    if (!previous) return reject(state, "Nothing to undo")
     return {
-      ...state,
-      cells: pack.cells.map((cell) => cell.value),
-      history: [...state.history, [...state.cells]],
-      actions: state.actions + 1,
+      ok: true,
+      state: {
+        ...state,
+        cells: [...previous],
+        history: state.history.slice(0, -1),
+        actions: state.actions + 1,
+      },
     }
+  }
+  if (action.type === "clear") {
+    const start = pack.cells.map((cell) => cell.value)
+    const dirty = state.cells.some((value, index) => value !== start[index])
+    if (!dirty) return reject(state, "Board already clear")
+    // Reset wipes the undo stack so clear↔undo cannot ping-pong as counted taps.
+    return {
+      ok: true,
+      state: {
+        ...state,
+        cells: start,
+        history: [],
+        selectedCell: null,
+        actions: state.actions + 1,
+      },
+    }
+  }
   const cell = state.selectedCell
-  if (cell === null || pack.cells[cell].locked) return state
+  if (cell === null) return reject(state, "No cell selected")
+  if (pack.cells[cell].locked) return reject(state, "Selected cell is locked")
+  if (
+    pack.category === "crown" &&
+    pack.rules.blocked.includes(cell)
+  )
+    return reject(state, "Blocked cell")
+  if (
+    pack.category === "path_cover" &&
+    !pack.rules.active.includes(cell)
+  )
+    return reject(state, "Inactive path cell")
+  if (
+    pack.category === "tile_rotate_connect" &&
+    pack.rules.ports[cell] === 0
+  )
+    return reject(state, "Empty tile")
+  if (
+    pack.category === "lamp_rays" &&
+    pack.rules.walls.includes(cell)
+  )
+    return reject(state, "Wall cell")
   const cells = [...state.cells]
   if (pack.category === "lights_toggle")
     for (const id of [cell, ...neighbors(cell, pack.n)])
@@ -167,13 +238,17 @@ export function applyGameAction(
         current === null
           ? (options[0] ?? null)
           : (options.find((value) => value > current) ?? null)
-      if (cells[cell] === current) return state
+      if (cells[cell] === current)
+        return reject(state, "No path cycle available")
     } else cells[cell] = values[next]
   }
   return {
-    ...state,
-    cells,
-    history: [...state.history, [...state.cells]],
-    actions: state.actions + 1,
+    ok: true,
+    state: {
+      ...state,
+      cells,
+      history: [...state.history, [...state.cells]],
+      actions: state.actions + 1,
+    },
   }
 }

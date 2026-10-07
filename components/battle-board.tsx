@@ -96,8 +96,6 @@ export function BattleBoard({ board, onSelectCycle }: BattleBoardProps) {
     "constraints" in board.clues ? board.clues.constraints : []
   const quotas = constraints.filter((rule) => rule.kind === "quota")
   const friends = constraints.filter((rule) => rule.kind === "friend")
-  const active = "active" in board.clues ? new Set(board.clues.active) : null
-  const blocked = "blocked" in board.clues ? new Set(board.clues.blocked) : null
   const selected = board.cells.find((cell) => cell.selected)
   const lightCross =
     board.category === "lights_toggle" && selected
@@ -196,16 +194,10 @@ export function BattleBoard({ board, onSelectCycle }: BattleBoardProps) {
               </svg>
             ) : null}
             {board.cells.map((cell) => {
-              const isBlocked =
-                !cell.visible ||
-                blocked?.has(cell.index) ||
-                (active !== null && !active.has(cell.index)) ||
-                (board.category === "tile_rotate_connect" &&
-                  "ports" in board.clues &&
-                  board.clues.ports[cell.index] === 0)
+              const isBlocked = cell.role === "inert"
               const isLit =
                 board.category === "lights_toggle" && cell.value === 1
-              const fixed = cell.locked && !isBlocked
+              const fixed = cell.role === "given"
               let mark: ReactNode = null
               if (!isBlocked && cell.value !== null) {
                 if (board.category === "binary_fill")
@@ -278,7 +270,11 @@ export function BattleBoard({ board, onSelectCycle }: BattleBoardProps) {
                 <button
                   key={cell.index}
                   type="button"
-                  disabled={board.readOnly || cell.locked || !cell.visible}
+                  disabled={
+                    board.readOnly ||
+                    cell.role !== "open" ||
+                    !board.affordances.controls.selectCell.includes(cell.index)
+                  }
                   onClick={() => onSelectCycle(cell.index)}
                   aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}: ${isBlocked ? "blocked" : valueDescription(board, cell)}${fixed ? ", locked given" : ""}`}
                   aria-pressed={cell.selected}

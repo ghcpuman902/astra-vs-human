@@ -8,9 +8,11 @@ Rounds target 10–120 seconds. Taking up to 600 seconds when stuck is an allowe
 
 ## Typed pack and engine
 
-`lib/mini-game-rules/schema.ts` defines the validated `GamePack` union. Each pack carries category, seed, size, honest mode badge, visibility, postcard, public cells and rules, win predicate, action surface, transfer family/patterns, and session target. `runtime.ts` handles the four shared actions: selectCell, cycle, undo, clear. `verifier.ts` checks the resulting state. `assembler.ts` constructs and certifies author candidates; its solution and foothold are host-only.
+`lib/mini-game-rules/schema.ts` defines the validated `GamePack` union. Each pack carries category, seed, size, honest mode badge, visibility, postcard, public cells and rules, win predicate, action surface, transfer family/patterns, and session target. `runtime.ts` handles the four shared actions: selectCell, cycle, undo, clear, and returns a typed rejection for illegal taps (they are not counted). `verifier.ts` checks the resulting state. `assembler.ts` constructs and certifies author candidates; its solution and foothold are host-only.
 
-The public generator returns only a certificate summary with `hasFoothold`. It never returns a solution, forced cell/value, or solution trace. Its author tools can assemble a pack but cannot execute arbitrary generated code. Learner observations must still be built separately from visible board and postcard data; the author and learner have different capabilities.
+`affordances.ts` is the engine-owned solver contract. `describeBoard(pack, state)` publishes per-cell role (`open` | `given` | `inert`), legal options, cycle effect text, and which controls are available. `compileIntent` / `compileBoardIntent` turn a solver `{cell, value}` into the same counted select+cycle taps a human would need. The UI and every Learner mix must read this schema; they must not re-derive legality from category clues. Solutions, audits, footholds, and transfer stay host-only.
+
+The public generator returns only a certificate summary with `hasFoothold`. It never returns a solution, forced cell/value, or solution trace. Its author tools can assemble a pack but cannot execute arbitrary generated code. Learner observations are `battle.boardProps("learner")`, which includes `affordances`.
 
 | Mechanic | Live engine modes | Transferring local idea | Adjacent flavor |
 | --- | --- | --- | --- |
@@ -24,7 +26,17 @@ Modes are certified outcomes rather than stickers requested by the model. In par
 
 ## Landscape, sampling, and agent sift
 
-`catalogue.ts` describes a bounded but extensible landscape: five mechanic knobs × four inference modes × two visibility modes × three vibe niches. These 120 records contain ideas and capability labels, never pre-drawn puzzles or stored answers. Add mechanics by extending the schema, runtime, assembler, verifier, and capability table together.
+`catalogue.ts` describes a bounded but extensible landscape: five mechanic knobs × four inference modes × two visibility modes × three vibe niches. These 120 records contain ideas and capability labels, never pre-drawn puzzles or stored answers.
+
+### Adding a game
+
+1. Extend `schema.ts` (category + public rules).
+2. Implement assembly in `assembler.ts` and verification in `verifier.ts`.
+3. Teach `runtime.ts` how cycle behaves for that category.
+4. Add `describe` / option / compile paths in `affordances.ts` (cell roles, options, effect text).
+5. Add a category renderer (marks / board paint). The solver and Decision question sets stay untouched if they only read `affordances`.
+
+Run `node scripts/check-affordances.mjs` after engine changes.
 
 The full research axes are FORCED-CHAIN → BRANCHY → MULTI → RISK and full → partial visibility. RISK and partial visibility remain research tonight. They cannot be silently shipped with another mode or visibility. Neighboring occupied flavors include Tango, Queens, Sudoku, Zip, Wordle, Mines, 2048, and Zendo-ish toys; word/trivia, large Sudoku, Rush Hour, and heavy probability scoring are outside this engine's initial scope. The catalogue is not a novelty rejection filter.
 

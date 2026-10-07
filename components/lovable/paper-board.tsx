@@ -4,10 +4,10 @@ import { useRef, useState, type CSSProperties, type PointerEvent } from "react"
 
 import { cellFill, cellGlyph } from "@/components/lovable/marks"
 import type { BoardProps } from "@/lib/battle-ground-ui/controller"
+import { pathCyclesTo } from "@/lib/mini-game-rules/affordances"
 import {
   litCells,
   neighbors,
-  pathCandidates,
   rotatePorts,
   walled,
   type Walls,
@@ -57,29 +57,6 @@ const quotaFor = (board: BoardProps, line: number, axis: "row" | "column") => {
   return rule?.kind === "quota" ? rule.ones : undefined
 }
 
-/** Cycles needed to turn `cell` into `want` under the ±1 path cycle, or null. */
-function cyclesTo(
-  n: number,
-  cells: readonly (number | null)[],
-  cell: number,
-  want: number | null,
-  length: number,
-  walls?: Walls
-) {
-  const sim = [...cells]
-  for (let cycles = 1; cycles <= 6; cycles++) {
-    const current = sim[cell]
-    const options = pathCandidates(n, sim, cell, length, walls)
-    const next =
-      current === null
-        ? (options[0] ?? null)
-        : (options.find((value) => value > current) ?? null)
-    if (next === current) return null
-    sim[cell] = next
-    if (next === want) return cycles
-  }
-  return null
-}
 
 export const PaperBoard = ({
   board,
@@ -97,13 +74,11 @@ export const PaperBoard = ({
   const [focus, setFocus] = useState<number | null>(null)
   const [head, setHead] = useState<number | null>(null)
   const n = board.n
-  const blocked =
-    "blocked" in board.clues ? new Set(board.clues.blocked) : new Set<number>()
-  const active = "active" in board.clues ? new Set(board.clues.active) : null
   const walls = "active" in board.clues ? board.clues.walls : undefined
   const regions = "blocked" in board.clues ? board.clues.regions : undefined
   // Lamplight: walls block light; light is drawn from the lamps on the board.
   const lampWalls = "numbers" in board.clues ? board.clues.walls : null
+  const lampWallSet = new Set(lampWalls ?? [])
   const lampNumbers =
     "numbers" in board.clues
       ? new Map(board.clues.numbers.map((clue) => [clue.cell, clue.lamps]))
@@ -115,7 +90,6 @@ export const PaperBoard = ({
         board.cells.map((cell) => (cell.visible ? cell.value : null))
       )
     : null
-  const lampWallSet = new Set(lampWalls)
   // Heavy edges: region borders for Queens, walls for Zip.
   const fences: Walls = regions
     ? board.cells.flatMap((cell) =>
@@ -158,24 +132,14 @@ export const PaperBoard = ({
       })
     : []
 
-  const isBlocked = (index: number) => {
-    if (blocked.has(index)) return true
-    if (lampWallSet.has(index)) return true
-    if (active && !active.has(index)) return true
-    if (
-      board.category === "tile_rotate_connect" &&
-      "ports" in board.clues &&
-      board.clues.ports[index] === 0
-    )
-      return true
-    return !board.cells[index]?.visible
-  }
+  const isBlocked = (index: number) =>
+    board.cells[index]?.role === "inert" || !board.cells[index]?.visible
 
   const explicit = hover ?? focus
   const lightsPreview = (() => {
     if (board.category !== "lights_toggle") return null
     if (explicit !== null) return isBlocked(explicit) ? null : explicit
-    if (selected && !selected.locked && !isBlocked(selected.index))
+    if (selected && selected.role === "open" && !isBlocked(selected.index))
       return selected.index
     return null
   })()
@@ -220,7 +184,8 @@ export const PaperBoard = ({
   }
 
   const editable = (index: number) =>
-    !isBlocked(index) && !board.cells[index].locked
+    board.cells[index]?.role === "open" &&
+    board.affordances.controls.selectCell.includes(index)
 
   /** One orthogonal move of the trace head. False stops the drag there. */
   const stepTo = (current: Trace, to: number) => {
@@ -229,7 +194,7 @@ export const PaperBoard = ({
     if (value === null || isBlocked(to) || walled(walls, current.head, to))
       return false
     const send = (cell: number, want: number | null) => {
-      const cycles = cyclesTo(n, current.cells, cell, want, pathLength, walls)
+      const cycles = pathCyclesTo(n, current.cells, cell, want, pathLength, walls)
       if (cycles === null) return false
       onPathStep?.(cell, cycles)
       current.cells[cell] = want
@@ -354,7 +319,7 @@ export const PaperBoard = ({
       >
         {board.cells.map((cell) => {
           const blockedCell = isBlocked(cell.index)
-          const fixed = cell.locked && !blockedCell
+          const fixed = cell.role === "given"
           return (
             <button
               key={cell.index}
@@ -404,13 +369,7 @@ export const PaperBoard = ({
                 if (
                   zip &&
                   cell.value === null &&
-                  !pathCandidates(
-                    n,
-                    board.cells.map((item) => item.value),
-                    cell.index,
-                    pathLength,
-                    walls
-                  ).length
+                  !(board.affordances.cells[cell.index]?.options.length ?? 0)
                 ) {
                   // Nothing to number yet: no counted tap, just say so.
                   setRejected(cell.index)
@@ -527,7 +486,7 @@ export const PaperBoard = ({
           ))}
         </div>
       ) : null}
-      {selected && interactive && !zip && !selected.locked ? (
+      {selected && interactive && !zip && selected.role === "open" ? (
         <span className="sr-only">
           Selected row {selected.row + 1}, column {selected.column + 1}
         </span>

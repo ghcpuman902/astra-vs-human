@@ -559,7 +559,7 @@ function BattleSession({
             disabled={
               !live ||
               humanAttempt.status !== "playing" ||
-              !humanAttempt.state.history.length
+              !humanBoard.affordances.controls.undo
             }
             onClick={() => battle.actions("human").undo()}
             aria-keyshortcuts="z"
@@ -570,7 +570,11 @@ function BattleSession({
           <button
             type="button"
             className="paper-button icon-text"
-            disabled={!live || humanAttempt.status !== "playing"}
+            disabled={
+              !live ||
+              humanAttempt.status !== "playing" ||
+              !humanBoard.affordances.controls.clear
+            }
             onClick={() => battle.actions("human").clear()}
           >
             <RotateCcw aria-hidden="true" />
@@ -747,15 +751,17 @@ function BattleSession({
             human: {
               seed: snapshot.seeds.human,
               cells: humanAttempt.state.cells,
+              actions: humanAttempt.state.actions,
+              elapsedMs: snapshot.attemptMs.human,
+              status: humanAttempt.status,
             },
             learner: {
               seed: snapshot.seeds.learner,
               cells: learnerAttempt.state.cells,
+              actions: learnerAttempt.state.actions,
+              elapsedMs: snapshot.attemptMs.learner,
+              status: learnerAttempt.status,
             },
-          }}
-          playing={{
-            human: !sideFinished("human"),
-            learner: !sideFinished("learner"),
           }}
           tallies={{ human: humanTally, learner: learnerTally }}
           times={{
@@ -771,10 +777,6 @@ function BattleSession({
             ),
           }}
           traces={{ human: leftLearner.trace, learner: rightLearner.trace }}
-          rounds={{
-            human: roundDots("human", leftName),
-            learner: roundDots("learner", rightName),
-          }}
           sameFamilyLabel={sameFamilyLabel}
           onRematch={onRematch}
           onNextFamily={onNextFamily}

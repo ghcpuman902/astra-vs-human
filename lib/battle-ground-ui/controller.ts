@@ -1,4 +1,8 @@
 import {
+  describeBoard,
+  type BoardAffordances,
+} from "../mini-game-rules/affordances"
+import {
   applyGameAction,
   initialGameState,
   type GameState,
@@ -49,6 +53,8 @@ export type BattleSnapshot = {
   seeds: Record<Side, number>
   remainingMs: Record<Side, number>
   attempts: Record<Side, Attempt>
+  /** Time spent on the current attempt, including a paused carry. */
+  attemptMs: Record<Side, number>
   /** This side has ended its attempt and a later pack exists. The other side is not consulted. */
   canAdvance: Record<Side, boolean>
   hasNext: Record<Side, boolean>
@@ -64,6 +70,8 @@ export type BoardProps = {
   postcard: GamePack["postcard"]
   clues: GamePack["rules"]
   actionSurface: GamePack["actionSurface"]
+  /** Engine-authored legality and cycle semantics. UI and solver must read this. */
+  affordances: BoardAffordances
   cells: {
     index: number
     row: number
@@ -72,6 +80,8 @@ export type BoardProps = {
     locked: boolean
     visible: boolean
     selected: boolean
+    /** open | given | inert — from affordances.cells[index].role */
+    role: BoardAffordances["cells"][number]["role"]
   }[]
   actions: number
   remainingActions: number
@@ -265,6 +275,10 @@ export function createBattleGround(
       },
       remainingMs: { human: remaining("human"), learner: remaining("learner") },
       attempts,
+      attemptMs: {
+        human: Math.round(attemptElapsed("human")),
+        learner: Math.round(attemptElapsed("learner")),
+      },
       canAdvance: {
         human: sideCanAdvance("human"),
         learner: sideCanAdvance("learner"),
@@ -369,8 +383,9 @@ export function createBattleGround(
         action.cell >= pack.n ** 2)
     )
       return
-    const next = applyGameAction(pack, current.state, action)
-    const state = { ...next, actions: current.state.actions + 1 }
+    const result = applyGameAction(pack, current.state, action)
+    if (!result.ok) return
+    const state = result.state
     const status: RoundStatus = verifyGame(pack, state.cells).complete
       ? "finished"
       : state.actions >= actionCap
@@ -486,6 +501,7 @@ export function createBattleGround(
     boardProps: (side: Side): BoardProps => {
       const pack = packs[cursor[side]]
       const attempt = attempts[side]
+      const affordances = describeBoard(pack, attempt.state)
       return freeze({
         seed: pack.seed,
         n: pack.n,
@@ -494,10 +510,12 @@ export function createBattleGround(
         postcard: structuredClone(pack.postcard),
         clues: structuredClone(pack.rules),
         actionSurface: structuredClone(pack.actionSurface),
+        affordances: structuredClone(affordances),
         cells: pack.cells.map((cell, index) => {
           const visible =
             pack.visibility.kind === "full" ||
             pack.visibility.visibleCells.includes(index)
+          const role = affordances.cells[index]?.role ?? "inert"
           return {
             index,
             row: Math.floor(index / pack.n),
@@ -506,6 +524,7 @@ export function createBattleGround(
             locked: visible && cell.locked,
             visible,
             selected: visible && attempt.state.selectedCell === index,
+            role,
           }
         }),
         actions: attempt.state.actions,

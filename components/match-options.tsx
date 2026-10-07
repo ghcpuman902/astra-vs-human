@@ -32,35 +32,40 @@ export const mixCopy: Record<
   astra: {
     label: "Astra",
     detail:
-      "Same public board as you. Astra names one cell or a short burst of taps.",
+      "Same public board as you. The LLM names one cell or a short burst of taps.",
   },
   code: {
     label: "Code",
     detail:
-      "Astra writes a tiny policy. This browser runs it. No JavaScript is eval'd.",
+      "The LLM writes a tiny policy. This browser runs it. No JavaScript is eval'd.",
   },
   "astra-jev": {
     label: "Astra + Jev",
     detail:
-      "Astra writes the plan and captions. Jev commits wait/one/batch when a Jev credential is set.",
+      "The LLM writes the plan and captions. Jev commits wait/one/batch when a Jev credential is set.",
   },
   "jev-bare": {
     label: "Jev bare",
-    detail: "Control only: Jev sees the public board with no Astra plan.",
+    detail: "Control only: Jev sees the public board with no LLM plan.",
   },
   "astra-laya": {
     label: "Astra + Laya",
     detail:
-      "Astra writes the plan as context. Laya commits it when a Laya credential is set.",
+      "The LLM writes the plan as context. Laya commits it when a Laya credential is set.",
   },
   "laya-bare": {
     label: "Laya bare",
-    detail: "Laya sees the public board only. No Astra plan is wrapped around it.",
+    detail: "Laya sees the public board only. No LLM plan is wrapped around it.",
   },
   "openai-decisions": {
     label: "OpenAI Decisions",
     detail:
-      "Astra or Sol writes a short plan and captions. Decisions picks the single next tap.",
+      "The LLM writes a short plan and captions. Decisions picks the single next tap.",
+  },
+  "openai-bare": {
+    label: "Decisions bare",
+    detail:
+      "Control only: OpenAI Decisions sees the public board with no LLM plan.",
   },
 }
 
@@ -78,7 +83,7 @@ const STACKS: readonly { id: AgentStack; label: string }[] = [
 
 /** Bare decision models do not use the language-model picker. */
 export const mixUsesLanguageModel = (mix: LearnerMixId) =>
-  mix !== "jev-bare" && mix !== "laya-bare"
+  mix !== "jev-bare" && mix !== "laya-bare" && mix !== "openai-bare"
 
 export function readAgentStack(mix: LearnerMixId): {
   stack: AgentStack
@@ -92,6 +97,8 @@ export function readAgentStack(mix: LearnerMixId): {
       return { stack: "dm", code: false, decision: "jev" }
     case "laya-bare":
       return { stack: "dm", code: false, decision: "laya" }
+    case "openai-bare":
+      return { stack: "dm", code: false, decision: "openai" }
     case "astra-jev":
       return { stack: "both", code: false, decision: "jev" }
     case "astra-laya":
@@ -109,7 +116,10 @@ export function writeAgentStack(
   code: boolean,
   decision: DecisionModel
 ): LearnerMixId {
-  if (stack === "dm") return decision === "laya" ? "laya-bare" : "jev-bare"
+  if (stack === "dm") {
+    if (decision === "laya") return "laya-bare"
+    return decision === "openai" ? "openai-bare" : "jev-bare"
+  }
   if (stack === "llm") return code ? "code" : "astra"
   if (decision === "laya") return "astra-laya"
   if (decision === "openai") return "openai-decisions"
@@ -154,7 +164,7 @@ const shortModelLabel = (label: string) => label.replace(/^GPT-[\d.]+\s+/i, "")
 
 function modeNote(mix: LearnerMixId, servers: Servers | null) {
   if (!servers) return ""
-  if (mix === "openai-decisions")
+  if (mix === "openai-decisions" || mix === "openai-bare")
     return servers.openai || servers.gateway
       ? ""
       : "Not configured, so this side waits."
@@ -163,7 +173,7 @@ function modeNote(mix: LearnerMixId, servers: Servers | null) {
   if (mix === "laya-bare" || mix === "astra-laya")
     return servers.laya ? "" : "Laya is not configured, so this side waits."
   if (!servers.openai && !servers.gateway)
-    return "No Astra credential is set, so this side waits."
+    return "No LLM credential is set, so this side waits."
   return ""
 }
 
@@ -381,14 +391,11 @@ export function ModelChoice({
   )
 }
 
-const decisionOptions = (stack: AgentStack) => {
-  const options: { id: DecisionModel; label: string }[] = [
-    { id: "jev", label: "Jev" },
-    { id: "laya", label: "Laya" },
-  ]
-  if (stack === "both") options.push({ id: "openai", label: "Decisions" })
-  return options
-}
+const DECISIONS: readonly { id: DecisionModel; label: string }[] = [
+  { id: "jev", label: "Jev" },
+  { id: "laya", label: "Laya" },
+  { id: "openai", label: "Decisions" },
+]
 
 /**
  * Stack, then the pieces that stack allows.
@@ -429,10 +436,8 @@ export function AgentStack({
     code: boolean,
     decision: DecisionModel
   ) => {
-    const nextDecision =
-      stack === "dm" && decision === "openai" ? "jev" : decision
-    setHeld({ code, decision: nextDecision })
-    onChange(writeAgentStack(stack, code, nextDecision))
+    setHeld({ code, decision })
+    onChange(writeAgentStack(stack, code, decision))
   }
   const handleStack = (stack: AgentStack) =>
     commit(stack, held.code, held.decision)
@@ -443,8 +448,6 @@ export function AgentStack({
   const copy = mixCopy[value as (typeof learnerModeIds)[number]]
   const warning = modeNote(value, servers)
   const note = [copy?.detail, warning].filter(Boolean).join(" ")
-  const decision =
-    parts.stack === "dm" && parts.decision === "openai" ? "jev" : parts.decision
   return (
     <div className="agent-stack">
       <Choice
@@ -469,8 +472,8 @@ export function AgentStack({
       {parts.stack === "llm" ? null : (
         <Choice
           legend="Decision model"
-          value={decision}
-          options={decisionOptions(parts.stack)}
+          value={parts.decision}
+          options={DECISIONS}
           onChange={handleDecision}
         />
       )}

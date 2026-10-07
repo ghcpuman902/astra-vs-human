@@ -107,8 +107,18 @@ try {
     assert.equal("friendPatterns" in battle.boardProps("human"), false)
     assert.equal("solution" in battle.boardProps("human"), false)
     const before = battle.getSnapshot().attempts.learner.state.cells
-    battle.actions("human").selectCell(0)
+    const open =
+      battle.boardProps("human").affordances.cells.find(
+        (item) => item.role === "open" && item.options.length > 0
+      )?.index ?? battle.boardProps("human").affordances.controls.selectCell[0]
     battle.actions("human").undo()
+    assert.equal(
+      battle.getSnapshot().attempts.human.state.actions,
+      0,
+      "Empty undo is rejected and must not count"
+    )
+    battle.actions("human").selectCell(open)
+    battle.actions("human").cycle()
     assert.equal(battle.getSnapshot().attempts.human.state.actions, 2)
     assert.equal(battle.getSnapshot().attempts.human.status, "action-cap")
     assert.deepEqual(battle.getSnapshot().attempts.learner.state.cells, before)
@@ -152,8 +162,13 @@ try {
       0,
       "The clock must not pull the learner into the human's round"
     )
-    battle.actions("learner").clear()
-    battle.actions("learner").undo()
+    const learnerOpen =
+      battle.boardProps("learner").affordances.cells.find(
+        (item) => item.role === "open" && item.options.length > 0
+      )?.index ??
+      battle.boardProps("learner").affordances.controls.selectCell[0]
+    battle.actions("learner").selectCell(learnerOpen)
+    battle.actions("learner").cycle()
     assert.equal(battle.getSnapshot().canAdvance.learner, true)
     assert.equal(battle.getSnapshot().canAdvance.human, false)
     assert.equal(battle.advance("learner"), true)
@@ -260,7 +275,11 @@ try {
   assert.equal(match.getSnapshot().gameCount, 5)
   const learnerSeed = match.boardProps("learner").seed
   const learnerCells = match.getSnapshot().attempts.learner.state.cells
-  match.actions("human").selectCell(0)
+  const tapOpen = (side) => {
+    const cell = match.boardProps(side).affordances.controls.selectCell[0]
+    match.actions(side).selectCell(cell)
+  }
+  tapOpen("human")
   assert.equal(match.getSnapshot().attempts.human.status, "action-cap")
   matchTime = 1000
   match.tick()
@@ -280,7 +299,7 @@ try {
   assert.equal(match.getSnapshot().cursors.learner.index, 1)
   assert.equal(match.getSnapshot().cursors.human.index, 1)
   for (let step = 0; step < 2; step++) {
-    match.actions("human").selectCell(0)
+    tapOpen("human")
     assert.equal(match.advance("human"), true)
   }
   assert.deepEqual(match.getSnapshot().cursors.human, {
@@ -672,14 +691,15 @@ try {
   assert.equal(codeBattle.start(), true)
   codeTime += 500
   codeBattle.tick()
-  const codeCell = codeBattle
-    .boardProps("learner")
-    .cells.find((cell) => cell.visible && !cell.locked)
+  const codeBoard = codeBattle.boardProps("learner")
+  const codeCell = codeBoard.cells.find((cell) => cell.role === "open")
   assert.ok(codeCell)
   const codeHumanCell = codeBattle
     .boardProps("human")
-    .cells.find((cell) => cell.visible && !cell.locked)
+    .cells.find((cell) => cell.role === "open")
   assert.ok(codeHumanCell)
+  const codeTarget =
+    codeBoard.affordances.cells[codeCell.index].options[0] ?? codeCell.value
   const codeSeed = codeBattle.boardProps("learner").seed
   const codeCells = codeBattle.getSnapshot().attempts.learner.state.cells.slice()
   let codeSignal
@@ -716,17 +736,16 @@ try {
   const codePolicy = {
     rule: "named-cells",
     cells: [codeCell.index],
-    cycles: 1,
+    value: codeTarget,
     note: "Code policy on the public board.",
   }
   const codeSteps = interpretPolicy(
     codePolicy,
-    codeBattle.boardProps("learner").cells
+    codeBattle.boardProps("learner")
   )
-  assert.deepEqual(codeSteps, [
-    { type: "selectCell", cell: codeCell.index },
-    { type: "cycle" },
-  ])
+  assert.ok(codeSteps.length >= 1)
+  assert.equal(codeSteps[0].type, "selectCell")
+  assert.equal(codeSteps[0].cell, codeCell.index)
   finishCode({
     action: null,
     state: "decision",
@@ -772,6 +791,7 @@ try {
     "Astra + Laya",
     "Laya bare",
     "OpenAI Decisions",
+    "Decisions bare",
     "You vs Agent",
     "Agent vs Agent",
     "Deep",

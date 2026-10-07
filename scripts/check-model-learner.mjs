@@ -301,6 +301,24 @@ try {
       },
     }).outputText
   )
+  const failureSource = await readFile(
+    new URL("../lib/failure-log.ts", import.meta.url),
+    "utf8"
+  )
+  await writeFile(
+    new URL("../_agent/failure-log.mjs", import.meta.url),
+    ts
+      .transpileModule(failureSource, {
+        compilerOptions: {
+          target: ts.ScriptTarget.ES2022,
+          module: ts.ModuleKind.ES2022,
+        },
+      })
+      .outputText.replace(
+        'from "./model-refusal"',
+        'from "./model-refusal.mjs"'
+      )
+  )
   const routeSource = await readFile(
     new URL("../app/api/learner/route.ts", import.meta.url),
     "utf8"
@@ -319,6 +337,8 @@ try {
         '"./check-learner-config.mjs"'
       )
       .replace('"@/lib/provider-schema"', '"./provider-schema.mjs"')
+      .replace('"@/lib/failure-log"', '"./failure-log.mjs"')
+      .replace('"@/lib/model-refusal"', '"./model-refusal.mjs"')
       .replace('"@/lib/puzzle/model-learner"', '"./check-model-learner.mjs"')
   )
   const { POST } = await import(routeArtifact.href)
@@ -363,6 +383,9 @@ try {
     force: true,
   })
   await rm(new URL("../_agent/provider-schema.mjs", import.meta.url), {
+    force: true,
+  })
+  await rm(new URL("../_agent/failure-log.mjs", import.meta.url), {
     force: true,
   })
   await rm(routeArtifact, { force: true })

@@ -51,6 +51,23 @@ export function readUsage(usage: UsageLike): AgentUsage | undefined {
   return next.inputTokens || next.outputTokens ? next : undefined
 }
 
+type ModelFailureNote = {
+  kind: ServerStepKind
+  model: string
+  ms: number
+  refusal: ReturnType<typeof modelRefusal>
+  error: unknown
+}
+
+let noteFailure: ((note: ModelFailureNote) => void | Promise<void>) | undefined
+
+/** Server registers a file logger. The browser trace stays a short note. */
+export const setModelFailureLog = (
+  note: (note: ModelFailureNote) => void | Promise<void>
+) => {
+  noteFailure = note
+}
+
 /** Times one model call and appends what it cost. Never records prompts or keys. */
 export async function traced<T>(
   steps: ServerStep[] | undefined,
@@ -90,6 +107,17 @@ export async function traced<T>(
             ? "Request rejected"
             : "Call failed",
     })
+    try {
+      await noteFailure?.({
+        kind: step.kind,
+        model: step.model.slice(0, 120),
+        ms: ms(),
+        refusal,
+        error,
+      })
+    } catch {
+      // The original failure is the one that matters.
+    }
     throw error
   }
 }
