@@ -21,12 +21,15 @@ The public generator returns only a certificate summary with `hasFoothold`. It n
 | path_cover | FORCED-CHAIN or BRANCHY | a checkpoint reserves sequence position; dead ends force endpoints | Zip |
 | tile_rotate_connect | FORCED-CHAIN | a boundary and matched neighbor constrain tile orientation | pipe toys |
 | lights_toggle | BRANCHY or MULTI | two taps cancel; shared neighbors cancel | Lights Out |
+| lamp_rays | FORCED-CHAIN | a dark cell only one open cell can see takes the lamp | Light Up / Akari |
+| mosaic_count | FORCED-CHAIN | two overlapping 3×3 counts pin their difference to the cells only one owns | Fill-a-Pix |
+| tower_sight | FORCED-CHAIN | an edge clue k keeps the tallest at least k − 1 cells in | Skyscrapers |
 
 Modes are certified outcomes rather than stickers requested by the model. In particular, Lights uses press-parity solution counts; different move orders and pairs of canceling taps do not create extra counted solutions. A specific mode may be unavailable at a particular size or seed. Resemblance is allowed and stated plainly.
 
 ## Landscape, sampling, and agent sift
 
-`catalogue.ts` describes a bounded but extensible landscape: five mechanic knobs × four inference modes × two visibility modes × three vibe niches. These 120 records contain ideas and capability labels, never pre-drawn puzzles or stored answers.
+`catalogue.ts` describes a bounded but extensible landscape: eight mechanic knobs × four inference modes × two visibility modes × three vibe niches. These 192 records contain ideas and capability labels, never pre-drawn puzzles or stored answers.
 
 ### Adding a game
 

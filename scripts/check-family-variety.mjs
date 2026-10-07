@@ -54,6 +54,8 @@ try {
   const { verifyGame } = await import(out + "/mini-game-rules/verifier.js")
   // Older checkouts have no Lamplight.
   const lamp = await import(out + "/mini-game-rules/lamp.js").catch(() => null)
+  const mosaic = await import(out + "/mini-game-rules/mosaic.js").catch(() => null)
+  const towers = await import(out + "/mini-game-rules/towers.js").catch(() => null)
   const deck = await import(out + "/battle-ground-ui/match-deck.js")
   const { FAMILY_DEFS } = await import(out + "/battle-ground-ui/family-bias.js")
   // Older checkouts have no knobs: rebuild their request the way they dealt it.
@@ -129,6 +131,10 @@ try {
       straights: [],
       thirds: [],
       lonely: [],
+      overlap: [],
+      edge: [],
+      line: [],
+      lastHeight: [],
       solutions: [],
     }
     for (let i = 0; i < deals; i++) {
@@ -193,6 +199,34 @@ try {
           stats.lonely.push(
             solve.steps.filter((step) => step.technique === "lonely-viewer").length
           )
+      } else if (pack.category === "mosaic_count") {
+        // Numbers are the chips; the board starts blank. Count the overlap subtractions.
+        stats.givens.push(pack.cells.filter((c) => c.locked && c.value !== null).length)
+        stats.chips.push(pack.rules.clues.length)
+        const solve = mosaic?.deduceMosaic(pack.n, pack.rules.clues)
+        if (solve)
+          stats.overlap.push(
+            solve.steps.filter((step) => step.technique === "overlap").length
+          )
+      } else if (pack.category === "tower_sight") {
+        const edges = ["top", "bottom", "left", "right"].flatMap((side) => pack.rules[side])
+        stats.givens.push(pack.cells.filter((c) => c.locked && c.value !== null).length)
+        stats.chips.push(edges.filter((k) => k !== null).length)
+        const clues = {
+          top: pack.rules.top,
+          bottom: pack.rules.bottom,
+          left: pack.rules.left,
+          right: pack.rules.right,
+        }
+        const givens = pack.cells.map((cell) => cell.value)
+        const solve = towers?.deduceTowers(pack.n, clues, givens, pack.n <= 5)
+        if (solve) {
+          const count = (technique) =>
+            solve.steps.filter((step) => step.technique === technique).length
+          stats.edge.push(count("edge"))
+          stats.line.push(count("line"))
+          stats.lastHeight.push(count("last-height"))
+        }
       }
     }
     const made = deals - stats.fail
@@ -214,6 +248,14 @@ try {
       straights: mean(stats.straights),
       thirds: mean(stats.thirds),
       lonely: mean(stats.lonely),
+      overlap: mean(stats.overlap),
+      edge: mean(stats.edge),
+      line: mean(stats.line),
+      lastHeight: mean(stats.lastHeight),
+      // Boards whose own move never fires: a fault for the author's quota.
+      noOwnMove:
+        stats.overlap.filter((c) => c === 0).length +
+        stats.edge.map((c, i) => c + stats.line[i]).filter((c) => c === 0).length,
     })
   }
   const fmt = (value, digits = 1) =>
@@ -230,11 +272,19 @@ try {
       `| ${row.id} | ${row.category} | ${row.n} | ${row.made} | ${row.distinct} | ${fmt(100 * row.top, 0)}% | ${fmt(row.givens)} | ${fmt(row.marks)} | ${fmt(row.chips)} | ${fmt(100 * row.forced, 0)}% | ${fmt(100 * row.unique, 0)}% | ${row.category === "path_cover" ? fmt(row.hairpins, 2) : "–"} | ${row.category === "path_cover" ? fmt(row.straights, 2) : "–"} | ${row.category === "path_cover" ? fmt(row.thirds, 2) : "–"} | ${fmt(row.ms, 0)} |`
     )
   console.log(
-    "\nMarks: binary = and × markers, crown blocked cells, path walls, lamp walls. Chips/holes: binary line counts, crown regions (1 = painted), path holes, lamp numbers. Pin thirds: how many thirds of the route hold an inner pin (0–3)."
+    "\nMarks: binary = and × markers, crown blocked cells, path walls, lamp walls. Givens: Skyline's locked heights (Mosaic starts blank). Chips/holes: binary line counts, crown regions (1 = painted), path holes, lamp numbers, Mosaic numbers, Skyline edge numbers. Pin thirds: how many thirds of the route hold an inner pin (0–3)."
   )
   for (const row of rows)
     if (row.category === "lamp_rays")
       console.log(`${row.id}: ${fmt(row.lonely)} lonely-viewer forcings per board.`)
+  for (const row of rows) {
+    if (row.category === "mosaic_count")
+      console.log(`${row.id}: ${fmt(row.overlap)} overlap forcings per board (${row.noOwnMove} boards without one).`)
+    if (row.category === "tower_sight")
+      console.log(
+        `${row.id}: per board ${fmt(row.edge)} edge, ${fmt(row.line)} line, ${fmt(row.lastHeight)} last-height forcings (${row.noOwnMove} boards without an edge or line move).`
+      )
+  }
 
   if (check) {
     const byId = new Map(rows.map((row) => [row.id, row]))
@@ -242,10 +292,16 @@ try {
       assert.ok(row.made >= deals * 0.8, `${row.id} assembles too rarely (${row.made}/${deals})`)
       if (row.category === "lamp_rays")
         assert.ok(row.n < 6 || row.lonely >= 3, `${row.id} rarely needs its own move`)
+      if (row.category === "mosaic_count")
+        assert.ok(row.overlap >= 1 && row.noOwnMove === 0, `${row.id} rarely needs its own move`)
+      if (row.category === "tower_sight")
+        assert.ok(row.edge + row.line >= 1 && row.noOwnMove === 0, `${row.id} rarely needs its own move`)
       if (
         row.category === "binary_fill" ||
         row.category === "path_cover" ||
-        row.category === "lamp_rays"
+        row.category === "lamp_rays" ||
+        row.category === "mosaic_count" ||
+        row.category === "tower_sight"
       )
         assert.ok(row.distinct >= row.made * 0.85, `${row.id} repeats its answers (${row.distinct}/${row.made})`)
     }

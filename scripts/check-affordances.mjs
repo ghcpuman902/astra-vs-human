@@ -15,6 +15,8 @@ try {
       "verifier",
       "binary",
       "lamp",
+      "mosaic",
+      "towers",
       "assembler",
     ],
   })) {
@@ -52,6 +54,8 @@ try {
     "tile_rotate_connect",
     "lights_toggle",
     "lamp_rays",
+    "mosaic_count",
+    "tower_sight",
   ]
   for (const category of categories) {
     for (const seed of [0, 7, 41]) {
@@ -120,7 +124,7 @@ try {
     }
   }
   console.log(
-    "Affordance contract: describe, compile, apply, and board-view parity passed for all six categories."
+    "Affordance contract: describe, compile, apply, and board-view parity passed for all eight categories."
   )
 } finally {
   await rm(output, { recursive: true, force: true })

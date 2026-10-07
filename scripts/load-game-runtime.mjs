@@ -12,6 +12,8 @@ const sources = {
     "verifier",
     "binary",
     "lamp",
+    "mosaic",
+    "towers",
     "assembler",
   ],
   "battle-ground-ui": [

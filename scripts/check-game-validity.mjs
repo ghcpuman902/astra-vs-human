@@ -10,6 +10,8 @@ const categories = [
   "tile_rotate_connect",
   "lights_toggle",
   "lamp_rays",
+  "mosaic_count",
+  "tower_sight",
 ]
 
 const runtime = await loadGameRuntime("game-validity")
@@ -131,7 +133,7 @@ try {
   const { games } = JSON.parse(
     await readFile("fixtures/agent-games/index.json", "utf8")
   )
-  assert.equal(games.length, 19)
+  assert.equal(games.length, 25)
   for (const game of games) {
     assert.equal(verifyGame(game.pack, game.solution).complete, true, game.id)
     const start = game.pack.cells.map((cell) => cell.value)

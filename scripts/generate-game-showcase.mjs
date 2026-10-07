@@ -59,6 +59,8 @@ try {
     "lib/mini-game-rules/assembler.ts",
     "lib/mini-game-rules/binary.ts",
     "lib/mini-game-rules/lamp.ts",
+    "lib/mini-game-rules/mosaic.ts",
+    "lib/mini-game-rules/towers.ts",
   ]) {
     const source = await readFile(path, "utf8")
     const destination = join(output, path.replace(/\.ts$/, ".js"))

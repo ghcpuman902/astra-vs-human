@@ -260,7 +260,12 @@ try {
       1
     )
     assert.equal(
-      new Set(game.packs.map((pack) => JSON.stringify(pack.cells))).size,
+      new Set(
+        game.packs.map((pack) =>
+          // Mosaic starts blank, so its numbers tell the boards apart.
+          JSON.stringify([pack.cells, pack.rules])
+        )
+      ).size,
       3,
       `${game.category} repeated a board`
     )
@@ -310,7 +315,9 @@ try {
   assert.equal(match.getSnapshot().cursors.learner.index, 1)
 
   const catalogue = matchFamilies()
-  assert.equal(catalogue.length, 12)
+  assert.equal(catalogue.length, 14)
+  for (const id of ["lamplight", "mosaic", "skyline"])
+    assert.ok(catalogue.some((family) => family.id === id), id)
   const rankedFresh = rankMatchFamilies()
   assert.equal(rankedFresh.length, catalogue.length)
   assert.equal(rankedFresh.at(-1).demote, true)
@@ -341,9 +348,19 @@ try {
     played: [],
     disliked: ["cross-lights"],
   })
-  // Five mechanics fill the deck before demoted pipe; disliked lights go last.
+  // Eight mechanics, five seats: catalogue order fills the deprecated deck, so
+  // lights, skyline and demoted pipe wait outside it. A disliked family goes last.
+  assert.deepEqual(
+    deck.games.map((game) => game.category),
+    ["binary_fill", "crown", "path_cover", "lamp_rays", "mosaic_count"]
+  )
   assert.ok(deck.games.some((game) => game.category === "lamp_rays"))
-  assert.equal(ordered.at(-1).category, "lights_toggle")
+  assert.ok(deck.games.some((game) => game.category === "mosaic_count"))
+  const dislikedLamp = orderByFamily(deck.games, {
+    played: [],
+    disliked: ["lamplight"],
+  })
+  assert.equal(dislikedLamp.at(-1).category, "lamp_rays")
   assert.equal(ordered[0].category, "binary_fill")
   assert.equal(
     ordered.flatMap((game) => game.packs).length,
@@ -387,7 +404,38 @@ try {
   assert.equal(tour.clock, "attempt")
   assert.equal(new Set(tour.packs.map((pack) => pack.category)).size, 5)
   assert.ok(tour.packs.some((pack) => pack.category === "lamp_rays"))
+  assert.ok(tour.packs.some((pack) => pack.category === "mosaic_count"))
   assert.ok(!tour.packs.some((pack) => pack.category === "tile_rotate_connect"))
+  // Eight mechanics, five seats. A fresh profile tours the first five in
+  // catalogue order; skyline and lights wait until those are marked played.
+  assert.deepEqual(
+    tour.packs.map((pack) => pack.category),
+    ["binary_fill", "crown", "path_cover", "lamp_rays", "mosaic_count"]
+  )
+  const second = dealMatch("tour", {
+    played: tour.packs.map((pack) => pack.transfer.family),
+    disliked: [],
+  })
+  assert.equal(new Set(second.packs.map((pack) => pack.category)).size, 5)
+  assert.ok(second.packs.some((pack) => pack.category === "tower_sight"))
+  assert.ok(second.packs.some((pack) => pack.category === "lights_toggle"))
+  // Two tours with the played marks carried forward reach every mechanic bar pipe.
+  assert.deepEqual(
+    [
+      ...new Set(
+        [...tour.packs, ...second.packs].map((pack) => pack.category)
+      ),
+    ].sort(),
+    [
+      "binary_fill",
+      "crown",
+      "lamp_rays",
+      "lights_toggle",
+      "mosaic_count",
+      "path_cover",
+      "tower_sight",
+    ]
+  )
 
   // Every deal is fresh: a rematch of the same family shares no board with the last one.
   const noMarks = { played: [], disliked: [] }
@@ -408,6 +456,21 @@ try {
     assert.equal(gold?.length, pack.n ** 2)
     assert.equal(verifyGame(pack, gold).complete, true)
     assert.equal("solution" in pack, false)
+  }
+  // Deep on the new mechanics: five distinct, solvable boards each.
+  for (const [familyId, category] of [
+    ["mosaic", "mosaic_count"],
+    ["skyline", "tower_sight"],
+  ]) {
+    const deal = freshDeal("deep", noMarks, { familyId })
+    assert.equal(deal.familyId, familyId)
+    assert.equal(deal.packs.length, 5)
+    assert.equal(new Set(deal.packs.map(boardId)).size, 5, familyId)
+    for (const pack of deal.packs) {
+      assert.equal(pack.category, category)
+      assert.equal(pack.transfer.family, familyId)
+      assert.equal(verifyGame(pack, deal.solutions[String(pack.seed)]).complete, true)
+    }
   }
   // Ties go to the family dealt least recently, so reloads rotate families.
   assert.notEqual(

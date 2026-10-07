@@ -19,9 +19,15 @@ export function MiniBoard({ pack }: { pack: GamePack }) {
     pack.category === "lamp_rays"
       ? new Map(pack.rules.numbers.map((clue) => [clue.cell, clue.lamps]))
       : null
+  const mosaicNumbers =
+    pack.category === "mosaic_count"
+      ? new Map(pack.rules.clues.map((clue) => [clue.cell, clue.shaded]))
+      : null
   const fill = (id: number) => {
     const value = pack.cells[id].value
     if (lampWalls?.has(id)) return "var(--ink)"
+    if (pack.category === "tower_sight" && pack.cells[id].locked)
+      return "color-mix(in oklab, var(--ink) 9%, var(--canvas))"
     if (cellInert(pack, id)) return "var(--mini-blocked)"
     if (pack.category === "binary_fill" && value !== null)
       return value === 0 ? "var(--cat-2)" : "var(--cat-5)"
@@ -75,6 +81,16 @@ export function MiniBoard({ pack }: { pack: GamePack }) {
             {lampNumbers?.has(id) ? (
               <text x={0.5} y={0.5} className="mini-order">
                 {lampNumbers.get(id)}
+              </text>
+            ) : null}
+            {mosaicNumbers?.has(id) ? (
+              <text x={0.5} y={0.5} className="mini-order mini-count">
+                {mosaicNumbers.get(id)}
+              </text>
+            ) : null}
+            {pack.category === "tower_sight" && cell.value !== null ? (
+              <text x={0.5} y={0.5} className="mini-order mini-count">
+                {cell.value}
               </text>
             ) : null}
             {order !== null ? (

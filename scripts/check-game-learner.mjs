@@ -26,6 +26,8 @@ try {
       "verifier",
       "binary",
       "lamp",
+      "mosaic",
+      "towers",
       "assembler",
     ],
     "battle-ground-ui": ["agent-trace", "controller", "learner-mix", "model-learner"],
@@ -81,6 +83,8 @@ try {
     "tile_rotate_connect",
     "lights_toggle",
     "lamp_rays",
+    "mosaic_count",
+    "tower_sight",
   ]) {
     const { pack } = assembleGamePack({ category, seed: 700, n: 4 })
     const battle = createBattleGround([pack], { now: () => 0 })
@@ -449,7 +453,7 @@ try {
     assert.equal("solution" in decisionsBody, false)
   }
   console.log(
-    "All six public board contracts, hidden-field rejection, deadlines, failure waits, stale cancellation and shared counted actions passed."
+    "All eight public board contracts, hidden-field rejection, deadlines, failure waits, stale cancellation and shared counted actions passed."
   )
 } finally {
   await rm(output, { recursive: true, force: true })

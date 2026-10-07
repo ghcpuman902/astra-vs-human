@@ -58,6 +58,36 @@ const quotaFor = (board: BoardProps, line: number, axis: "row" | "column") => {
 }
 
 
+/** Skyline edge clues: one slot per line, empty where the puzzle gives none. */
+const SightRail = ({
+  side,
+  clues,
+}: {
+  side: "top" | "bottom" | "left" | "right"
+  clues: (number | null)[]
+}) => (
+  <div
+    className="sight-rail"
+    data-side={side}
+    role="group"
+    aria-label={`${side} edge clues`}
+  >
+    {clues.map((clue, line) => (
+      <span
+        key={line}
+        role={clue === null ? undefined : "img"}
+        aria-label={
+          clue === null
+            ? undefined
+            : `${side === "top" || side === "bottom" ? "column" : "row"} ${line + 1}: ${clue} towers in view`
+        }
+      >
+        {clue ?? ""}
+      </span>
+    ))}
+  </div>
+)
+
 export const PaperBoard = ({
   board,
   interactive,
@@ -83,6 +113,13 @@ export const PaperBoard = ({
     "numbers" in board.clues
       ? new Map(board.clues.numbers.map((clue) => [clue.cell, clue.lamps]))
       : null
+  // Mosaic: a number rides on an ordinary open cell; the cell can still be shaded.
+  const mosaicNumbers =
+    "clues" in board.clues
+      ? new Map(board.clues.clues.map((clue) => [clue.cell, clue.shaded]))
+      : null
+  // Skyline: edge counts in view, nearest cell first.
+  const sight = "top" in board.clues ? board.clues : null
   const lit = lampWalls
     ? litCells(
         n,
@@ -298,8 +335,11 @@ export const PaperBoard = ({
     <div
       className="clue-board"
       data-quotas={quotas ? "true" : "false"}
+      data-sight={sight ? "true" : undefined}
       style={{ "--n": n } as CSSProperties}
     >
+      {sight ? <SightRail side="top" clues={sight.top} /> : null}
+      {sight ? <SightRail side="left" clues={sight.left} /> : null}
       {quotas ? (
         <div className="column-clues" aria-hidden="true">
           {Array.from({ length: n }, (_, line) => (
@@ -347,7 +387,7 @@ export const PaperBoard = ({
                     }
                   : undefined
               }
-              aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}${zip && cell.value !== null ? `, ${cell.value}` : ""}${lampNumbers?.has(cell.index) ? `, wall ${lampNumbers.get(cell.index)}` : blockedCell ? lampWalls ? ", wall" : ", blocked" : ""}${lampWalls && cell.value === 1 ? ", lamp" : ""}${lit?.has(cell.index) && cell.value !== 1 ? ", lit" : ""}${fixed ? ", fixed" : ""}${cell.selected ? ", selected" : ""}`}
+              aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}${zip && cell.value !== null ? `, ${cell.value}` : ""}${lampNumbers?.has(cell.index) ? `, wall ${lampNumbers.get(cell.index)}` : blockedCell ? lampWalls ? ", wall" : ", blocked" : ""}${mosaicNumbers?.has(cell.index) ? `, number ${mosaicNumbers.get(cell.index)}` : ""}${board.category === "mosaic_count" ? (cell.value === 1 ? ", shaded" : cell.value === 0 ? ", ruled out" : "") : ""}${board.category === "tower_sight" && cell.value !== null ? `, height ${cell.value}` : ""}${lampWalls && cell.value === 1 ? ", lamp" : ""}${lit?.has(cell.index) && cell.value !== 1 ? ", lit" : ""}${fixed ? ", fixed" : ""}${cell.selected ? ", selected" : ""}`}
               aria-pressed={cell.selected}
               disabled={!interactive || board.readOnly}
               onAnimationEnd={() => setRejected(null)}
@@ -385,6 +425,13 @@ export const PaperBoard = ({
                 <span className="lamp-number">
                   {lampNumbers.get(cell.index)}
                 </span>
+              ) : mosaicNumbers?.has(cell.index) ? (
+                <>
+                  <span className="mosaic-number">
+                    {mosaicNumbers.get(cell.index)}
+                  </span>
+                  {cell.value === 0 ? <span className="pencil-dot corner" /> : null}
+                </>
               ) : zip && !blockedCell ? (
                 cell.value !== null ? (
                   <span className={fixed ? "path-gate" : "path-number"}>
@@ -396,7 +443,8 @@ export const PaperBoard = ({
                   board.category,
                   cell.value,
                   blockedCell,
-                  maskFor(cell.index, cell.value)
+                  maskFor(cell.index, cell.value),
+                  n
                 )
               )}
             </button>
@@ -479,6 +527,8 @@ export const PaperBoard = ({
           </svg>
         ) : null}
       </div>
+      {sight ? <SightRail side="right" clues={sight.right} /> : null}
+      {sight ? <SightRail side="bottom" clues={sight.bottom} /> : null}
       {quotas ? (
         <div className="row-clues" aria-hidden="true">
           {Array.from({ length: n }, (_, line) => (

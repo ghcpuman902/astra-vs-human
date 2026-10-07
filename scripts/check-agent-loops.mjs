@@ -250,7 +250,7 @@ try {
   const { games } = JSON.parse(
     await readFile("fixtures/agent-games/index.json", "utf8")
   )
-  assert.equal(games.length, 19)
+  assert.equal(games.length, 25)
   assert.ok(games.some((game) => game.id === "summer-moons"))
 
   for (const game of games) {

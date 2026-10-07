@@ -17,3 +17,118 @@
 .rule-strip .lamp-number {
   font: var(--t-badge);
 }
+
+/* Mosaic (E8): a count on an open cell. The number stays ink, shaded or not. */
+.mosaic-number {
+  position: relative;
+  z-index: 1;
+  color: var(--ink);
+  font: var(--t-value);
+  font-variant-numeric: tabular-nums;
+}
+.rule-strip .mosaic-number {
+  font: var(--t-badge);
+}
+.pencil-dot.corner {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 4px;
+  height: 4px;
+}
+.rule-strip .pencil-dot.corner {
+  top: 3px;
+  right: 3px;
+}
+.mini-order.mini-count {
+  fill: var(--ink);
+}
+
+/* Skyline (E8): heights with a quiet bar, edge counts on four rails. */
+.clue-board[data-sight="true"][data-quotas="false"] {
+  grid-template-columns: max(36px, var(--cell)) max-content max(36px, var(--cell));
+  grid-template-rows: max(36px, var(--cell)) max-content max(36px, var(--cell));
+}
+.clue-board[data-sight="true"] .puzzle-grid.mg-tower_sight {
+  grid-column: 2;
+  grid-row: 2;
+}
+.sight-rail {
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  font: var(--t-ui);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+}
+.sight-rail[data-side="top"],
+.sight-rail[data-side="bottom"] {
+  grid-column: 2;
+  grid-template-columns: repeat(var(--n), max(36px, var(--cell)));
+}
+.sight-rail[data-side="left"],
+.sight-rail[data-side="right"] {
+  grid-row: 2;
+  grid-template-rows: repeat(var(--n), max(36px, var(--cell)));
+}
+.sight-rail[data-side="top"] {
+  grid-row: 1;
+}
+.sight-rail[data-side="bottom"] {
+  grid-row: 3;
+}
+.sight-rail[data-side="left"] {
+  grid-column: 1;
+}
+.sight-rail[data-side="right"] {
+  grid-column: 3;
+}
+.sight-rail span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+.tower-height {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font: var(--t-value);
+  font-variant-numeric: tabular-nums;
+}
+.tower-bar {
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: 4px;
+  height: calc(1px + var(--h) * 5px);
+  background: var(--cat-4);
+  z-index: -1;
+}
+.rule-strip .tower-height {
+  font: var(--t-badge);
+}
+.rule-strip .tower-bar {
+  bottom: 2px;
+  height: calc(1px + var(--h) * 3px);
+}
+.mg-tower_sight .game-cell[data-fixed="true"] {
+  background: color-mix(in oklab, var(--ink) 9%, var(--canvas));
+  font-weight: 700;
+}
+.sight-edge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+.sight-edge .rule-num {
+  width: 20px;
+  border: 0;
+  border-right: 2px solid var(--ink);
+  font: var(--t-badge);
+}

@@ -9,6 +9,8 @@ const categories = [
   "tile_rotate_connect",
   "lights_toggle",
   "lamp_rays",
+  "mosaic_count",
+  "tower_sight",
 ]
 const seeds = [0, 7, 41]
 

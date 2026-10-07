@@ -1,6 +1,6 @@
-# E8: one new mechanic (research note)
+# E8: new mechanics (research note)
 
-2026-10-07. This note covers E8 in `docs/family-expansion-plan.md`. The plan named Ladder (Futoshiki), but I surveyed the wider field before picking. **Pick: Lamplight**, a light-and-ray mechanic in the spirit of Nikoli's *Light Up* (Akari). This note covers why I picked it and when it counts as done.
+2026-10-07. This note covers E8 in `docs/family-expansion-plan.md`. The plan named Ladder (Futoshiki), but I surveyed the wider field before picking. **First pick: Lamplight**, a light-and-ray mechanic in the spirit of Nikoli's *Light Up* (Akari). §1–6 cover why I picked it and when it counts as done. §7 adds **Mosaic** and **Skyline**, taken from the same shortlist without a new survey.
 
 ## 1. What the shelf already teaches
 
@@ -104,6 +104,39 @@ Near-transfer to Queens is intended: "a row with one legal spot" and "a dark cel
 - [ ] Board, thumbnail and postcard draw walls, numbers, lamps and the lit wash in both themes.
 - [ ] Variety audit row for Lamplight, with the old shelf rows not regressed.
 - [ ] Median human solve of 45–90 s: not measured here. It needs live play.
+
+## 7. Picks 2 and 3: Mosaic and Skyline
+
+This round did no new survey. It took the next two rows of the §3 table that add an operator the shelf (now including Lamplight) still lacks, and ran them through Lamplight's path: a three-or-fewer-rule postcard, a human-technique solver used to carve clues, a reject rule so the new move does the work, an independent count, then wiring.
+
+| | Mosaic (`mosaic_count`) | Skyline (`tower_sight`) |
+| --- | --- | --- |
+| Spirit | Fill-a-Pix / Tatham *Mosaic* | Skyscrapers / Tatham *Towers* |
+| New operator | **Overlapping window counts.** Two 3×3 sums share cells, so their difference is pinned to the cells only one of them owns. | **Ordered visibility.** An edge number counts record heights along a line, so taller towers hide shorter ones. |
+| Friend pattern (the claim) | *Overlap subtraction:* two overlapping numbers bound their shared shade, and the rest must sit in the cells only one owns. | *Edge distance:* a clue k keeps the tallest at least k − 1 cells in, and a 1 puts the tallest right beside it. |
+| Supporting patterns | A met number empties its block. A number as large as its open cells fills them. | A line with one gap takes its missing height. At 5×5, whole-line reasoning with two edge clues. |
+| Postcard | A number counts shade in its 3×3, itself included. Numbered cells can be shaded. | Heights 1..n once per row and column. An edge number counts towers seen; taller hides shorter. |
+| Input | `null → × → shade`, like crown and lamp | `null → 1 → … → n`, the numeric cycle |
+| Reject rule | Fewer than 6 overlap steps at 6×6 | Edge or line reasoning must place at least one height; no givens at ≤5×5 |
+| Certificate | Every-cell backtracking count | Row-permutation backtracking count |
+| Shelf | `mosaic` 6×6 | `skyline` 5×5 (6×6 is engine-only: it falls back to a few givens, because whole-line reasoning is not human-sized there) |
+
+Why these two and not the others in §3:
+
+- **Ladder** is still a Mini Sudoku cousin, and Skyline already covers the numeric/Latin surface with an operator Ladder lacks.
+- **Range** has a global connectivity rule.
+- **Tents** needs four rules.
+- **Patches and Dominosa** need new input surfaces.
+
+Neither pick needed a runtime or reducer change. Both read as set-cell cycles through `affordances.ts`, so the Decision and solver contract (`describeBoard`, `compileIntent`) covers them without new code paths. Mosaic numbers sit on ordinary open cells. Skyline givens are ordinary locked cells.
+
+Measured at authoring time (60 seeds each, prototype harness):
+
+- **Mosaic 6×6:** about 17 numbers left after carving. About 16 of 36 forced steps come from overlap. About 7 ms per board, 16 ms at worst.
+- **Skyline 5×5:** about 7 edge clues and no givens. About 17 of 25 placements are credited to edge or line reasoning. About 40 ms per board, about 200 ms at worst.
+- All boards were distinct.
+
+Done-when is the same as §6, applied to each pick. Live human solve times are still unmeasured.
 
 ## Sources
 

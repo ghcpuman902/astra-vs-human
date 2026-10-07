@@ -10,7 +10,7 @@ type Mini = {
   wrong?: boolean
   mask?: number
   cross?: boolean
-  /** Lamplight: a numbered wall, or an open cell in a lamp's light. */
+  /** Lamplight: a numbered wall, or an open cell in a lamp's light. Mosaic: a clue on an open cell. */
   num?: number
   lit?: boolean
 }
@@ -19,7 +19,9 @@ export const cellGlyph = (
   category: Category,
   value: number | null,
   blocked: boolean,
-  mask = 0
+  mask = 0,
+  /** Skyline: the tallest height, for the bar under each number. */
+  tallest = 5
 ) => {
   if (blocked) return null
   if (category === "binary_fill") {
@@ -40,6 +42,18 @@ export const cellGlyph = (
     if (value === 0) return <span className="pencil-dot" />
     return null
   }
+  if (category === "mosaic_count")
+    return value === 0 ? <span className="pencil-dot" /> : null
+  if (category === "tower_sight")
+    return value === null ? null : (
+      <span className="tower-height">
+        {value}
+        <i
+          className="tower-bar"
+          style={{ "--h": value / tallest } as CSSProperties}
+        />
+      </span>
+    )
   if (category === "path_cover")
     return <span className="path-number">{value ?? ""}</span>
   if (category === "tile_rotate_connect")
@@ -63,6 +77,7 @@ export const cellFill = (
   if (category === "path_cover") return ""
   if (category === "lights_toggle") return value === 1 ? "cat-2" : ""
   if (category === "lamp_rays") return value === 1 ? "cat-2" : ""
+  if (category === "mosaic_count") return value === 1 ? "cat-5" : ""
   return ""
 }
 
@@ -71,11 +86,13 @@ const Strip = ({
   cells,
   cols,
   ok,
+  tallest,
 }: {
   category: Category
   cells: Mini[]
   cols?: number
   ok?: boolean
+  tallest?: number
 }) => (
   <span
     className="rule-strip"
@@ -92,9 +109,15 @@ const Strip = ({
         data-wall={category === "lamp_rays" && cell.blocked ? true : undefined}
       >
         {cell.num !== undefined ? (
-          <span className="lamp-number">{cell.num}</span>
+          <span
+            className={
+              category === "mosaic_count" ? "mosaic-number" : "lamp-number"
+            }
+          >
+            {cell.num}
+          </span>
         ) : (
-          cellGlyph(category, cell.v, !!cell.blocked, cell.mask)
+          cellGlyph(category, cell.v, !!cell.blocked, cell.mask, tallest)
         )}
       </span>
     ))}
@@ -127,6 +150,29 @@ const ZipStrip = () => (
 const lamp = { v: 1 }
 const lit = { v: null, lit: true }
 const wall = (num?: number) => ({ v: null, blocked: true, num })
+const shade = { v: 1 }
+const clue = (num: number, v: number | null = null) => ({ v, num })
+const tower = (v: number | null) => ({ v })
+
+/** An edge number, then the short row of towers it looks along. */
+const SightStrip = ({
+  edge,
+  heights,
+  tallest,
+}: {
+  edge: number
+  heights: (number | null)[]
+  tallest: number
+}) => (
+  <span className="sight-edge">
+    <b className="rule-num">{edge}</b>
+    <Strip
+      category="tower_sight"
+      cells={heights.map(tower)}
+      tallest={tallest}
+    />
+  </span>
+)
 
 /** Picture postcards from the newer Lovable gallery. Text only where a strip cannot say it. */
 export const postcards: Record<
@@ -249,6 +295,50 @@ export const postcards: Record<
       </>,
     ],
   },
+  mosaic_count: {
+    goal: <>Shade cells until every number is right</>,
+    rules: [
+      <>
+        <Strip
+          category="mosaic_count"
+          cols={3}
+          cells={[
+            shade,
+            empty,
+            shade,
+            shade,
+            clue(4),
+            empty,
+            empty,
+            shade,
+            empty,
+          ]}
+          ok
+        />{" "}
+        a number counts shade in its 3×3
+      </>,
+      <>
+        <Strip category="mosaic_count" cells={[clue(1, 1)]} /> numbered cells
+        can be shaded too
+      </>,
+      <>
+        <Strip category="mosaic_count" cells={[{ v: 0 }]} /> rules a cell out
+      </>,
+    ],
+  },
+  tower_sight: {
+    goal: <>Heights 1–5, once per row and column</>,
+    rules: [
+      <>
+        <SightStrip edge={3} heights={[1, 3, 2, 4]} tallest={4} /> edge number counts
+        towers seen
+      </>,
+      <>
+        <SightStrip edge={1} heights={[4, null, null, null]} tallest={4} />{" "}
+        taller hides shorter
+      </>,
+    ],
+  },
   lights_toggle: {
     goal: (
       <>
@@ -347,6 +437,11 @@ export function postcardFor(pack: GamePack): {
       ],
     }
   }
+  if (pack.category === "tower_sight")
+    return {
+      goal: <>Heights 1–{pack.n}, once per row and column</>,
+      rules: card.rules,
+    }
   return card
 }
 
