@@ -25,6 +25,7 @@ import { AgentTrace } from "@/components/agent-trace"
 import { MatchResults } from "@/components/match-results"
 import { BoardStage, Phone, Rules } from "@/components/lovable/battle-field"
 import { RoundStrip } from "@/components/lovable/round-strip"
+import { RoundHistory, type HistorySide } from "@/components/round-history"
 import {
   AgentModelMenu,
   LENGTH_COPY,
@@ -509,6 +510,11 @@ function BattleSession({
   // Settings open: both clocks and both agents hold still until it closes.
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [leaveOpen, setLeaveOpen] = useState(false)
+  // Round history: which round, and whose side of it, is open.
+  const [historyOf, setHistoryOf] = useState<{
+    index: number
+    side: Side
+  } | null>(null)
   const [halted, setHalted] = useState(false)
   const humanPack = packs[snapshot.cursors.human.index]
   const learnerPack = packs[snapshot.cursors.learner.index]
@@ -608,6 +614,15 @@ function BattleSession({
   const setLeave = (open: boolean) => {
     holdClocks(open)
     setLeaveOpen(open)
+  }
+  // Looking back at a round costs no time: both clocks hold while it is open.
+  const openHistory = (index: number, side: Side) => {
+    if (!historyOf) holdClocks(true)
+    setHistoryOf({ index, side })
+  }
+  const closeHistory = () => {
+    holdClocks(false)
+    setHistoryOf(null)
   }
 
   const humanBoard = battle.boardProps("human")
@@ -803,12 +818,40 @@ function BattleSession({
   const abilityPill = (label: string) => (
     <span className="ability-pill">{label}</span>
   )
+  const recordOf = (side: Side, index: number) =>
+    snapshot.records.find(
+      (record) => record.side === side && record.seed === packs[index].seed
+    )
+  // A round opens once that side has ended it. In a human match the agent's
+  // round stays closed while the human can still play that round. Read from
+  // the deal, not canAdvance: holding the clocks for history blocks advancing.
+  const humanCanReach =
+    !closed("human") ||
+    (snapshot.hasNext.human &&
+      !(clock === "side" && snapshot.remainingMs.human <= 0))
+  const historyState = (side: Side, index: number) => {
+    if (!recordOf(side, index)) return undefined
+    if (
+      side === "learner" &&
+      !watching &&
+      humanCanReach &&
+      !recordOf("human", index)
+    )
+      return "locked" as const
+    return "open" as const
+  }
   const roundDots = (side: Side, name: string) => {
     const played = new Set(
       snapshot.records.flatMap((record) => {
         if (record.side !== side) return []
         const at = packs.findIndex((pack) => pack.seed === record.seed)
         return at < 0 ? [] : [at]
+      })
+    )
+    const history = new Map(
+      [...played].flatMap((index) => {
+        const state = historyState(side, index)
+        return state ? [[index, state] as const] : []
       })
     )
     return (
@@ -818,9 +861,52 @@ function BattleSession({
         index={snapshot.cursors[side].index}
         done={played}
         windowed={length === "blitz"}
+        history={history}
+        onOpen={(index) => openHistory(index, side)}
       />
     )
   }
+  const unitTitle =
+    length === "deep" ? "Round" : length === "tour" ? "Family" : "Board"
+  const historySide = (side: Side, index: number): HistorySide => {
+    const name = side === "human" ? leftName : rightName
+    const unitName = unitTitle.toLowerCase()
+    const record = recordOf(side, index)
+    const here = snapshot.cursors[side].index === index
+    const attempt = snapshot.attempts[side]
+    const overtimeHere = here && snapshot.overtime[side]
+    const taps = (count: number) => `${count} ${count === 1 ? "tap" : "taps"}`
+    const outcome = !record
+      ? here
+        ? "Still playing"
+        : "Not played yet"
+      : record.status === "finished"
+        ? `Solved in ${formatClock(record.elapsedMs)} · ${taps(record.actions)}`
+        : record.status === "time-cap"
+          ? overtimeHere && attempt.status === "finished"
+            ? `Solved in overtime · ${taps(attempt.state.actions)}`
+            : overtimeHere
+              ? "Out of time · still solving"
+              : `Out of time · ${taps(record.actions)}`
+          : `Tap limit · ${taps(record.actions)}`
+    const state = historyState(side, index)
+    return {
+      name,
+      locked:
+        state === "open"
+          ? null
+          : state === "locked"
+            ? `Finish ${unitName} ${index + 1} yourself first. Then you can step through how ${name} played it.`
+            : here
+              ? `${name} is still playing this ${unitName}.`
+              : `${name} has not played this ${unitName} yet.`,
+      steps: snapshot.tapes[side][String(packs[index].seed)] ?? [],
+      end: here ? attempt.state.cells : (record?.cells ?? null),
+      status: here ? attempt.status : (record?.status ?? "playing"),
+      outcome,
+    }
+  }
+  const historyPack = historyOf ? packs[historyOf.index] : null
   const trace = (side: Side) => (
     <AgentTrace
       name={side === "learner" ? rightName : leftName}
@@ -1128,6 +1214,8 @@ function BattleSession({
           sameFamilyLabel={sameFamilyLabel}
           onRematch={onRematch}
           onKeepPlaying={canKeepPlaying ? handleKeepPlaying : undefined}
+          historyFor={(index, side) => historyState(side, index)}
+          onHistory={openHistory}
           onNextFamily={onNextFamily}
           onSetup={onSetup}
         />
@@ -1158,6 +1246,28 @@ function BattleSession({
           </AlertDialog.Popup>
         </AlertDialog.Portal>
       </AlertDialog.Root>
+      {historyOf && historyPack ? (
+        <RoundHistory
+          open
+          onOpenChange={(open) => {
+            if (!open) closeHistory()
+          }}
+          title={`${unitTitle} ${historyOf.index + 1} · ${familyLabel(historyPack)}`}
+          paused={halted || awaitingResume}
+          seed={historyPack.seed}
+          n={historyPack.n}
+          start={historyPack.cells.map((cell) => cell.value)}
+          sides={{
+            human: historySide("human", historyOf.index),
+            learner: historySide("learner", historyOf.index),
+          }}
+          side={historyOf.side}
+          onSide={(side) => setHistoryOf({ index: historyOf.index, side })}
+          boardFor={(cells, selected, status) =>
+            battle.replayProps(historyPack.seed, cells, selected, status)
+          }
+        />
+      ) : null}
       <MatchSettings
         open={settingsOpen}
         onOpenChange={setSettings}

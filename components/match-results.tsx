@@ -173,6 +173,8 @@ export function MatchResults({
   onKeepPlaying,
   onNextFamily,
   onSetup,
+  historyFor,
+  onHistory,
 }: {
   open: boolean
   onToggle: () => void
@@ -205,6 +207,9 @@ export function MatchResults({
   onKeepPlaying?: () => void
   onNextFamily: () => void
   onSetup: () => void
+  /** Whether a round's history opens for a side, as on the round squares. */
+  historyFor?: (index: number, side: Side) => "open" | "locked" | undefined
+  onHistory?: (index: number, side: Side) => void
 }) {
   const pending =
     traces.human.pendingSince != null || traces.learner.pendingSince != null
@@ -450,18 +455,31 @@ export function MatchResults({
                   <span className="pace-index">{round.index + 1}</span>
                   <span className="pace-name">{round.name}</span>
                 </span>
-                {SIDES.map((side) => (
-                  <span
-                    key={side}
-                    className="pace-time"
-                    data-side={side}
-                    data-better={round.faster === side || undefined}
-                    data-even={round.faster === "tie" || undefined}
-                    data-open={round.faster === "open" || undefined}
-                  >
-                    {paceClock(round[side])}
-                  </span>
-                ))}
+                {SIDES.map((side) => {
+                  const marks = {
+                    className: "pace-time",
+                    "data-side": side,
+                    "data-better": round.faster === side || undefined,
+                    "data-even": round.faster === "tie" || undefined,
+                    "data-open": round.faster === "open" || undefined,
+                  }
+                  return onHistory && historyFor?.(round.index, side) ? (
+                    <button
+                      key={side}
+                      type="button"
+                      {...marks}
+                      data-history
+                      aria-label={`${names[side]}, round ${round.index + 1}: ${paceClock(round[side])}. Show how it was played.`}
+                      onClick={() => onHistory(round.index, side)}
+                    >
+                      {paceClock(round[side])}
+                    </button>
+                  ) : (
+                    <span key={side} {...marks}>
+                      {paceClock(round[side])}
+                    </span>
+                  )
+                })}
               </li>
             ))}
             <li

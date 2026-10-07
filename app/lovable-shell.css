@@ -1165,13 +1165,19 @@ body {
 .small-rounds {
   --round: 16px;
   --round-gap: 4px;
-  --round-index: 0;
+  /* Blitz window: first round in view, and where the "now" frame sits in it. */
+  --round-start: 0;
+  --round-frame: 0;
   margin: 0;
   padding: 0;
 }
 .small-rounds-view {
+  /* Room inside the clip for a round's focus ring; the margin keeps layout. */
+  --round-pad: 4px;
   position: relative;
   overflow: hidden;
+  margin: calc(-1 * var(--round-pad));
+  padding: var(--round-pad);
 }
 /* Long strips fade at the right edge, so it reads as "more boards", not a cut. */
 .small-rounds[data-window="true"] .small-rounds-view {
@@ -1188,7 +1194,7 @@ body {
 .small-rounds[data-window="true"] ol {
   width: max-content;
   transform: translateX(
-    calc(var(--round-index) * -1 * (var(--round) + var(--round-gap)))
+    calc(var(--round-start) * -1 * (var(--round) + var(--round-gap)))
   );
   transition: transform 280ms var(--ease-out);
 }
@@ -1213,14 +1219,49 @@ body {
 .small-rounds:not([data-window="true"]) .small-round[data-current="true"] {
   box-shadow: inset 0 0 0 2px var(--ink);
 }
+/* A played round opens its history. The hit area reaches into the gaps. */
+.small-round:has(.small-round-open) {
+  position: relative;
+}
+.small-round-open {
+  position: absolute;
+  inset: calc(-1 * var(--round-pad)) calc(-0.5 * var(--round-gap));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.small-round-open:focus-visible {
+  outline: none;
+}
+.small-round:has(.small-round-open:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .small-round:has(.small-round-open:hover) {
+    box-shadow: inset 0 0 0 2px var(--ink);
+  }
+}
+@media (pointer: coarse) {
+  .small-rounds {
+    --round-gap: 8px;
+  }
+}
 .small-rounds-frame {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: var(--round-pad);
+  left: var(--round-pad);
   width: var(--round);
   height: var(--round);
   box-shadow: inset 0 0 0 2px var(--ink);
   pointer-events: none;
+  transform: translateX(
+    calc(var(--round-frame) * (var(--round) + var(--round-gap)))
+  );
+  transition: transform 280ms var(--ease-out);
 }
 @keyframes thinking {
   50% {
@@ -1548,6 +1589,147 @@ q.trace-part-text {
   color: var(--ink-secondary);
   font: 400 14px/20px var(--font-sans);
 }
+
+/* ---------- Round history: same sheet as the trace, board steps in place ---------- */
+
+.history-sheet {
+  container-type: inline-size;
+  container-name: arena;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.history-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+  padding: 0 var(--s-5) var(--s-3);
+}
+.history-side {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 12px;
+  background: var(--canvas);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+.history-side strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 14px/20px var(--font-sans);
+}
+.history-side strong svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+.history-side span {
+  color: var(--ink-secondary);
+  font: 400 13px/18px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-wrap: pretty;
+}
+.history-side[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--surface-muted);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.history-side:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
+@media (hover: hover) and (pointer: fine) {
+  .history-side:hover {
+    border-color: var(--ink);
+  }
+}
+.history-body {
+  padding: 0 var(--s-5) var(--s-5);
+  border-top: 1px solid var(--hairline);
+}
+.history-replay {
+  display: grid;
+  gap: var(--s-3);
+}
+.arena-stage.history-stage {
+  padding: var(--s-4) 0 0;
+}
+.history-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px var(--s-2);
+  min-height: 20px;
+  margin: 0;
+  font: 400 14px/20px var(--font-sans);
+}
+.history-step strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.history-meta {
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.history-tag {
+  padding: 0 var(--s-2);
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  font: 650 12px/16px var(--font-sans);
+}
+.history-controls {
+  display: grid;
+  gap: var(--s-2);
+}
+.history-scrub {
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+.history-scrub:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
+.history-buttons {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-2);
+}
+.history-play {
+  min-width: 7.5rem;
+}
+.history-note,
+.history-empty {
+  margin: 0;
+  color: var(--ink-secondary);
+  font: 400 13px/18px var(--font-sans);
+}
+.history-locked {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-5) 0;
+  color: var(--ink-secondary);
+  font: 400 14px/20px var(--font-sans);
+}
+.history-locked svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
 @media (max-width: 640px) {
   .trace-sheet {
     inset: auto 0 0;
@@ -1563,6 +1745,12 @@ q.trace-part-text {
   }
   .trace-head {
     padding: var(--s-4) var(--s-4) var(--s-3);
+  }
+  .history-sides {
+    padding-inline: var(--s-4);
+  }
+  .history-body {
+    padding: 0 var(--s-4) max(var(--s-4), env(safe-area-inset-bottom));
   }
   .trace-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2037,6 +2225,31 @@ q.trace-part-text {
 .pace-time[data-even="true"] {
   color: var(--ink);
 }
+/* A played round's time opens its history, like the round squares. */
+button.pace-time {
+  justify-self: end;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--hairline-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button.pace-time:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
+@media (hover: hover) and (pointer: fine) {
+  button.pace-time:hover {
+    color: var(--ink);
+    text-decoration-color: currentColor;
+  }
+}
 .results-table {
   grid-column: 1 / -1;
   font: 400 14px/20px var(--font-sans);
@@ -2442,6 +2655,7 @@ q.trace-part-text {
   .respawn-icon,
   .more summary svg,
   .small-rounds[data-window="true"] ol,
+  .small-rounds-frame,
   .small-round {
     transition: none;
   }

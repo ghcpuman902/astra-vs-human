@@ -14,8 +14,9 @@ const readLength = (style: CSSStyleDeclaration, name: string) => {
 /**
  * One square per board, painted in that family's color.
  * Two-color families split the square on the diagonal.
- * Blitz pins the active frame and slides the ribbon left on each advance,
- * repeating the cycle until the row overflows.
+ * Blitz slides the ribbon left on each advance, keeping the last two boards
+ * before the active frame, repeating the cycle until the row overflows.
+ * A played round is a button that opens its history.
  */
 export const RoundStrip = ({
   label,
@@ -23,17 +24,28 @@ export const RoundStrip = ({
   index,
   done,
   windowed = false,
+  history,
+  onOpen,
 }: {
   label: string
   packs: readonly GamePack[]
   index: number
   done: ReadonlySet<number>
   windowed?: boolean
+  /** Rounds whose history can open now, or opens to say why it is still closed. */
+  history?: ReadonlyMap<number, "open" | "locked">
+  onOpen?: (round: number) => void
 }) => {
   const viewRef = useRef<HTMLDivElement>(null)
   const [extra, setExtra] = useState(0)
+  // Keyboard focus on a round that slid out of the window brings it back.
+  const [focused, setFocused] = useState<number | null>(null)
   const safeIndex =
     packs.length === 0 ? 0 : Math.min(Math.max(index, 0), packs.length - 1)
+  // The window keeps the last two rounds in view, so they can still open.
+  const start = windowed
+    ? Math.min(safeIndex - Math.min(safeIndex, 2), focused ?? Infinity)
+    : 0
 
   useLayoutEffect(() => {
     if (!windowed) return
@@ -41,25 +53,33 @@ export const RoundStrip = ({
     if (!view) return
     const fit = () => {
       const style = getComputedStyle(view)
-      const step = readLength(style, "--round") + readLength(style, "--round-gap")
+      const step =
+        readLength(style, "--round") + readLength(style, "--round-gap")
       if (step <= 0) return
       const room = Math.ceil(view.clientWidth / step) + 1
-      const need = Math.max(packs.length, safeIndex + room)
+      const need = Math.max(packs.length, start + room)
       setExtra(Math.max(0, need - packs.length))
     }
     fit()
     const observer = new ResizeObserver(fit)
     observer.observe(view)
     return () => observer.disconnect()
-  }, [windowed, packs.length, safeIndex])
+  }, [windowed, packs.length, start])
 
   if (packs.length === 0) return null
 
   const count = packs.length + (windowed ? extra : 0)
-  const style = { "--round-index": safeIndex } as CSSProperties
+  const style = {
+    "--round-start": start,
+    "--round-frame": safeIndex - start,
+  } as CSSProperties
 
   return (
-    <div className="small-rounds" data-window={windowed || undefined} style={style}>
+    <div
+      className="small-rounds"
+      data-window={windowed || undefined}
+      style={style}
+    >
       <div className="small-rounds-view" ref={viewRef}>
         <ol aria-label={label}>
           {Array.from({ length: count }, (_, slot) => {
@@ -70,6 +90,8 @@ export const RoundStrip = ({
             const current = real && slot === safeIndex
             const finished = real && done.has(slot)
             const name = familyLabel(pack)
+            const opens = real && onOpen ? history?.get(slot) : undefined
+            const said = `${name}${finished ? ", done" : ""}${current ? ", now" : ""}`
             return (
               <li
                 key={real ? pack.seed : `again-${slot}`}
@@ -80,19 +102,31 @@ export const RoundStrip = ({
                 data-upcoming={(!current && !finished) || undefined}
                 aria-hidden={real ? undefined : true}
                 aria-current={current ? "step" : undefined}
-                aria-label={
-                  real
-                    ? `${name}${finished ? ", done" : ""}${current ? ", now" : ""}`
-                    : undefined
-                }
-                title={name}
+                aria-label={real && !opens ? said : undefined}
+                title={opens ? undefined : name}
                 style={
                   {
                     "--round-a": paint[0],
                     "--round-b": paint[1] ?? paint[0],
                   } as CSSProperties
                 }
-              />
+              >
+                {opens ? (
+                  <button
+                    type="button"
+                    className="small-round-open"
+                    data-locked={opens === "locked" || undefined}
+                    aria-label={`Round ${slot + 1}, ${said}. Show how it was played.`}
+                    title={`${name} · round ${slot + 1} history`}
+                    onClick={() => onOpen?.(slot)}
+                    onFocus={(event) => {
+                      if (event.currentTarget.matches(":focus-visible"))
+                        setFocused(slot)
+                    }}
+                    onBlur={() => setFocused(null)}
+                  />
+                ) : null}
+              </li>
             )
           })}
         </ol>
