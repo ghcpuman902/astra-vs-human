@@ -144,9 +144,13 @@ export function useSideLearner({
           trace.add(id, {
             type: "status",
             tone: "error",
-            text: signal.aborted
-              ? "No answer within 8 s. Request cancelled."
-              : "Request failed before the server answered.",
+            text: disposed
+              ? "Paused or changed. Request cancelled."
+              : request.model && getModel() !== request.model
+                ? "Model changed. Request cancelled."
+                : signal.aborted
+                  ? "No answer within 8 s. Request cancelled."
+                  : "Request failed before the server answered.",
           })
           trace.end(id, "error")
           if (!disposed) trace.phase("retrying", "Retrying")

@@ -64,6 +64,18 @@ export function useLearnerModel() {
     setSelectedModel(id)
     return true
   }, [])
+  /** Swap the model for fun, even mid-round. The next request uses it. */
+  const chooseModel = useCallback((id: string): boolean => {
+    if (!available.current?.models.some((model) => model.id === id))
+      return false
+    selected.current = id
+    setSelectedModel(id)
+    if (frozen.current) {
+      frozen.current = { ...frozen.current, model: id }
+      setRound(frozen.current)
+    }
+    return true
+  }, [])
   const startRound = useCallback((id: string | number): string | undefined => {
     if (frozen.current)
       return frozen.current.id === id ? frozen.current.model : undefined
@@ -95,6 +107,7 @@ export function useLearnerModel() {
         ? ("ready" as const)
         : ("loading" as const),
     selectModel,
+    chooseModel,
     startRound,
     endRound,
     getModel,

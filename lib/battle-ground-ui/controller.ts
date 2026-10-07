@@ -423,6 +423,27 @@ export function createBattleGround(
       publish()
       return true
     },
+    /** Freeze both clocks where they are. `start()` picks them up again. */
+    pause: () => {
+      if (!running) return false
+      tick()
+      carry.attempt = {
+        human: attemptElapsed("human"),
+        learner: attemptElapsed("learner"),
+      }
+      carry.match = {
+        human: matchElapsed("human"),
+        learner: matchElapsed("learner"),
+      }
+      running = false
+      origin = { human: null, learner: null }
+      attempts = {
+        human: { ...attempts.human, startedAt: null },
+        learner: { ...attempts.learner, startedAt: null },
+      }
+      publish()
+      return true
+    },
     /** True while clocks run. False before Start and after a restore until resumed. */
     running: () => running,
     dump: (): BattleDump => {
