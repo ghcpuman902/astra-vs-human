@@ -1,18 +1,19 @@
 "use client"
 
 import { useState } from "react"
-import { Check, ChevronRight, Play, RefreshCw } from "lucide-react"
+import { ChevronRight, Play, RefreshCw } from "lucide-react"
 
 import { MiniBoard } from "@/components/lovable/mini-board"
 import {
   ArenaChoice,
+  LENGTH_COPY,
   LengthChoice,
   MethodSelect,
+  ModelChoice,
+  modeName,
   type Arena,
   type Servers,
 } from "@/components/match-options"
-import { ModelReel } from "@/components/model-reel"
-import { matchFamilies, type FamilyMarks } from "@/lib/battle-ground-ui/family-bias"
 import { dealTitle } from "@/lib/battle-ground-ui/labels"
 import type { LearnerMixId } from "@/lib/battle-ground-ui/learner-mix"
 import type { DealtMatch, MatchLength } from "@/lib/battle-ground-ui/match-deck"
@@ -24,28 +25,24 @@ type ModelPick = {
   chooseModel: (id: string) => boolean
 }
 
-/** Host line, one punchline, one call to action. Everything else is a default. */
-function Hero() {
-  return (
-    <header className="hero">
-      <p className="hero-host">astra-vs-human.vercel.app</p>
-      <h1>Agents are faster, but are they smarter than humans?</h1>
-      <p className="hero-cta">Battle them on mini games!</p>
-    </header>
-  )
-}
-
-function UpNext({
+/** What the match is about to be, in one glance, with one way to change it. */
+function UpFirst({
   preview,
+  length,
   onRespawn,
 }: {
   preview: DealtMatch | null
+  length: MatchLength
   onRespawn: () => void
 }) {
   const [turns, setTurns] = useState(0)
   const first = preview?.packs[0]
   return (
-    <section className="up-next" aria-label="Boards for this match" aria-live="polite">
+    <section
+      className="up-next"
+      aria-label="Boards for this match"
+      aria-live="polite"
+    >
       <div className="up-next-board">
         {first ? (
           <div key={first.seed} className="board-swap">
@@ -56,12 +53,13 @@ function UpNext({
         )}
       </div>
       <p className="up-next-copy">
+        <span>Up first</span>
         <strong>{preview ? dealTitle(preview) : "Dealing…"}</strong>
-        <span>{first ? `${first.n} × ${first.n} · fresh boards` : ""}</span>
+        <span>{LENGTH_COPY[length].hint}</span>
       </p>
       <button
         type="button"
-        className="paper-button"
+        className="text-button"
         disabled={!preview}
         onClick={() => {
           setTurns((value) => value + 1)
@@ -73,18 +71,22 @@ function UpNext({
           style={{ rotate: `${turns * 180}deg` }}
           aria-hidden="true"
         />
-        Shuffle
+        {length === "deep" ? "Different game" : "Reshuffle"}
       </button>
     </section>
   )
 }
 
+/**
+ * Default path: pick a model, press Start. The app name sits in the page
+ * corner so it never reads as an eyebrow over the punchline. Everything else
+ * is a default, spelled out in the summary of More options.
+ */
 export function SetupScreen({
   arena,
   leftMix,
   rightMix,
   length,
-  marks,
   preview,
   servers,
   model,
@@ -92,7 +94,6 @@ export function SetupScreen({
   onLeftMix,
   onRightMix,
   onLength,
-  onMarks,
   onRespawn,
   onPlay,
 }: {
@@ -100,7 +101,6 @@ export function SetupScreen({
   leftMix: LearnerMixId
   rightMix: LearnerMixId
   length: MatchLength
-  marks: FamilyMarks
   preview: DealtMatch | null
   servers: Servers | null
   model: ModelPick
@@ -108,21 +108,13 @@ export function SetupScreen({
   onLeftMix: (mix: LearnerMixId) => void
   onRightMix: (mix: LearnerMixId) => void
   onLength: (length: MatchLength) => void
-  onMarks: (marks: FamilyMarks) => void
   onRespawn: () => void
   onPlay: () => void
 }) {
   const watching = arena === "watch"
-  const played = (id: string) => marks.played.includes(id)
-  const toggle = (id: string) =>
-    onMarks({
-      ...marks,
-      played: played(id)
-        ? marks.played.filter((item) => item !== id)
-        : [...marks.played, id],
-    })
   return (
     <main className="battle-ground is-setup">
+      <p className="site-name">astra-vs-human.vercel.app</p>
       <form
         className="setup"
         onSubmit={(event) => {
@@ -130,20 +122,17 @@ export function SetupScreen({
           onPlay()
         }}
       >
-        <Hero />
-        <fieldset className="setup-group">
-          <legend>Agent model</legend>
-          <ModelReel
-            models={model.models}
-            value={model.selectedModel}
-            ready={model.status === "ready"}
-            onChange={model.chooseModel}
-          />
-          {model.status === "unavailable" ? (
-            <p className="setup-note">Models could not load. Try a reload.</p>
-          ) : null}
-        </fieldset>
-        <LengthChoice value={length} onChange={onLength} />
+        <header className="hero">
+          <h1>Agents are faster, but are they smarter than humans?</h1>
+          <p className="hero-cta">Battle them on mini games!</p>
+        </header>
+        <ModelChoice
+          models={model.models}
+          value={model.selectedModel}
+          status={model.status}
+          onChange={model.chooseModel}
+        />
+        <UpFirst preview={preview} length={length} onRespawn={onRespawn} />
         <button
           id="start-match"
           type="submit"
@@ -153,13 +142,18 @@ export function SetupScreen({
           <Play aria-hidden="true" />
           Start match
         </button>
-        <UpNext preview={preview} onRespawn={onRespawn} />
         <details className="more">
           <summary>
             <ChevronRight aria-hidden="true" />
             More options
+            <span>
+              {LENGTH_COPY[length].label} ·{" "}
+              {watching ? "Agent vs Agent" : "You vs Agent"} ·{" "}
+              {modeName(rightMix)}
+            </span>
           </summary>
           <div className="more-body">
+            <LengthChoice value={length} onChange={onLength} />
             <ArenaChoice value={arena} onChange={onArena} />
             {watching ? (
               <>
@@ -184,23 +178,6 @@ export function SetupScreen({
                 onChange={onRightMix}
               />
             )}
-            <fieldset className="setup-group">
-              <legend>Families you have played</legend>
-              <p className="setup-note">Tap to mark. New families come first.</p>
-              <div className="chip-row">
-                {matchFamilies().map((family) => (
-                  <label key={family.id} className="option-chip small">
-                    <input
-                      type="checkbox"
-                      checked={played(family.id)}
-                      onChange={() => toggle(family.id)}
-                    />
-                    <Check className="chip-check" aria-hidden="true" />
-                    {family.label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
           </div>
         </details>
       </form>

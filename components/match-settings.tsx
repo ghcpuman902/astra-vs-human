@@ -9,10 +9,10 @@ import {
   ArenaChoice,
   LengthChoice,
   MethodSelect,
+  ModelChoice,
   type Arena,
   type Servers,
 } from "@/components/match-options"
-import { ModelReel } from "@/components/model-reel"
 import type { LearnerMixId } from "@/lib/battle-ground-ui/learner-mix"
 import type { MatchLength } from "@/lib/battle-ground-ui/match-deck"
 
@@ -97,15 +97,12 @@ function SettingsBody({
         </Dialog.Close>
       </header>
       <div className="settings-body">
-        <fieldset className="setup-group">
-          <legend>Agent model</legend>
-          <ModelReel
-            models={model.models}
-            value={model.selectedModel}
-            ready={model.status === "ready"}
-            onChange={model.chooseModel}
-          />
-        </fieldset>
+        <ModelChoice
+          models={model.models}
+          value={model.selectedModel}
+          status={model.status}
+          onChange={model.chooseModel}
+        />
         {arena === "watch" ? (
           <>
             <MethodSelect

@@ -172,7 +172,6 @@ export function BattleApp() {
         leftMix={leftMix}
         rightMix={rightMix}
         length={length}
-        marks={marks}
         preview={preview}
         servers={servers}
         model={models}
@@ -182,10 +181,6 @@ export function BattleApp() {
         onLength={(next) => {
           setLength(next)
           setPreview(dealFor(next, marks))
-        }}
-        onMarks={(next) => {
-          setMarks(next)
-          setPreview(dealFor(length, next))
         }}
         onRespawn={() => setPreview(dealFor(length, marks, preview?.familyId))}
         onPlay={() => {

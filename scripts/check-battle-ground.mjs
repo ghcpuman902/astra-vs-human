@@ -704,7 +704,6 @@ try {
   const setupSource = await read("../components/setup-screen.tsx")
   const optionSource = await read("../components/match-options.tsx")
   const settingsSource = await read("../components/match-settings.tsx")
-  const reelSource = await read("../components/model-reel.tsx")
   const shellSource = await read("../app/lovable-shell.css")
   assert.match(appSource, /data-slot="match-next"/)
   assert.match(appSource, /advance\("human"\)/)
@@ -739,10 +738,10 @@ try {
   assert.match(setupSource, /astra-vs-human\.vercel\.app/)
   assert.match(setupSource, /Agents are faster, but are they smarter than humans\?/)
   assert.match(setupSource, /Battle them on mini games!/)
-  // Setup shows the model reel and Deep by default; the rest sits behind More options.
-  assert.match(setupSource, /<ModelReel/)
+  // Setup shows every model and Deep by default; the rest sits behind More options.
+  assert.match(setupSource, /<ModelChoice/)
+  assert.doesNotMatch(setupSource, /matchFamilies|Families you/)
   assert.match(setupSource, /More options/)
-  assert.match(reelSource, /Roll to the next/)
   assert.match(appSource, /useState<MatchLength>\(DEFAULT_MATCH_LENGTH\)/)
   assert.equal(DEFAULT_MATCH_LENGTH, "deep")
   assert.match(optionSource, /3 min/)

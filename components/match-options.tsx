@@ -161,6 +161,39 @@ export function ArenaChoice({
   )
 }
 
+/** Every model is visible, one tap each. */
+export function ModelChoice({
+  models,
+  value,
+  status,
+  onChange,
+}: {
+  models: readonly { id: string; label: string }[]
+  value: string | undefined
+  status: "loading" | "ready" | "unavailable"
+  onChange: (id: string) => void
+}) {
+  if (status !== "ready")
+    return (
+      <div className="setup-group">
+        <span className="field-label">Agent model</span>
+        <p className="setup-note">
+          {status === "loading"
+            ? "Loading models…"
+            : "Models could not load. Try a reload."}
+        </p>
+      </div>
+    )
+  return (
+    <Choice
+      legend="Agent model"
+      value={value ?? models[0]?.id ?? ""}
+      options={models}
+      onChange={onChange}
+    />
+  )
+}
+
 export function MethodSelect({
   legend,
   value,
