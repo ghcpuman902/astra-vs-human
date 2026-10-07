@@ -8,7 +8,7 @@ try {
   for (const [folder, files] of Object.entries({
     puzzle: ["author", "types", "verifier", "model-learner"],
     "mini-game-rules": ["schema", "runtime", "verifier", "assembler"],
-    "battle-ground-ui": ["controller", "model-learner"],
+    "battle-ground-ui": ["controller", "learner-mix", "model-learner"],
   })) {
     await mkdir(join(output, folder))
     for (const file of files) {
@@ -34,7 +34,23 @@ try {
     gameLearnerRequestSchema,
     decideGameLearner,
     createGameLearnerRunner,
+    jevActionRequest,
+    layaActionRequest,
+    openAIDecisionsRequest,
+    assertLearnerBackendWired,
   } = await import(join(output, "battle-ground-ui/model-learner.js"))
+  const {
+    expandPlacements,
+    interpretPolicy,
+    bareCandidateCells,
+    bareControlQuestions,
+    readBareControl,
+    jevCommitBody,
+    layaCommitBody,
+    layaSystemOneTarget,
+    readJevCommit,
+    applyCommit,
+  } = await import(join(output, "battle-ground-ui/learner-mix.js"))
   for (const category of [
     "binary_fill",
     "crown",
@@ -135,6 +151,183 @@ try {
       ).reason,
       "unavailable"
     )
+    const jev = jevActionRequest(board, ["A local neighbour settles the next cell."])
+    const decisions = openAIDecisionsRequest(board, [])
+    const laya = layaActionRequest(board, [])
+    assert.equal(jev.model, "typesafe/jev-1.13")
+    assert.equal(laya.model, "convaiinnovations/laya")
+    assert.equal(decisions.model, "gpt-6-luna")
+    assert.equal(JSON.parse(jev.state).seed, board.seed)
+    assert.equal("transfer" in JSON.parse(jev.state), false)
+    assert.equal("solution" in JSON.parse(decisions.input), false)
+    assert.throws(
+      () => assertLearnerBackendWired("typesafe-jev", {}),
+      /No request was sent/
+    )
+    assert.doesNotThrow(() =>
+      assertLearnerBackendWired("typesafe-jev", { TYPESAFE_API_KEY: "present" })
+    )
+    assert.throws(
+      () => assertLearnerBackendWired("convai-laya", {}),
+      /No request was sent/
+    )
+    assert.throws(
+      () =>
+        assertLearnerBackendWired("convai-laya", {
+          AI_GATEWAY_API_KEY: "present",
+        }),
+      /No request was sent/
+    )
+    assert.doesNotThrow(() =>
+      assertLearnerBackendWired("convai-laya", { LAYA_API_KEY: "present" })
+    )
+    assert.doesNotThrow(() =>
+      assertLearnerBackendWired("convai-laya", { IMPOSSIBL_API_KEY: "present" })
+    )
+    assert.doesNotThrow(() =>
+      assertLearnerBackendWired("convai-laya", {
+        LAYA_BASE_URL: "http://127.0.0.1:8787",
+      })
+    )
+    assert.throws(
+      () =>
+        assertLearnerBackendWired("openai-decisions", {
+          LAYA_API_KEY: "present",
+          OPENAI_API_KEY: "present",
+        }),
+      /No request was sent/
+    )
+    const commit = jevCommitBody("public board only")
+    const layaCommit = layaCommitBody("public board only")
+    assert.equal(commit.model, "jev-1.13.0")
+    assert.equal(layaCommit.model, "convaiinnovations/laya")
+    assert.equal(layaCommit.questions.commit.type, "choice")
+    assert.equal(
+      layaSystemOneTarget({ LAYA_API_KEY: "laya-key" })?.url,
+      "https://api.laya.studio/v1/systemone"
+    )
+    assert.equal(
+      layaSystemOneTarget({ IMPOSSIBL_API_KEY: "imp-key" })?.url,
+      "https://api.impossibl.com/v1/systemone"
+    )
+    assert.equal(
+      layaSystemOneTarget({
+        LAYA_API_KEY: "laya-key",
+        LAYA_BASE_URL: "https://api.impossibl.com/v1",
+      })?.authorization,
+      "Bearer laya-key"
+    )
+    assert.equal(
+      layaSystemOneTarget({
+        IMPOSSIBL_API_KEY: "imp-key",
+        LAYA_BASE_URL: "https://api.impossibl.com",
+      })?.authorization,
+      "Bearer imp-key"
+    )
+    assert.equal(layaSystemOneTarget({}), null)
+    assert.equal(commit.state.includes("solution"), false)
+    assert.equal(readJevCommit({ answers: { commit: { choice: "one" } } }), "one")
+    assert.equal(applyCommit([1, 2, 3], "one").length, 1)
+    assert.equal(applyCommit([1, 2], "wait").length, 0)
+    assert.equal(applyCommit([1, 2], null).length, 2)
+    assert.equal(
+      gameLearnerRequestSchema.safeParse({ ...input, mix: "jev-bare" }).success,
+      true
+    )
+    assert.equal(
+      gameLearnerRequestSchema.safeParse({ ...input, mix: "code" }).success,
+      true
+    )
+    assert.equal(
+      gameLearnerRequestSchema.safeParse({
+        ...input,
+        mix: "openai-decisions",
+      }).success,
+      true
+    )
+    assert.equal(
+      gameLearnerRequestSchema.safeParse({ ...input, mix: "solver" }).success,
+      false
+    )
+    const visible = board.cells.map((entry) => ({
+      visible: entry.visible,
+      locked: entry.locked,
+    }))
+    visible[cell] = { visible: true, locked: false }
+    if (cell > 0) visible[cell - 1] = { visible: true, locked: true }
+    const candidates = bareCandidateCells(visible)
+    assert.equal(candidates.includes(cell), true)
+    assert.equal(candidates.includes(cell - 1), false)
+    const bare = bareControlQuestions(candidates)
+    assert.equal(JSON.stringify(bare).includes("solution"), false)
+    assert.deepEqual(
+      readBareControl(
+        { answers: { control: { choice: `cell-${cell}` } } },
+        candidates
+      ),
+      { type: "selectCell", cell }
+    )
+    assert.equal(
+      readBareControl({ answers: { control: { choice: "cell-99" } } }, candidates),
+      null
+    )
+    assert.equal(
+      readBareControl({ answers: { control: { choice: "wait" } } }, candidates),
+      "wait"
+    )
+    const coded = interpretPolicy(
+      { rule: "named-cells", cells: [cell - 1, cell], cycles: 1, note: null },
+      visible
+    )
+    assert.deepEqual(coded, [
+      { type: "selectCell", cell },
+      { type: "cycle" },
+    ])
+    assert.equal(
+      interpretPolicy(
+        { rule: "first-unlocked", cells: [], cycles: 1, note: "local" },
+        visible
+      )[0].cell,
+      candidates[0]
+    )
+    assert.deepEqual(
+      interpretPolicy(
+        { rule: "selected-cycle", cells: [], cycles: 2, note: null },
+        visible
+      ),
+      [{ type: "cycle" }, { type: "cycle" }]
+    )
+    const expanded = expandPlacements(
+      [{ cell, cycles: 1 }],
+      board.cells.map((entry) => ({
+        visible: entry.visible,
+        locked: entry.locked,
+      }))
+    )
+    assert.deepEqual(expanded, [
+      { type: "selectCell", cell },
+      { type: "cycle" },
+    ])
+    const batch = createBattleGround([pack], { now: () => 0 })
+    const batchRunner = createGameLearnerRunner({
+      observe: () => batch.boardProps("learner"),
+      api: batch.actions("learner"),
+      memory: { claims: [], currentClaim: null },
+      decide: async () => ({
+        action: null,
+        patternClaim: null,
+        state: "decision",
+        placements: [{ cell, cycles: 1 }],
+      }),
+    })
+    assert.equal(await batchRunner.step(), true)
+    assert.equal(batch.boardProps("learner").actions, 2)
+    batchRunner.dispose()
+    assert.throws(
+      () => assertLearnerBackendWired("openai-decisions"),
+      /No request was sent/
+    )
+    assertLearnerBackendWired("openai-generate-text")
   }
   console.log(
     "All five public board contracts, hidden-field rejection, deadlines, failure waits, stale cancellation and shared counted actions passed."

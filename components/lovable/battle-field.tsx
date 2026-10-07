@@ -1,25 +1,35 @@
-import { Play, RotateCcw, Undo2 } from "lucide-react"
+import { type CSSProperties } from "react"
+import { RotateCcw, Undo2 } from "lucide-react"
 
 import { postcards } from "@/components/lovable/marks"
 import { PaperBoard } from "@/components/lovable/paper-board"
 import type { BoardProps } from "@/lib/battle-ground-ui/controller"
 import type { GamePack } from "@/lib/mini-game-rules/schema"
 
+const coverStyle = (board: BoardProps): CSSProperties => {
+  const quotas =
+    "constraints" in board.clues &&
+    board.clues.constraints.some((rule) => rule.kind === "quota")
+  return {
+    "--n": board.n,
+    "--cover-extra": quotas ? "24px" : "0px",
+  } as CSSProperties
+}
+
 type BattleFieldProps = {
   pack: GamePack
   practice: boolean
-  loading: boolean
+  humanTitle?: string
+  learnerTitle?: string
+  humanInteractive?: boolean
   started: boolean
   finished: boolean
-  remainingMs: number
   humanBoard: BoardProps
   learnerBoard: BoardProps
   humanActions: number
   learnerActions: number
   humanStatus: string
   learnerStatus: string
-  humanElapsedMs: number
-  learnerElapsedMs: number
   canUndo: boolean
   agentStatus: string
   claim: string
@@ -27,35 +37,26 @@ type BattleFieldProps = {
   rulesShown: boolean
   humanDone: boolean
   agentWorking: boolean
-  nextLabel: string
-  onReveal: () => void
-  onNext: () => void
-  onStart: () => void
+  splitBoards: boolean
   onTap: (cell: number) => void
   onUndo: () => void
   onClear: () => void
 }
 
-const clock = (ms: number) => {
-  const seconds = Math.floor(Math.max(0, ms) / 1000)
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
-}
-
 export const BattleField = ({
   pack,
   practice,
-  loading,
+  humanTitle = "Human",
+  learnerTitle = "Agent",
+  humanInteractive = true,
   started,
   finished,
-  remainingMs,
   humanBoard,
   learnerBoard,
   humanActions,
   learnerActions,
   humanStatus,
   learnerStatus,
-  humanElapsedMs,
-  learnerElapsedMs,
   canUndo,
   agentStatus,
   claim,
@@ -63,37 +64,34 @@ export const BattleField = ({
   rulesShown,
   humanDone,
   agentWorking,
-  nextLabel,
-  onReveal,
-  onNext,
-  onStart,
+  splitBoards,
   onTap,
   onUndo,
   onClear,
 }: BattleFieldProps) => {
   const card = postcards[pack.category]
-  const playing = started && humanBoard.status === "playing"
+  const playing = started && humanInteractive && humanBoard.status === "playing"
   return (
-    <div className="battle-field">
+    <div className="battle-field" id="boards">
       <section
         className="battle-arena"
         data-player="human"
         data-done={humanDone || undefined}
-        aria-label="Human game"
+        aria-label={`${humanTitle} game`}
       >
         <header className="arena-header">
           <strong>
-            HUMAN
+            {humanTitle}
             {humanDone ? <em className="done-mark">Done</em> : null}
           </strong>
           <span>
-            {clock(humanElapsedMs)} · {humanActions} actions ·{" "}
-            {started ? humanStatus : "ready"}
+            {humanActions} taps · {started ? humanStatus : "ready"}
           </span>
         </header>
         <div className="arena-stage">
           {started ? (
             <PaperBoard
+              key={humanBoard.seed}
               board={humanBoard}
               interactive
               invalidIndex={invalidIndex}
@@ -101,11 +99,11 @@ export const BattleField = ({
               onTap={onTap}
             />
           ) : (
-            <div className="puzzle-cover">
+            <div className="puzzle-cover" style={coverStyle(humanBoard)}>
               <span>
-                {rulesShown
-                  ? "Ready when you are."
-                  : "Rules stay hidden until you reveal them."}
+                {humanInteractive
+                  ? "Your board. Rules are shared, then both clocks start."
+                  : "Agent A. It plays this board on its own clock."}
               </span>
             </div>
           )}
@@ -142,45 +140,14 @@ export const BattleField = ({
         </footer>
       </section>
       <aside className="shared-rules">
-        <div className="stage-control">
-          <span className="stage-reading">
-            {started
-              ? `${clock(remainingMs)} left`
-              : rulesShown
-                ? "Rules are shared"
-                : "Same reveal for both"}
-          </span>
-          <button
-            type="button"
-            className="primary-button"
-            disabled={loading || (started && !humanDone)}
-            onClick={() => {
-              if (!rulesShown) onReveal()
-              else if (!started) onStart()
-              else if (humanDone) onNext()
-            }}
-          >
-            <Play />
-            {!rulesShown
-              ? "Show rules"
-              : !started
-                ? "Start both"
-                : humanDone
-                  ? nextLabel
-                  : clock(remainingMs)}
-          </button>
-          <span className="stage-progress">
-            {agentWorking
-              ? "Agent still on this puzzle. You can move on."
-              : practice
-                ? "Practice · excluded from scores"
-                : humanDone
-                  ? "This puzzle is done."
-                  : `Typical ${pack.session.targetSeconds}s · LEARNER`}
-          </span>
-        </div>
         {rulesShown ? (
           <div className="postcard-rules">
+            {splitBoards ? (
+              <p className="rules-pending">These clues are your current round.</p>
+            ) : null}
+            {practice ? (
+              <p className="rules-pending">Practice. Not scored.</p>
+            ) : null}
             <p className="postcard-goal">{card.goal}</p>
             <ul>
               {card.rules.map((rule, index) => (
@@ -189,16 +156,15 @@ export const BattleField = ({
             </ul>
           </div>
         ) : (
-          <p className="rules-pending">Rules appear for both players at once.</p>
+          <p className="rules-pending">Shared clues appear here for both players.</p>
         )}
         <p className="learner-note" aria-live="polite">
+          {agentWorking ? "Agent still on its own round. " : null}
           {learnerStatus === "playing"
             ? agentStatus
             : started
               ? learnerStatus
-              : rulesShown
-                ? "Learner waits for Start."
-                : "Learner has not seen the rules."}
+              : "Agent waits for Start."}
           {finished && claim ? <blockquote>{claim}</blockquote> : null}
         </p>
       </aside>
@@ -206,38 +172,36 @@ export const BattleField = ({
         className="battle-arena"
         data-player="learner"
         data-behind={agentWorking || undefined}
-        aria-label="Agent game"
+        aria-label={`${learnerTitle} game`}
       >
         <header className="arena-header">
           <strong>
-            AGENT
+            {learnerTitle}
             {agentWorking ? <em className="behind-mark">Still here</em> : null}
           </strong>
           <span>
-            {clock(learnerElapsedMs)} · {learnerActions} actions · LEARNER
-            {started ? ` · ${learnerStatus}` : " · ready"}
+            {learnerActions} taps · {started ? learnerStatus : "ready"}
           </span>
         </header>
         <div className="arena-stage">
           {started ? (
             <PaperBoard
+              key={learnerBoard.seed}
               board={learnerBoard}
               interactive={false}
               invalidIndex={null}
-              label={`Agent ${pack.n} by ${pack.n} board`}
+              label={`Agent ${learnerBoard.n} by ${learnerBoard.n} board`}
               onTap={() => {}}
             />
           ) : (
-            <div className="puzzle-cover">
-              <span>
-                {rulesShown ? "Waiting for Start." : "Waiting for the rules."}
-              </span>
+            <div className="puzzle-cover" style={coverStyle(learnerBoard)}>
+              <span>Agent board. It keeps playing if you move on.</span>
             </div>
           )}
         </div>
         <footer className="arena-footer">
-          <span className="agent-idle">LEARNER · L0</span>
-          <span>{started ? agentStatus : "Idle until both clocks start"}</span>
+          <span className="agent-idle">Read only</span>
+          <span>{started ? agentStatus : "Starts with you"}</span>
         </footer>
       </section>
     </div>

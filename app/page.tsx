@@ -1,8 +1,7 @@
 import type { Metadata } from "next"
 
 import { BattleApp } from "@/components/battle-app"
-import showcase from "@/handoffs/mini-game-rules/generated-showcase.json"
-import { packSchema } from "@/lib/mini-game-rules/schema"
+import { buildFamilyLibrary } from "@/lib/battle-ground-ui/match-deck"
 
 export const metadata: Metadata = {
   title: "astra-vs-human · Same board, same taps",
@@ -11,6 +10,6 @@ export const metadata: Metadata = {
 }
 
 export default function Page() {
-  const fixtures = showcase.games.map((game) => packSchema.parse(game.pack))
-  return <BattleApp fixtures={fixtures} />
+  const library = buildFamilyLibrary()
+  return <BattleApp library={library} />
 }
