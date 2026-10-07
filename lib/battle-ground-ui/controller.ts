@@ -13,6 +13,7 @@ import {
   type GamePack,
 } from "../mini-game-rules/schema"
 import { verifyGame } from "../mini-game-rules/verifier"
+import { appendStep, diffCells, tapeKey, type RoundTapes } from "./round-tape"
 
 export type Side = "human" | "learner"
 export type RoundStatus = "playing" | "finished" | "action-cap" | "time-cap"
@@ -64,6 +65,8 @@ export type BattleSnapshot = {
    */
   overtime: Record<Side, boolean>
   records: readonly BattleRecord[]
+  /** How each side played each round it touched, keyed by round seed. */
+  tapes: Record<Side, RoundTapes>
   /** Both sides have ended the last pack. Not a per-round lock. */
   matchComplete: boolean
 }
@@ -115,6 +118,8 @@ export type BattleDump = {
   stopped: Record<Side, boolean>
   /** Missing on matches saved before overtime existed. */
   overtime?: Record<Side, boolean>
+  /** Missing on matches saved before round history existed. */
+  tapes?: Record<Side, RoundTapes>
 }
 export type BattleOptions = {
   actionCap?: number
@@ -208,6 +213,12 @@ export function createBattleGround(
     human: restore?.overtime?.human ?? false,
     learner: restore?.overtime?.learner ?? false,
   }
+  let tapes: Record<Side, RoundTapes> = {
+    human: structuredClone(restore?.tapes?.human ?? {}),
+    learner: structuredClone(restore?.tapes?.learner ?? {}),
+  }
+  // A cycle right after another on the same selection folds into one step.
+  const folding: Record<Side, boolean> = { human: false, learner: false }
   // Time already on the clocks from before a reload. Applied once on start().
   const carry = {
     attempt: {
@@ -306,6 +317,7 @@ export function createBattleGround(
       },
       overtime,
       records,
+      tapes,
       matchComplete: SIDES.every((side) => {
         if (attempts[side].status === "playing" && !overtime[side]) return false
         if (clock === "side")
@@ -406,6 +418,32 @@ export function createBattleGround(
     const result = applyGameAction(pack, current.state, action)
     if (!result.ok) return
     const state = result.state
+    const changes = diffCells(current.state.cells, state.cells)
+    if (changes.length) {
+      const key = tapeKey(pack.seed)
+      tapes = {
+        ...tapes,
+        [side]: {
+          ...tapes[side],
+          [key]: appendStep(
+            tapes[side][key] ?? [],
+            {
+              at: Math.round(attemptElapsed(side)),
+              kind:
+                action.type === "undo" || action.type === "clear"
+                  ? action.type
+                  : "tap",
+              cell: action.type === "cycle" ? state.selectedCell : null,
+              changes,
+              taps: state.actions,
+              ...(overtime[side] ? { overtime: true as const } : {}),
+            },
+            action.type === "cycle" && folding[side]
+          ),
+        },
+      }
+    }
+    folding[side] = action.type === "cycle"
     const overTaps =
       state.actions >= actionCap && (side === "learner" || limitHumanTaps)
     const status: RoundStatus = verifyGame(pack, state.cells).complete
@@ -436,6 +474,47 @@ export function createBattleGround(
       }
     }
     publish()
+  }
+  const propsFor = (
+    pack: GamePack,
+    state: GameState,
+    status: RoundStatus,
+    remainingMs: number,
+    readOnly: boolean
+  ): BoardProps => {
+    const affordances = describeBoard(pack, state)
+    return freeze({
+      seed: pack.seed,
+      n: pack.n,
+      category: pack.category,
+      mode: pack.mode,
+      postcard: structuredClone(pack.postcard),
+      clues: structuredClone(pack.rules),
+      actionSurface: structuredClone(pack.actionSurface),
+      affordances: structuredClone(affordances),
+      cells: pack.cells.map((cell, index) => {
+        const visible =
+          pack.visibility.kind === "full" ||
+          pack.visibility.visibleCells.includes(index)
+        const role = affordances.cells[index]?.role ?? "inert"
+        return {
+          index,
+          row: Math.floor(index / pack.n),
+          column: index % pack.n,
+          value: visible ? state.cells[index] : null,
+          locked: visible && cell.locked,
+          visible,
+          selected: visible && state.selectedCell === index,
+          role,
+        }
+      }),
+      actions: state.actions,
+      remainingActions: actionCap - state.actions,
+      remainingMs,
+      status,
+      readOnly,
+      hints: "practice-only",
+    })
   }
   publish()
   return {
@@ -506,6 +585,7 @@ export function createBattleGround(
           learner: stoppedAt.learner != null,
         },
         overtime: { ...overtime },
+        tapes: structuredClone(tapes) as Record<Side, RoundTapes>,
       }
     },
     subscribe: (listener: () => void) => {
@@ -522,41 +602,34 @@ export function createBattleGround(
       clear: () => dispatch(side, { type: "clear" }),
     }),
     boardProps: (side: Side): BoardProps => {
-      const pack = packs[cursor[side]]
       const attempt = attempts[side]
-      const affordances = describeBoard(pack, attempt.state)
-      return freeze({
-        seed: pack.seed,
-        n: pack.n,
-        category: pack.category,
-        mode: pack.mode,
-        postcard: structuredClone(pack.postcard),
-        clues: structuredClone(pack.rules),
-        actionSurface: structuredClone(pack.actionSurface),
-        affordances: structuredClone(affordances),
-        cells: pack.cells.map((cell, index) => {
-          const visible =
-            pack.visibility.kind === "full" ||
-            pack.visibility.visibleCells.includes(index)
-          const role = affordances.cells[index]?.role ?? "inert"
-          return {
-            index,
-            row: Math.floor(index / pack.n),
-            column: index % pack.n,
-            value: visible ? attempt.state.cells[index] : null,
-            locked: visible && cell.locked,
-            visible,
-            selected: visible && attempt.state.selectedCell === index,
-            role,
-          }
-        }),
-        actions: attempt.state.actions,
-        remainingActions: actionCap - attempt.state.actions,
-        remainingMs: snapshot.remainingMs[side],
-        status: attempt.status,
-        readOnly: side === "learner" || attempt.status !== "playing",
-        hints: "practice-only",
-      })
+      return propsFor(
+        packs[cursor[side]],
+        attempt.state,
+        attempt.status,
+        snapshot.remainingMs[side],
+        side === "learner" || attempt.status !== "playing"
+      )
+    },
+    /**
+     * A read-only board for round history: any dealt round, any cells.
+     * Null when the seed is not in this match.
+     */
+    replayProps: (
+      seed: number,
+      cells: readonly (number | null)[],
+      selectedCell: number | null,
+      status: RoundStatus
+    ): BoardProps | null => {
+      const pack = packs.find((item) => item.seed === seed)
+      if (!pack || cells.length !== pack.n ** 2) return null
+      return propsFor(
+        pack,
+        { cells: [...cells], selectedCell, history: [], actions: 0 },
+        status,
+        0,
+        true
+      )
     },
     claim: (side: Side, line: string) => {
       const claim = line.replace(/\s+/g, " ").trim().slice(0, 240)

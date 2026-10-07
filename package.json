@@ -14,6 +14,7 @@
     "check:puzzles": "node scripts/check-puzzles.mjs",
     "check:agents": "node scripts/check-agent-loops.mjs",
     "check:games": "node scripts/check-game-validity.mjs",
+    "check:history": "node scripts/check-round-history.mjs",
     "check:agent-suite": "node scripts/check-agent-loops.mjs && node scripts/check-game-validity.mjs"
   },
   "dependencies": {

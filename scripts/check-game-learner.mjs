@@ -30,7 +30,13 @@ try {
       "towers",
       "assembler",
     ],
-    "battle-ground-ui": ["agent-trace", "controller", "learner-mix", "model-learner"],
+    "battle-ground-ui": [
+      "agent-trace",
+      "controller",
+      "round-tape",
+      "learner-mix",
+      "model-learner",
+    ],
   })) {
     await mkdir(join(output, folder))
     for (const file of files) {

@@ -19,6 +19,7 @@ const sources = {
   "battle-ground-ui": [
     "agent-trace",
     "controller",
+    "round-tape",
     "learner-mix",
     "model-learner",
     "mix-dispatch",

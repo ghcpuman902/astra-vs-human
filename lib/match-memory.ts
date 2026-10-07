@@ -17,6 +17,7 @@ import {
   type DealtMatch,
   type MatchLength,
 } from "@/lib/battle-ground-ui/match-deck"
+import { TAPE_LIMIT } from "@/lib/battle-ground-ui/round-tape"
 import { packSchema } from "@/lib/mini-game-rules/schema"
 
 /** One match in progress (or just finished) in this browser. Survives a reload. */
@@ -99,6 +100,26 @@ const dumpSchema = z.strictObject({
   stopped: sides(z.boolean()),
   // Missing on matches saved before overtime existed.
   overtime: sides(z.boolean()).optional(),
+  // Missing on matches saved before round history existed.
+  tapes: sides(
+    z.record(
+      z.string().max(24),
+      z
+        .array(
+          z.strictObject({
+            at: z.number().min(0),
+            kind: z.enum(["tap", "undo", "clear"]),
+            cell: z.number().int().min(0).max(63).nullable(),
+            changes: z
+              .array(z.tuple([z.number().int().min(0).max(63), cellValue]))
+              .max(64),
+            taps: z.number().int().min(0),
+            overtime: z.literal(true).optional(),
+          })
+        )
+        .max(TAPE_LIMIT)
+    )
+  ).optional(),
 })
 const savedSchema = z.strictObject({
   v: z.literal(1),
