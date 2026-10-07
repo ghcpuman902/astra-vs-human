@@ -37,12 +37,19 @@ export type GamePlanner = {
 }
 
 /** Author capability only: typed tools, no arbitrary source-code execution. */
+/**
+ * Pack invent / respawn planner. Prefer cheap Sol (OPENAI_PACK_MODEL), then
+ * OPENAI_MODEL, then a Sol default — not Astra on every load.
+ */
 export function createAstraGamePlanner(): GamePlanner | undefined {
   if (typeof window !== "undefined")
     throw new Error("Game author is server-only")
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return undefined
-  const modelName = process.env.OPENAI_MODEL?.trim() || "gpt-6-astra"
+  const modelName =
+    process.env.OPENAI_PACK_MODEL?.trim() ||
+    process.env.OPENAI_MODEL?.trim() ||
+    "gpt-6.1-sol"
   const provider = createOpenAI({
     apiKey,
     organization: process.env.OPENAI_ORG_ID,
@@ -122,3 +129,6 @@ No prose output is needed; stop after a successful assemble tool result.`,
     },
   }
 }
+
+/** Alias: pack bank uses Sol-cheap planner. */
+export const createSolGamePlanner = createAstraGamePlanner

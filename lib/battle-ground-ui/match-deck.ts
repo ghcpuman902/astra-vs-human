@@ -2,6 +2,7 @@ import { assembleGamePack } from "../mini-game-rules/assembler"
 import type { GameCategory, GamePack } from "../mini-game-rules/schema"
 import { transferGroup } from "./controller"
 import {
+  FAMILY_DEFS,
   matchFamilies,
   rankMatchFamilies,
   type FamilyMarks,
@@ -18,7 +19,7 @@ export const DEFAULT_MATCH_LENGTH: MatchLength = "deep"
 /** Each side's Blitz clock. It does not reset when that side advances. */
 export const BLITZ_MATCH_MS = 180_000
 
-/** One game per category. Three rounds stay in that transfer family. */
+/** @deprecated Prefer FAMILY_DEFS — kept for clock-check scripts. */
 export const MATCH_CATEGORIES = [
   "binary_fill",
   "crown",
@@ -42,7 +43,9 @@ export type MatchDeck = {
 }
 
 export type FamilyShelf = {
+  familyId: string
   category: GameCategory
+  label: string
   transferGroup: string
   packs: readonly GamePack[]
 }
@@ -66,26 +69,53 @@ const fingerprint = (pack: GamePack) =>
     cells: pack.cells,
   })
 
+/** Fresh salt each library build so Summer Moons is not identical every load. */
+function librarySalt(): number {
+  const entropy =
+    typeof crypto !== "undefined" && "getRandomValues" in crypto
+      ? crypto.getRandomValues(new Uint32Array(1))[0]!
+      : (Date.now() ^ (Math.floor(Math.random() * 0xffffffff) >>> 0)) >>> 0
+  return entropy >>> 0
+}
+
 function assembleDistinct(
   category: GameCategory,
+  n: 4 | 5 | 6,
+  familyId: string,
   game: number,
   round: number,
+  salt: number,
   usedSeeds: Set<number>,
   usedBoards: Set<string>
 ): GamePack {
-  for (let step = 0; step < 80; step++) {
-    const seed = 8_200_000 + game * 1_000 + round * 40 + step
+  for (let step = 0; step < 120; step++) {
+    const seed =
+      (salt + game * 17_777 + round * 1_031 + step * 97 + familyId.length * 13) >>>
+      0
     if (usedSeeds.has(seed)) continue
     let pack: GamePack
     try {
       pack = assembleGamePack({
         category,
         seed,
-        n: 4,
-        variant: `match-g${game + 1}-r${round + 1}`,
+        n,
+        variant: `${familyId}-r${round + 1}`,
+        preferences: {
+          visibility: "full",
+          targetSeconds: n <= 4 ? 60 : n === 5 ? 75 : 90,
+        },
       }).pack
     } catch {
       continue
+    }
+    // Stamp transfer family so shelves stay distinct across same category.
+    pack = {
+      ...pack,
+      transfer: {
+        ...pack.transfer,
+        family: familyId,
+        variant: `${familyId}-r${round + 1}`,
+      },
     }
     const board = fingerprint(pack)
     const cells = JSON.stringify(pack.cells)
@@ -97,73 +127,114 @@ function assembleDistinct(
     return pack
   }
   throw new Error(
-    `No distinct ${category} pack for game ${game + 1} round ${round + 1}`
+    `No distinct ${category} pack for ${familyId} round ${round + 1}`
   )
 }
 
 let shelves: readonly FamilyShelf[] | null = null
+let shelvesSalt = 0
 
-function familyShelves(): readonly FamilyShelf[] {
-  if (shelves) return shelves
+function familyShelves(forceSalt?: number): readonly FamilyShelf[] {
+  const salt = forceSalt ?? (shelvesSalt || librarySalt())
+  if (shelves && shelvesSalt === salt) return shelves
+  shelvesSalt = salt
   const usedSeeds = new Set<number>()
-  shelves = MATCH_CATEGORIES.map((category, index) => {
+  shelves = FAMILY_DEFS.map((def, index) => {
     const usedBoards = new Set<string>()
     const packs = Array.from({ length: FAMILY_PACKS }, (_, round) =>
-      assembleDistinct(category, index, round, usedSeeds, usedBoards)
+      assembleDistinct(
+        def.category,
+        def.n,
+        def.id,
+        index,
+        round,
+        salt,
+        usedSeeds,
+        usedBoards
+      )
     )
     const group = transferGroup(packs[0])
-    if (packs.some((pack) => transferGroup(pack) !== group))
-      throw new Error(`${category} rounds left their transfer family`)
+    if (packs.some((pack) => pack.transfer.family !== def.id))
+      throw new Error(`${def.id} rounds left their transfer family`)
     if (new Set(packs.map((pack) => pack.seed)).size !== packs.length)
-      throw new Error(`${category} repeated a seed`)
-    return { category, transferGroup: group, packs }
+      throw new Error(`${def.id} repeated a seed`)
+    return {
+      familyId: def.id,
+      category: def.category,
+      label: def.label,
+      transferGroup: group,
+      packs,
+    }
   })
   return shelves
 }
 
 /**
  * Novel families first, and a Less mark waits behind them.
- * With no marks, this is the first family in the deck.
+ * With no marks, this is the first non-demoted family in the deck.
  */
 export function pickDeepFamily(
   marks: FamilyMarks = { played: [], disliked: [] }
 ): MatchFamily {
-  const families = matchFamilies()
-  const played = new Set(marks.played)
-  const less = new Set(marks.disliked)
-  const novel = families.filter((family) => !played.has(family.id))
-  const pool = novel.length > 0 ? novel : families
-  const open = pool.filter((family) => !less.has(family.id))
-  return open[0] ?? pool[0] ?? families[0]
+  const ranked = rankMatchFamilies(marks)
+  return ranked[0] ?? matchFamilies()[0]
 }
 
-export function buildFamilyLibrary(): readonly FamilyShelf[] {
+/** Build (or rebuild) the family library. Pass refresh to force new boards. */
+export function buildFamilyLibrary(options?: {
+  refresh?: boolean
+}): readonly FamilyShelf[] {
+  if (options?.refresh) {
+    shelves = null
+    shelvesSalt = librarySalt()
+  }
   return familyShelves()
 }
 
 function shelfFor(
-  category: GameCategory,
+  familyId: string,
   source: readonly FamilyShelf[]
 ): FamilyShelf {
-  const shelf = source.find((item) => item.category === category)
-  if (!shelf) throw new Error(`No packs for ${category}`)
+  const shelf = source.find((item) => item.familyId === familyId)
+  if (!shelf) throw new Error(`No packs for ${familyId}`)
   return shelf
+}
+
+
+function uniqueCategoryShelves(
+  marks: FamilyMarks,
+  source: readonly FamilyShelf[]
+): FamilyShelf[] {
+  const seen = new Set<GameCategory>()
+  const out: FamilyShelf[] = []
+  for (const shelf of rankShelves(marks, source)) {
+    if (seen.has(shelf.category)) continue
+    seen.add(shelf.category)
+    out.push(shelf)
+    if (out.length >= MATCH_GAME_COUNT) break
+  }
+  return out
 }
 
 function rankShelves(
   marks: FamilyMarks,
   source: readonly FamilyShelf[]
 ): FamilyShelf[] {
-  const byCategory = new Map(source.map((shelf) => [shelf.category, shelf]))
+  const byId = new Map(source.map((shelf) => [shelf.familyId, shelf]))
   return rankMatchFamilies(marks).flatMap((family) => {
-    const shelf = byCategory.get(family.category)
+    const shelf = byId.get(family.id)
     return shelf ? [shelf] : []
   })
 }
 
 /** Five games × three boards. Kept for clock checks. Not a setup choice. */
 export function buildMatchDeck(): MatchDeck {
-  const games = familyShelves().map((shelf, index) => {
+  const uniqueCategories = [
+    ...new Map(
+      familyShelves().map((shelf) => [shelf.category, shelf] as const)
+    ).values(),
+  ].slice(0, MATCH_GAME_COUNT)
+  const games = uniqueCategories.map((shelf, index) => {
     const packs = shelf.packs.slice(0, ROUNDS_PER_GAME) as [
       GamePack,
       GamePack,
@@ -192,7 +263,7 @@ export function dealMatch(
 ): DealtMatch {
   if (length === "deep") {
     const family = pickDeepFamily(marks)
-    const packs = shelfFor(family.category, source).packs.slice(0, FAMILY_PACKS)
+    const packs = shelfFor(family.id, source).packs.slice(0, FAMILY_PACKS)
     return {
       length,
       packs,
@@ -205,7 +276,8 @@ export function dealMatch(
     }
   }
   if (length === "tour") {
-    const packs = rankShelves(marks, source).map((shelf) => shelf.packs[0])
+    // One board from each mechanic (pipe demoted). Setup lists creative packs.
+    const packs = uniqueCategoryShelves(marks, source).map((shelf) => shelf.packs[0])
     return {
       length,
       packs,
@@ -217,7 +289,7 @@ export function dealMatch(
       familyId: null,
     }
   }
-  const ordered = rankShelves(marks, source)
+  const ordered = uniqueCategoryShelves(marks, source)
   const packs: GamePack[] = []
   for (let round = 0; round < FAMILY_PACKS; round++) {
     for (const shelf of ordered) packs.push(shelf.packs[round])

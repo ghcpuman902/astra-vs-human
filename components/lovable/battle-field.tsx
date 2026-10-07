@@ -1,4 +1,4 @@
-import { type CSSProperties } from "react"
+import { useState, type CSSProperties } from "react"
 import { RotateCcw, Undo2 } from "lucide-react"
 
 import { postcards } from "@/components/lovable/marks"
@@ -71,6 +71,8 @@ export const BattleField = ({
 }: BattleFieldProps) => {
   const card = postcards[pack.category]
   const playing = started && humanInteractive && humanBoard.status === "playing"
+  const [peekHuman, setPeekHuman] = useState(false)
+  const [peekAgent, setPeekAgent] = useState(false)
   return (
     <div className="battle-field" id="boards">
       <section
@@ -99,13 +101,31 @@ export const BattleField = ({
               onTap={onTap}
             />
           ) : (
-            <div className="puzzle-cover" style={coverStyle(humanBoard)}>
-              <span>
-                {humanInteractive
-                  ? "Your board. Rules are shared, then both clocks start."
-                  : "Agent A. It plays this board on its own clock."}
-              </span>
-            </div>
+            <button
+              type="button"
+              className="puzzle-cover"
+              style={coverStyle(humanBoard)}
+              data-peek={peekHuman || undefined}
+              aria-pressed={peekHuman}
+              onClick={() => setPeekHuman((value) => !value)}
+            >
+              {peekHuman ? (
+                <PaperBoard
+                  key={`peek-h-${humanBoard.seed}`}
+                  board={humanBoard}
+                  interactive={false}
+                  invalidIndex={null}
+                  label="Peek at human board"
+                  onTap={() => {}}
+                />
+              ) : (
+                <span>
+                  {humanInteractive
+                    ? "Your board. Tap to peek, then share rules."
+                    : "Agent A. Tap to peek at the empty craft."}
+                </span>
+              )}
+            </button>
           )}
         </div>
         <footer className="arena-footer">
@@ -158,7 +178,7 @@ export const BattleField = ({
         ) : (
           <p className="rules-pending">Shared clues appear here for both players.</p>
         )}
-        <p className="learner-note" aria-live="polite">
+        <div className="learner-note" aria-live="polite">
           {agentWorking ? "Agent still on its own round. " : null}
           {learnerStatus === "playing"
             ? agentStatus
@@ -166,7 +186,17 @@ export const BattleField = ({
               ? learnerStatus
               : "Agent waits for Start."}
           {finished && claim ? <blockquote>{claim}</blockquote> : null}
-        </p>
+        </div>
+        <div className="mobile-agent-dock" aria-live="polite">
+          <strong>{learnerTitle}</strong>
+          <span>
+            {agentWorking
+              ? "Still solving — scroll rules below."
+              : started
+                ? learnerStatus
+                : "Waiting"}
+          </span>
+        </div>
       </aside>
       <section
         className="battle-arena"
@@ -194,9 +224,27 @@ export const BattleField = ({
               onTap={() => {}}
             />
           ) : (
-            <div className="puzzle-cover" style={coverStyle(learnerBoard)}>
-              <span>Agent board. It keeps playing if you move on.</span>
-            </div>
+            <button
+              type="button"
+              className="puzzle-cover"
+              style={coverStyle(learnerBoard)}
+              data-peek={peekAgent || undefined}
+              aria-pressed={peekAgent}
+              onClick={() => setPeekAgent((value) => !value)}
+            >
+              {peekAgent ? (
+                <PaperBoard
+                  key={`peek-a-${learnerBoard.seed}`}
+                  board={learnerBoard}
+                  interactive={false}
+                  invalidIndex={null}
+                  label="Peek at agent board"
+                  onTap={() => {}}
+                />
+              ) : (
+                <span>Agent board. Tap to peek empty craft.</span>
+              )}
+            </button>
           )}
         </div>
         <footer className="arena-footer">

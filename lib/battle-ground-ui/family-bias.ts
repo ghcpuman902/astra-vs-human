@@ -1,28 +1,118 @@
-import { gameLandscape } from "../mini-game-rules/catalogue"
 import type { GameCategory } from "../mini-game-rules/schema"
 
-/** Certified transfer families. Ids match the assembler, copy comes from the catalogue. */
-const FAMILY_ID: Record<GameCategory, string> = {
-  binary_fill: "binary-friends",
-  crown: "crown-nontouch",
-  path_cover: "path-checkpoints",
-  tile_rotate_connect: "pipe-boundaries",
-  lights_toggle: "lights-cross-cancellation",
+/** Creative friend-pattern packs. LinkedIn-spirit framing OK; pipe demoted. */
+export type FamilyDef = {
+  id: string
+  category: GameCategory
+  label: string
+  pattern: string
+  /** Board size for this shelf. */
+  n: 4 | 5 | 6
+  /** Lucide / emoji hint for setup cards. */
+  icon: "sun-moon" | "crown" | "path" | "pipe" | "lights" | "islands" | "sparse" | "cascade"
+  spirit?: "Tango" | "Queens" | "Zip" | "Lights Out" | "Friend"
+  /** Soft-demote in ranking (boring pipe etc.). */
+  demote?: boolean
 }
 
-const LABEL: Record<GameCategory, string> = {
-  binary_fill: "Sun & moon",
-  crown: "Crown seats",
-  path_cover: "Number trail",
-  tile_rotate_connect: "Pipe turn",
-  lights_toggle: "Cross lights",
-}
+export const FAMILY_DEFS: readonly FamilyDef[] = [
+  {
+    id: "summer-moons",
+    category: "binary_fill",
+    label: "Summer Moons",
+    pattern:
+      "Two matching ends force the middle; a completed quota fixes the remaining cells.",
+    n: 4,
+    icon: "sun-moon",
+    spirit: "Tango",
+  },
+  {
+    id: "quota-islands",
+    category: "binary_fill",
+    label: "Quota islands",
+    pattern: "Equal friends and quotas carve small islands — count before you place.",
+    n: 5,
+    icon: "islands",
+    spirit: "Tango",
+  },
+  {
+    id: "crown-seats",
+    category: "crown",
+    label: "Crown seats",
+    pattern:
+      "A forced seat removes its column and neighboring diagonal seats.",
+    n: 5,
+    icon: "crown",
+    spirit: "Queens",
+  },
+  {
+    id: "sparse-crowns",
+    category: "crown",
+    label: "Sparse crowns",
+    pattern: "Blocked lanes shrink the board; place one crown per row and column still.",
+    n: 5,
+    icon: "sparse",
+    spirit: "Queens",
+  },
+  {
+    id: "number-trail",
+    category: "path_cover",
+    label: "Number trail",
+    pattern:
+      "An endpoint with one exit fixes the next step; a dead end must be an endpoint.",
+    n: 4,
+    icon: "path",
+    spirit: "Zip",
+  },
+  {
+    id: "checkpoint-snake",
+    category: "path_cover",
+    label: "Checkpoint snake",
+    pattern: "Numbered gates pin the path; fill the corridor without breaking adjacency.",
+    n: 5,
+    icon: "path",
+    spirit: "Zip",
+  },
+  {
+    id: "cross-lights",
+    category: "lights_toggle",
+    label: "Cross lights",
+    pattern:
+      "Two presses cancel; shared neighbors flip twice and stay unchanged.",
+    n: 4,
+    icon: "lights",
+    spirit: "Lights Out",
+  },
+  {
+    id: "cascade-taps",
+    category: "lights_toggle",
+    label: "Cascade taps",
+    pattern: "A larger cross network — plan cancel pairs before you tap.",
+    n: 5,
+    icon: "cascade",
+    spirit: "Lights Out",
+  },
+  {
+    id: "pipe-boundaries",
+    category: "tile_rotate_connect",
+    label: "Pipe turn",
+    pattern:
+      "A boundary rejects outward ports; a fixed neighbor forces the matching port.",
+    n: 5,
+    icon: "pipe",
+    demote: true,
+  },
+] as const
 
 export type MatchFamily = {
   id: string
   category: GameCategory
   label: string
   pattern: string
+  n: 4 | 5 | 6
+  icon: FamilyDef["icon"]
+  spirit?: FamilyDef["spirit"]
+  demote?: boolean
 }
 
 export type FamilyMarks = {
@@ -30,25 +120,22 @@ export type FamilyMarks = {
   disliked: readonly string[]
 }
 
-/** One row per assemblable category, in catalogue order. */
+/** One row per creative pack, catalogue order with pipe last. */
 export function matchFamilies(): readonly MatchFamily[] {
-  const seen = new Set<GameCategory>()
-  const families: MatchFamily[] = []
-  for (const idea of gameLandscape()) {
-    if (idea.status !== "assemblable" || seen.has(idea.category)) continue
-    seen.add(idea.category)
-    families.push({
-      id: FAMILY_ID[idea.category],
-      category: idea.category,
-      label: LABEL[idea.category],
-      pattern: idea.localPattern,
-    })
-  }
-  return families
+  return FAMILY_DEFS.map((def) => ({
+    id: def.id,
+    category: def.category,
+    label: def.label,
+    pattern: def.pattern,
+    n: def.n,
+    icon: def.icon,
+    spirit: def.spirit,
+    demote: def.demote,
+  }))
 }
 
 /**
- * Novel families first, disliked families later.
+ * Novel families first, disliked and demoted later.
  * Every catalogue family stays in the list. Marks never empty the match.
  */
 export function rankMatchFamilies(
@@ -59,7 +146,7 @@ export function rankMatchFamilies(
   return matchFamilies()
     .map((family, index) => {
       const novel = !played.has(family.id)
-      const avoid = disliked.has(family.id)
+      const avoid = disliked.has(family.id) || family.demote
       const score = (novel ? 2 : 0) - (avoid ? 3 : 0)
       return { family, index, score }
     })

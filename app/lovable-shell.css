@@ -352,10 +352,20 @@ body {
   gap: var(--s-1);
 }
 .family-row button[aria-pressed="true"],
-.choice-row button[aria-pressed="true"] {
+.family-row button[aria-pressed="true"]:hover:not(:disabled),
+.choice-row button[aria-pressed="true"],
+.choice-row button[aria-pressed="true"]:hover:not(:disabled),
+.battle-settings .paper-button[aria-pressed="true"],
+.battle-settings .paper-button[aria-pressed="true"]:hover:not(:disabled) {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--canvas);
+}
+/* Never grey-fill + light text: hover on unpressed stays ink on muted. */
+.paper-button:hover:not(:disabled):not([aria-pressed="true"]) {
+  background: var(--surface-muted);
+  color: var(--ink);
+  border-color: var(--ink-secondary);
 }
 .choice-row {
   display: flex;
@@ -1104,5 +1114,177 @@ body {
   }
   .puzzle-cell[data-rejected="true"] {
     animation: none;
+  }
+}
+
+
+/* --- UX rant polish: setup icons, results, mobile dock --- */
+.mode-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 6px;
+}
+.mode-icon.blitz svg {
+  width: 14px;
+  height: 14px;
+}
+.mode-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+.mode-dot.hue-0 { background: var(--cat-1); }
+.mode-dot.hue-1 { background: var(--cat-2); }
+.mode-dot.hue-2 { background: var(--cat-3); }
+.mode-dot.hue-3 { background: var(--cat-4); }
+.mode-dot.hue-4 { background: var(--cat-5); }
+.length-button {
+  flex-direction: column;
+  height: auto;
+  min-height: 64px;
+  padding: 10px var(--s-3);
+  gap: 4px;
+}
+.family-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.family-icon,
+.family-icon-pair {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  color: var(--ink);
+}
+.family-icon-pair {
+  display: inline-flex;
+  gap: 2px;
+}
+.family-icon-pair .family-icon {
+  width: 16px;
+  height: 16px;
+}
+.family-spirit {
+  font-style: normal;
+  font: var(--t-badge);
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+.family-row[data-demoted="true"] {
+  opacity: 0.72;
+}
+.variant-boards span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.variant-boards svg {
+  width: 16px;
+  height: 16px;
+}
+.setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+.setup-footnote {
+  margin: 0;
+  color: var(--ink-secondary);
+  font: var(--t-badge);
+}
+.match-results {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+  padding: var(--s-4) max(var(--s-5), env(safe-area-inset-right))
+    max(var(--s-4), env(safe-area-inset-bottom))
+    max(var(--s-5), env(safe-area-inset-left));
+  border-top: 2px solid var(--border-strong);
+  background: var(--canvas);
+  color: var(--ink);
+}
+.match-results h2 {
+  margin: 0;
+  font: var(--t-title);
+}
+.match-results p {
+  margin: 0;
+  font: var(--t-ui);
+}
+.results-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.puzzle-cover {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: calc(var(--n) * max(36px, var(--cell)) + var(--cover-extra, 0px));
+  margin: 0;
+  padding: var(--s-3);
+  border: 1px dashed color-mix(in oklab, var(--ink-secondary) 40%, transparent);
+  background: var(--canvas);
+  color: var(--ink-secondary);
+  font: var(--t-ui);
+  text-align: center;
+  cursor: pointer;
+}
+.puzzle-cover[data-peek="true"] {
+  border-style: solid;
+  padding: 0;
+  color: var(--ink);
+}
+.puzzle-cover[data-peek="true"] .clue-board {
+  pointer-events: none;
+  opacity: 0.85;
+}
+.mobile-agent-dock {
+  display: none;
+}
+@media (max-width: 800px) {
+  .battle-field {
+    grid-template-areas:
+      "human"
+      "rules"
+      "agent";
+  }
+  .shared-rules {
+    position: relative;
+  }
+  .mobile-agent-dock {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-2);
+    margin: var(--s-2) 0 0;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in oklab, var(--ink-secondary) 32%, transparent);
+    background: color-mix(in oklab, var(--canvas) 92%, var(--surface-muted));
+    color: var(--ink);
+    font: var(--t-badge);
+  }
+  .match-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    background: var(--canvas);
+    padding-block: var(--s-2);
+  }
+  .family-list {
+    max-height: none;
   }
 }

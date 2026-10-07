@@ -40,6 +40,12 @@
     "_agent/production-build/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "_agent/craft-audit-pr2",
+    "_agent/ux-rant-2026-10-07",
+    "_agent/collab",
+    "_agent/live-lovable-stage",
+    "_agent/live-smoke",
+    "_agent/astra-hack"
   ]
 }

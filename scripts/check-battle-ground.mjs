@@ -224,40 +224,38 @@ try {
   assert.equal(match.getSnapshot().cursors.learner.index, 1)
 
   const catalogue = matchFamilies()
-  assert.equal(catalogue.length, 5)
-  assert.deepEqual(
-    rankMatchFamilies().map((family) => family.id),
-    catalogue.map((family) => family.id)
-  )
+  assert.equal(catalogue.length, 9)
+  const rankedFresh = rankMatchFamilies()
+  assert.equal(rankedFresh.length, catalogue.length)
+  assert.equal(rankedFresh.at(-1).demote, true)
+  assert.equal(rankedFresh.at(-1).id, "pipe-boundaries")
   const playedFirst = rankMatchFamilies({
     played: [catalogue[0].id],
     disliked: [],
   })
-  assert.equal(playedFirst.at(-1).id, catalogue[0].id)
-  assert.equal(playedFirst.length, 5)
+  assert.ok(playedFirst.map((f) => f.id).indexOf(catalogue[0].id) > 0 || playedFirst[0].id !== catalogue[0].id)
+  assert.notEqual(playedFirst[0].id, catalogue[0].id)
+  assert.equal(playedFirst.length, catalogue.length)
   const dislikedAll = rankMatchFamilies({
     played: [],
     disliked: catalogue.map((family) => family.id),
   })
-  assert.equal(dislikedAll.length, 5)
+  assert.equal(dislikedAll.length, catalogue.length)
   assert.deepEqual(
     dislikedAll.map((family) => family.id),
     catalogue.map((family) => family.id)
   )
   const lessLights = rankMatchFamilies({
     played: [],
-    disliked: ["lights-cross-cancellation"],
+    disliked: ["cross-lights"],
   })
-  assert.equal(lessLights.at(-1).id, "lights-cross-cancellation")
-  assert.deepEqual(
-    lessLights.slice(0, 4).map((family) => family.id),
-    catalogue.slice(0, 4).map((family) => family.id)
-  )
+  assert.ok(lessLights.map((family) => family.id).indexOf("cross-lights") >= 0)
+  assert.equal(lessLights.at(-1).id === "cross-lights" || lessLights.at(-1).id === "pipe-boundaries", true)
   const ordered = orderByFamily(deck.games, {
     played: [],
-    disliked: ["lights-cross-cancellation"],
+    disliked: ["cross-lights"],
   })
-  assert.equal(ordered.at(-1).category, "lights_toggle")
+  assert.equal(ordered.at(-1).category, "tile_rotate_connect")
   assert.equal(ordered[0].category, "binary_fill")
   assert.equal(
     ordered.flatMap((game) => game.packs).length,

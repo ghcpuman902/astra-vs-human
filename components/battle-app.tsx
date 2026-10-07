@@ -1,7 +1,21 @@
 "use client"
 
 import { useEffect, useState, useSyncExternalStore } from "react"
-import { Lock, LockOpen, Play } from "lucide-react"
+import {
+  Bot,
+  Crown,
+  LayoutGrid,
+  Lightbulb,
+  Lock,
+  LockOpen,
+  Moon,
+  Play,
+  RefreshCw,
+  Sparkles,
+  Timer,
+  User,
+  Waypoints,
+} from "lucide-react"
 
 import { BattleField } from "@/components/lovable/battle-field"
 import { useLearnerModel } from "@/hooks/use-learner-model"
@@ -17,12 +31,14 @@ import {
 import {
   matchFamilies,
   type FamilyMarks,
+  type MatchFamily,
 } from "@/lib/battle-ground-ui/family-bias"
 import {
   learnerModeIds,
   type LearnerMixId,
 } from "@/lib/battle-ground-ui/learner-mix"
 import {
+  buildFamilyLibrary,
   dealMatch,
   DEFAULT_MATCH_LENGTH,
   MATCH_LENGTHS,
@@ -33,12 +49,66 @@ import { packSchema, type GamePack } from "@/lib/mini-game-rules/schema"
 import { verifyGame } from "@/lib/mini-game-rules/verifier"
 
 const MATCH_ID = "match"
-const names: Record<GamePack["category"], string> = {
-  binary_fill: "Sun & moon",
+const FALLBACK_NAMES: Record<GamePack["category"], string> = {
+  binary_fill: "Summer Moons",
   crown: "Crown seats",
   path_cover: "Number trail",
   tile_rotate_connect: "Pipe turn",
   lights_toggle: "Cross lights",
+}
+const familyLabel = (pack: GamePack) => {
+  const hit = matchFamilies().find((family) => family.id === pack.transfer.family)
+  return hit?.label ?? FALLBACK_NAMES[pack.category]
+}
+const ModeIcon = ({ length }: { length: MatchLength }) => {
+  if (length === "deep")
+    return (
+      <span className="mode-icon" aria-hidden="true">
+        {Array.from({ length: 5 }, (_, i) => (
+          <i key={i} className="mode-dot same" />
+        ))}
+      </span>
+    )
+  if (length === "tour")
+    return (
+      <span className="mode-icon" aria-hidden="true">
+        {Array.from({ length: 5 }, (_, i) => (
+          <i key={i} className={`mode-dot hue-${i}`} />
+        ))}
+      </span>
+    )
+  return (
+    <span className="mode-icon blitz" aria-hidden="true">
+      <Timer />
+      <RefreshCw />
+    </span>
+  )
+}
+const FamilyIcon = ({ family }: { family: MatchFamily }) => {
+  const common = { className: "family-icon", "aria-hidden": true as const }
+  switch (family.icon) {
+    case "sun-moon":
+      return (
+        <span className="family-icon-pair" aria-hidden="true">
+          <Sparkles {...common} />
+          <Moon {...common} />
+        </span>
+      )
+    case "crown":
+    case "sparse":
+      return <Crown {...common} />
+    case "path":
+      return <Waypoints {...common} />
+    case "pipe":
+      return <LayoutGrid {...common} />
+    case "lights":
+    case "cascade":
+      return <Lightbulb {...common} />
+    case "islands":
+      return <Sparkles {...common} />
+    default:
+      return <LayoutGrid {...common} />
+  }
 }
 type Generated = {
   pack: GamePack
@@ -90,17 +160,25 @@ const formatClock = (ms: number) => {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
 }
 
-export function BattleApp({ library }: { library: readonly FamilyShelf[] }) {
+export function BattleApp({ library: initialLibrary }: { library: readonly FamilyShelf[] }) {
+  const [library, setLibrary] = useState(initialLibrary)
   const [dealt, setDealt] = useState<ReturnType<typeof dealMatch> | null>(null)
+  const [marks, setMarks] = useState<FamilyMarks>({ played: [], disliked: [] })
   const [arena, setArena] = useState<"play" | "watch">("play")
   const [leftMix, setLeftMix] = useState<LearnerMixId>("astra")
   const [rightMix, setRightMix] = useState<LearnerMixId>("astra")
   const [length, setLength] = useState<MatchLength>(DEFAULT_MATCH_LENGTH)
-  const [cap, setCap] = useState(600000)
   const [practice, setPractice] = useState(false)
   const [session, setSession] = useState(0)
   const [source, setSource] = useState("verified starter")
   const [hash, setHash] = useState<string | undefined>()
+  const deal = (nextMarks: FamilyMarks, nextLength = length, shelf = library) => {
+    setMarks(nextMarks)
+    setDealt(dealMatch(nextLength, nextMarks, shelf))
+    setSession((value) => value + 1)
+    setSource("verified starter")
+    setHash(undefined)
+  }
   if (!dealt) {
     return (
       <FamilyGate
@@ -108,20 +186,24 @@ export function BattleApp({ library }: { library: readonly FamilyShelf[] }) {
         leftMix={leftMix}
         rightMix={rightMix}
         length={length}
+        marks={marks}
         onArena={setArena}
         onLeftMix={setLeftMix}
         onRightMix={setRightMix}
         onLength={setLength}
-        onPlay={(marks) => {
-          setDealt(dealMatch(length, marks, library))
+        onMarks={setMarks}
+        onRefreshLibrary={() => {
+          const next = buildFamilyLibrary({ refresh: true })
+          setLibrary(next)
         }}
+        onPlay={(nextMarks) => deal(nextMarks, length, library)}
       />
     )
   }
   const packs = dealt.packs
   return (
     <BattleSession
-      key={`${session}:${dealt.length}:${cap}:${practice}:${packs.map((pack) => pack.seed).join("-")}`}
+      key={`${session}:${dealt.length}:${practice}:${packs.map((pack) => pack.seed).join("-")}`}
       packs={packs}
       arena={arena}
       leftMix={leftMix}
@@ -130,14 +212,15 @@ export function BattleApp({ library }: { library: readonly FamilyShelf[] }) {
       gameCount={dealt.gameCount}
       roundsPerGame={dealt.roundsPerGame}
       clock={dealt.clock}
-      cap={dealt.timeCapMs ?? cap}
+      cap={dealt.timeCapMs ?? 600_000}
       practice={practice}
       source={source}
       hash={hash}
-      onCap={setCap}
       onPractice={() => setPractice((value) => !value)}
       onSource={setSource}
       onHash={setHash}
+      onRematch={() => deal(marks, dealt.length, library)}
+      onSetup={() => setDealt(null)}
       onReplaceFirst={(pack) => {
         setDealt((current) =>
           current
@@ -245,25 +328,31 @@ function FamilyGate({
   leftMix,
   rightMix,
   length,
+  marks,
   onArena,
   onLeftMix,
   onRightMix,
   onLength,
+  onMarks,
+  onRefreshLibrary,
   onPlay,
 }: {
   arena: "play" | "watch"
   leftMix: LearnerMixId
   rightMix: LearnerMixId
   length: MatchLength
+  marks: FamilyMarks
   onArena: (arena: "play" | "watch") => void
   onLeftMix: (mix: LearnerMixId) => void
   onRightMix: (mix: LearnerMixId) => void
   onLength: (length: MatchLength) => void
+  onMarks: (marks: FamilyMarks) => void
+  onRefreshLibrary: () => void
   onPlay: (marks: FamilyMarks) => void
 }) {
   const families = matchFamilies()
-  const [played, setPlayed] = useState<readonly string[]>([])
-  const [disliked, setDisliked] = useState<readonly string[]>([])
+  const [played, setPlayed] = useState<readonly string[]>(marks.played)
+  const [disliked, setDisliked] = useState<readonly string[]>(marks.disliked)
   const [servers, setServers] = useState<{
     openai: boolean
     gateway: boolean
@@ -298,12 +387,17 @@ function FamilyGate({
   const toggle = (
     id: string,
     selected: readonly string[],
-    setSelected: (next: readonly string[]) => void
+    setSelected: (next: readonly string[]) => void,
+    kind: "played" | "disliked"
   ) => {
-    setSelected(
-      selected.includes(id)
-        ? selected.filter((item) => item !== id)
-        : [...selected, id]
+    const next = selected.includes(id)
+      ? selected.filter((item) => item !== id)
+      : [...selected, id]
+    setSelected(next)
+    onMarks(
+      kind === "played"
+        ? { played: next, disliked }
+        : { played, disliked: next }
     )
   }
   const watching = arena === "watch"
@@ -336,8 +430,12 @@ function FamilyGate({
             onClick={() => onArena("play")}
           >
             <span className="variant-boards" aria-hidden="true">
-              <span>You</span>
-              <span>Agent</span>
+              <span>
+                <User /> You
+              </span>
+              <span>
+                <Bot /> Agent
+              </span>
             </span>
             <strong>You vs Agent</strong>
             <span>You tap the left board.</span>
@@ -349,8 +447,12 @@ function FamilyGate({
             onClick={() => onArena("watch")}
           >
             <span className="variant-boards" aria-hidden="true">
-              <span>A</span>
-              <span>B</span>
+              <span>
+                <Bot /> A
+              </span>
+              <span>
+                <Bot /> B
+              </span>
             </span>
             <strong>Agent vs Agent</strong>
             <span>You watch both clocks.</span>
@@ -362,10 +464,11 @@ function FamilyGate({
             <div key={id} className="length-choice">
               <button
                 type="button"
-                className="paper-button"
+                className="paper-button length-button"
                 aria-pressed={length === id}
                 onClick={() => onLength(id)}
               >
+                <ModeIcon length={id} />
                 {LENGTH_COPY[id].label}
               </button>
               <p>{LENGTH_COPY[id].hint}</p>
@@ -376,10 +479,27 @@ function FamilyGate({
           <legend>2 · Families you already know</legend>
           <ul className="family-list">
             {families.map((family) => (
-              <li key={family.id} className="family-row">
-                <div>
-                  <strong>{family.label}</strong>
-                  <p>{family.pattern}</p>
+              <li
+                key={family.id}
+                className="family-row"
+                data-demoted={family.demote || undefined}
+              >
+                <div className="family-copy">
+                  <FamilyIcon family={family} />
+                  <div>
+                    <strong>
+                      {family.label}
+                      {family.spirit ? (
+                        <em className="family-spirit"> · {family.spirit}</em>
+                      ) : null}
+                      {family.demote ? (
+                        <em className="family-spirit"> · demoted</em>
+                      ) : null}
+                    </strong>
+                    <p>
+                      {family.n}×{family.n}. {family.pattern}
+                    </p>
+                  </div>
                 </div>
                 <div className="family-marks">
                   <button
@@ -387,7 +507,9 @@ function FamilyGate({
                     className="paper-button"
                     aria-pressed={played.includes(family.id)}
                     aria-label={`Played ${family.label}`}
-                    onClick={() => toggle(family.id, played, setPlayed)}
+                    onClick={() =>
+                      toggle(family.id, played, setPlayed, "played")
+                    }
                   >
                     Played
                   </button>
@@ -396,7 +518,9 @@ function FamilyGate({
                     className="paper-button"
                     aria-pressed={disliked.includes(family.id)}
                     aria-label={`Less of ${family.label}`}
-                    onClick={() => toggle(family.id, disliked, setDisliked)}
+                    onClick={() =>
+                      toggle(family.id, disliked, setDisliked, "disliked")
+                    }
                   >
                     Less
                   </button>
@@ -428,9 +552,23 @@ function FamilyGate({
             onMix={onRightMix}
           />
         )}
-        <button id="start-match" type="submit" className="primary-button">
-          Start
-        </button>
+        <div className="setup-actions">
+          <button
+            type="button"
+            className="paper-button"
+            onClick={() => onRefreshLibrary()}
+          >
+            <RefreshCw />
+            Respawn pack bank
+          </button>
+          <button id="start-match" type="submit" className="primary-button">
+            Start
+          </button>
+        </div>
+        <p className="setup-footnote">
+          Fresh boards assemble locally from the bank. Invent / Sol uses OpenAI
+          only when you ask mid-match.
+        </p>
       </form>
     </main>
   )
@@ -449,10 +587,11 @@ function BattleSession({
   practice,
   source,
   hash,
-  onCap,
   onPractice,
   onSource,
   onHash,
+  onRematch,
+  onSetup,
   onReplaceFirst,
 }: {
   packs: readonly GamePack[]
@@ -467,10 +606,11 @@ function BattleSession({
   practice: boolean
   source: string
   hash?: string
-  onCap: (cap: number) => void
   onPractice: () => void
   onSource: (source: string) => void
   onHash: (hash: string) => void
+  onRematch: () => void
+  onSetup: () => void
   onReplaceFirst: (pack: GamePack) => void
 }) {
   const [battle] = useState(() =>
@@ -673,8 +813,33 @@ function BattleSession({
       : length === "blitz"
         ? "Next board"
         : "Next round"
+  const matchOver =
+    snapshot.matchComplete ||
+    blitzDone ||
+    (started &&
+      !snapshot.canAdvance.human &&
+      !snapshot.canAdvance.learner &&
+      humanDone &&
+      !learnerPlaying)
+  const humanTally = tallyBlitz(
+    snapshot.records,
+    "human",
+    snapshot.remainingMs.human
+  )
+  const learnerTally = tallyBlitz(
+    snapshot.records,
+    "learner",
+    snapshot.remainingMs.learner
+  )
+  const winner = compareBlitz(humanTally, learnerTally)
+  const winnerLabel =
+    winner === "tie"
+      ? "Tie"
+      : winner === "human"
+        ? leftName
+        : rightName
   return (
-    <main className="battle-ground">
+    <main className="battle-ground" data-match-over={matchOver || undefined}>
       <a className="skip-link" href="#boards">
         Skip to boards
       </a>
@@ -714,7 +879,7 @@ function BattleSession({
                   {Array.from({ length: gameCount }, (_, game) => (
                     <li key={game} className="match-game">
                       <span className="match-game-name">
-                        {names[packs[game * roundsPerGame].category]}
+                        {familyLabel(packs[game * roundsPerGame])}
                       </span>
                       <span className="small-rounds">
                         {Array.from({ length: roundsPerGame }, (_, round) => {
@@ -761,36 +926,10 @@ function BattleSession({
           </p>
         </div>
         <div className="battle-settings">
-          <label>
-            Learner{" "}
-            <select
-              aria-label="Learner model"
-              value={models.selectedModel ?? ""}
-              disabled={armed || busy || models.isFrozen || models.status !== "ready"}
-              onChange={(event) => models.selectModel(event.target.value)}
-            >
-              {models.models.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.label}
-                </option>
-              ))}
-            </select>
-          </label>
           {length === "blitz" ? (
             <span className="clock-tag">3 min each</span>
           ) : (
-            <label>
-              Cap{" "}
-              <select
-                aria-label="Per-attempt time cap"
-                value={cap}
-                disabled={armed || busy}
-                onChange={(event) => onCap(Number(event.target.value))}
-              >
-                <option value={120000}>2 minutes</option>
-                <option value={600000}>10 minutes, if stuck</option>
-              </select>
-            </label>
+            <span className="clock-tag">10 min if stuck</span>
           )}
           <button
             type="button"
@@ -806,6 +945,14 @@ function BattleSession({
           >
             {practice ? <LockOpen /> : <Lock />}
             {practice ? "Test" : "Real"}
+          </button>
+          <button
+            type="button"
+            className="paper-button"
+            disabled={armed || busy}
+            onClick={onSetup}
+          >
+            Setup
           </button>
         </div>
         <div className="match-actions">
@@ -870,7 +1017,7 @@ function BattleSession({
         </div>
       </header>
       <div className="battle-title">
-        <h1>{names[humanPack.category]}</h1>
+        <h1>{familyLabel(humanPack)}</h1>
         <span className="mode-badge">{humanPack.mode}</span>
         <span className="battle-size">
           {humanPack.n} × {humanPack.n}
@@ -904,25 +1051,46 @@ function BattleSession({
         onUndo={() => battle.actions("human").undo()}
         onClear={() => battle.actions("human").clear()}
       />
+      {matchOver ? (
+        <section className="match-results" role="dialog" aria-label="Match results">
+          <header>
+            <p className="wordmark">Match over</p>
+            <h2>{winnerLabel}</h2>
+            <p>
+              {leftName}: {humanTally.rounds} boards · {humanTally.actions} taps
+              {length === "blitz"
+                ? ` · ${formatClock(snapshot.remainingMs.human)} left`
+                : ""}
+            </p>
+            <p>
+              {rightName}: {learnerTally.rounds} boards · {learnerTally.actions}{" "}
+              taps
+              {length === "blitz"
+                ? ` · ${formatClock(snapshot.remainingMs.learner)} left`
+                : ""}
+            </p>
+            {blitzResult ? <p className="results-blitz">{blitzResult}</p> : null}
+          </header>
+          <div className="results-actions">
+            <button type="button" className="primary-button" onClick={onRematch}>
+              <RefreshCw />
+              Rematch
+            </button>
+            <button type="button" className="paper-button" onClick={onSetup}>
+              Back to setup
+            </button>
+            <button
+              type="button"
+              className="paper-button"
+              disabled={busy}
+              onClick={() => void generate(true)}
+            >
+              {busy ? "Generating…" : "Sol respawn family"}
+            </button>
+          </div>
+        </section>
+      ) : null}
       <footer className="battle-footer">
-        <div className="footer-tools">
-          <button
-            type="button"
-            className="paper-button"
-            disabled={busy || armed}
-            onClick={() => void generate(true)}
-          >
-            {busy ? "Generating…" : "Respawn same family"}
-          </button>
-          <button
-            type="button"
-            className="paper-button"
-            disabled={busy || armed}
-            onClick={() => void generate(false)}
-          >
-            Invent another variation
-          </button>
-        </div>
         <span className="seed">
           HUMAN SEED {humanPack.seed}
           {snapshot.seeds.human !== snapshot.seeds.learner
@@ -950,7 +1118,7 @@ function BattleSession({
               return (
                 <span key={side}>
                   <strong>{side === "human" ? leftName : rightName}</strong> ·{" "}
-                  {names[packs[cursor.index].category]} ·{" "}
+                  {familyLabel(packs[cursor.index])} ·{" "}
                   {score.eligible
                     ? `action slope ${score.actionSlope?.toFixed(1)} per round${score.actionsFalling ? " · actions falling" : ""}`
                     : `${count}/${goal} completed transfer rounds`}
