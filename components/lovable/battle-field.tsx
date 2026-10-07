@@ -24,35 +24,6 @@ const STATUS: Record<string, string> = {
 }
 export const statusWord = (status: string) => STATUS[status] ?? status
 
-type BattleFieldProps = {
-  pack: GamePack
-  practice: boolean
-  humanTitle?: string
-  learnerTitle?: string
-  humanInteractive?: boolean
-  started: boolean
-  finished: boolean
-  humanBoard: BoardProps
-  learnerBoard: BoardProps
-  humanActions: number
-  learnerActions: number
-  humanStatus: string
-  learnerStatus: string
-  agentStatus: string
-  claim: string
-  invalidIndex: number | null
-  rulesShown: boolean
-  /** Restored after a reload; boards stay covered until Resume. */
-  paused?: boolean
-  humanDone: boolean
-  agentWorking: boolean
-  splitBoards: boolean
-  /** Undo · Clear · primary action. Sits under the human board, fixed on phones. */
-  dock: ReactNode
-  onTap: (cell: number) => void
-  onPathStep: (cell: number, cycles: number) => void
-}
-
 function Cover({
   board,
   text,
@@ -95,156 +66,107 @@ function Cover({
   )
 }
 
-export const BattleField = ({
-  pack,
-  practice,
-  humanTitle = "Human",
-  learnerTitle = "Agent",
-  humanInteractive = true,
+/** A mini phone screen. Header, board, then whatever the side needs underneath. */
+export function Phone({
+  side,
+  name,
+  sub,
+  clock,
+  tally,
+  rounds,
+  done = false,
+  behind = false,
+  children,
+  footer,
+}: {
+  side: "human" | "learner"
+  name: string
+  sub: string
+  clock: string
+  tally: string
+  rounds?: ReactNode
+  done?: boolean
+  behind?: boolean
+  children: ReactNode
+  footer?: ReactNode
+}) {
+  return (
+    <section
+      className="phone"
+      data-side={side}
+      data-done={done || undefined}
+      data-behind={behind || undefined}
+      aria-label={`${name} game`}
+    >
+      <header className="phone-bar">
+        <div className="phone-name">
+          <strong>{name}</strong>
+          <span>{sub}</span>
+        </div>
+        <div className="phone-clock">
+          <strong>{clock}</strong>
+          <span>{tally}</span>
+        </div>
+      </header>
+      {rounds}
+      <div className="arena-stage">{children}</div>
+      {footer ? <footer className="phone-foot">{footer}</footer> : null}
+    </section>
+  )
+}
+
+export function BoardStage({
+  board,
   started,
-  finished,
-  humanBoard,
-  learnerBoard,
-  humanActions,
-  learnerActions,
-  humanStatus,
-  learnerStatus,
-  agentStatus,
-  claim,
+  interactive,
   invalidIndex,
-  rulesShown,
-  paused = false,
-  humanDone,
-  agentWorking,
-  splitBoards,
-  dock,
+  name,
+  coverText,
+  locked,
   onTap,
   onPathStep,
-}: BattleFieldProps) => {
+}: {
+  board: BoardProps
+  started: boolean
+  interactive: boolean
+  invalidIndex: number | null
+  name: string
+  coverText: string
+  locked: boolean
+  onTap: (cell: number) => void
+  onPathStep?: (cell: number, cycles: number) => void
+}) {
+  return started ? (
+    <PaperBoard
+      key={board.seed}
+      board={board}
+      interactive={interactive}
+      invalidIndex={invalidIndex}
+      label={`${name} ${board.n} by ${board.n} board`}
+      onTap={onTap}
+      onPathStep={interactive ? onPathStep : undefined}
+    />
+  ) : (
+    <Cover
+      board={board}
+      label={`Peek at ${name} board`}
+      locked={locked}
+      text={locked ? "Paused. Resume to continue." : coverText}
+    />
+  )
+}
+
+/** The shared rules, shown once under the left board. */
+export function Rules({ pack }: { pack: GamePack }) {
   const card = postcards[pack.category]
   return (
-    <div className="battle-field" id="boards">
-      <section
-        className="battle-arena"
-        data-player="human"
-        data-done={humanDone || undefined}
-        aria-label={`${humanTitle} game`}
-      >
-        <header className="arena-header">
-          <strong>
-            {humanTitle}
-            {humanDone && humanStatus === "finished" ? (
-              <em className="done-mark">Solved</em>
-            ) : null}
-          </strong>
-          <span>
-            {humanActions} taps
-            {started ? ` · ${statusWord(humanStatus)}` : ""}
-          </span>
-        </header>
-        <div className="arena-stage">
-          {started ? (
-            <PaperBoard
-              key={humanBoard.seed}
-              board={humanBoard}
-              interactive={humanInteractive}
-              invalidIndex={invalidIndex}
-              label={`${humanTitle} ${pack.n} by ${pack.n} board`}
-              onTap={onTap}
-              onPathStep={humanInteractive ? onPathStep : undefined}
-            />
-          ) : (
-            <Cover
-              board={humanBoard}
-              label={`Peek at ${humanTitle} board`}
-              locked={paused}
-              text={
-                paused
-                  ? "Paused. Resume to continue."
-                  : humanInteractive
-                    ? "Your board. Tap to peek."
-                    : "Agent A board. Tap to peek."
-              }
-            />
-          )}
-        </div>
-      </section>
-      {dock}
-      <aside className="shared-rules" aria-label="Rules for both boards">
-        {rulesShown ? (
-          <div className="postcard-rules">
-            {splitBoards || practice ? (
-              <p className="rules-pending">
-                {splitBoards ? "These clues are your current round. " : ""}
-                {practice ? "Practice. Not scored." : ""}
-              </p>
-            ) : null}
-            <p className="postcard-goal">{card.goal}</p>
-            <ul>
-              {card.rules.map((rule, index) => (
-                <li key={index}>{rule}</li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <p className="rules-pending">
-            The same rules for both boards appear here.
-          </p>
-        )}
-        <div className="learner-note" aria-live="polite">
-          {agentWorking ? `${learnerTitle} is still on its own round. ` : null}
-          {paused
-            ? `${learnerTitle} is paused with you.`
-            : !started
-              ? `${learnerTitle} waits for Start.`
-              : learnerStatus === "playing"
-                ? agentStatus
-                : `${learnerTitle} ${statusWord(learnerStatus)}.`}
-          {finished && claim ? <blockquote>{claim}</blockquote> : null}
-        </div>
-      </aside>
-      <section
-        className="battle-arena"
-        data-player="learner"
-        data-behind={agentWorking || undefined}
-        aria-label={`${learnerTitle} game`}
-      >
-        <header className="arena-header">
-          <strong>
-            {learnerTitle}
-            {agentWorking ? (
-              <em className="behind-mark">Still solving</em>
-            ) : null}
-          </strong>
-          <span>
-            {learnerActions} taps
-            {started ? ` · ${statusWord(learnerStatus)}` : " · read only"}
-          </span>
-        </header>
-        <div className="arena-stage">
-          {started ? (
-            <PaperBoard
-              key={learnerBoard.seed}
-              board={learnerBoard}
-              interactive={false}
-              invalidIndex={null}
-              label={`${learnerTitle} ${learnerBoard.n} by ${learnerBoard.n} board`}
-              onTap={() => {}}
-            />
-          ) : (
-            <Cover
-              board={learnerBoard}
-              label={`Peek at ${learnerTitle} board`}
-              locked={paused}
-              text={
-                paused
-                  ? "Paused. Resume to continue."
-                  : `${learnerTitle} board. Tap to peek.`
-              }
-            />
-          )}
-        </div>
-      </section>
+    <div className="postcard-rules">
+      <p className="postcard-goal">{card.goal}</p>
+      <ul>
+        {card.rules.map((rule, index) => (
+          <li key={index}>{rule}</li>
+        ))}
+      </ul>
     </div>
   )
 }

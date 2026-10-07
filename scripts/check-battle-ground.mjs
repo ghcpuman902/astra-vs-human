@@ -153,6 +153,32 @@ try {
   assert.equal(paused.getSnapshot().attempts.human.status, "time-cap")
   assert.equal(paused.getSnapshot().attempts.learner.status, "time-cap")
 
+  // Settings open: pause() freezes both clocks; start() resumes from the same second.
+  for (const clock of ["attempt", "side"]) {
+    let stillClock = 0
+    const still = createBattleGround([pausedPack], {
+      timeCapMs: 120000,
+      clock,
+      now: () => stillClock,
+    })
+    stillClock += 5000
+    assert.equal(still.pause(), true)
+    assert.equal(still.pause(), false)
+    assert.equal(still.running(), false)
+    stillClock += 60000
+    still.tick()
+    assert.equal(still.getSnapshot().remainingMs.human, 115000)
+    assert.equal(still.getSnapshot().remainingMs.learner, 115000)
+    still.actions("human").selectCell(0)
+    assert.equal(still.getSnapshot().attempts.human.state.actions, 0)
+    assert.equal(still.dump().attempts.human.elapsedMs, 5000)
+    assert.equal(still.start(), true)
+    stillClock += 1000
+    still.tick()
+    assert.equal(still.getSnapshot().remainingMs.human, 114000)
+    assert.equal(still.getSnapshot().remainingMs.learner, 114000)
+  }
+
   const records = [12, 9, 7].map((actions, index) => ({
     seed: index,
     side: "human",
@@ -671,34 +697,23 @@ try {
   unsubCode()
   codeRunner.dispose()
 
-  const appSource = await readFile(
-    new URL("../components/battle-app.tsx", import.meta.url),
-    "utf8"
-  )
-  const fieldSource = await readFile(
-    new URL("../components/lovable/battle-field.tsx", import.meta.url),
-    "utf8"
-  )
-  const shellSource = await readFile(
-    new URL("../app/lovable-shell.css", import.meta.url),
-    "utf8"
-  )
+  const read = (path) =>
+    readFile(new URL(path, import.meta.url), "utf8")
+  const appSource = await read("../components/battle-app.tsx")
+  const fieldSource = await read("../components/lovable/battle-field.tsx")
+  const setupSource = await read("../components/setup-screen.tsx")
+  const optionSource = await read("../components/match-options.tsx")
+  const settingsSource = await read("../components/match-settings.tsx")
+  const reelSource = await read("../components/model-reel.tsx")
+  const shellSource = await read("../app/lovable-shell.css")
   assert.match(appSource, /data-slot="match-next"/)
   assert.match(appSource, /advance\("human"\)/)
   assert.doesNotMatch(appSource, /advance\("learner"\)/)
   assert.doesNotMatch(fieldSource, /onNext|advance\(/)
-  assert.match(appSource, /Show rules/)
   assert.match(appSource, /Start both/)
-  assert.match(
-    appSource,
-    /Finish this attempt to unlock Next\. The agent is not moved\./
-  )
-  assert.match(
-    appSource,
-    /data-phase=\{!rulesShown \? "rules" : !started \? "start" : "next"\}/
-  )
-  assert.match(appSource, /humanInteractive=\{!watching\}/)
-  assert.match(appSource, /learnerModeIds\.map/)
+  assert.match(appSource, /interactive=\{!watching\}/)
+  // Every method stays choosable, for one agent or two.
+  assert.match(optionSource, /learnerModeIds\.map/)
   for (const label of [
     "Astra",
     "Code",
@@ -709,66 +724,66 @@ try {
     "OpenAI Decisions",
     "You vs Agent",
     "Agent vs Agent",
+    "Deep",
+    "Tour",
+    "Blitz",
   ]) {
-    assert.match(appSource, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+    assert.match(
+      optionSource,
+      new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    )
   }
-  assert.match(appSource, /legend="Agent A"/)
-  assert.match(appSource, /legend="Agent B"/)
-  assert.match(appSource, /legend="Agent ability"/)
+  assert.match(setupSource, /Agent A method/)
+  assert.match(setupSource, /Agent B method/)
+  // Hero: host, one punchline, one call to action. No eyebrow.
+  assert.match(setupSource, /astra-vs-human\.vercel\.app/)
+  assert.match(setupSource, /Agents are faster, but are they smarter than humans\?/)
+  assert.match(setupSource, /Battle them on mini games!/)
+  // Setup shows the model reel and Deep by default; the rest sits behind More options.
+  assert.match(setupSource, /<ModelReel/)
+  assert.match(setupSource, /More options/)
+  assert.match(reelSource, /Roll to the next/)
+  assert.match(appSource, /useState<MatchLength>\(DEFAULT_MATCH_LENGTH\)/)
+  assert.equal(DEFAULT_MATCH_LENGTH, "deep")
+  assert.match(optionSource, /3 min/)
+  // Play view: two phone cards; seed lives behind the info button; no scored/test toggle.
+  assert.match(appSource, /<Phone/)
+  assert.match(appSource, /<MatchInfo/)
+  assert.doesNotMatch(appSource, /New boards|Scored|Invent a board/)
+  assert.match(settingsSource, /Restart match/)
+  assert.match(appSource, /battle\.pause\(\)/)
+  assert.match(appSource, /battle\.start\(\)/)
+  assert.match(appSource, /chooseModel/)
   // Boards are dealt in the browser per Start/Rematch/Respawn, never baked into the static page.
   assert.match(appSource, /freshDeal\(/)
   assert.match(appSource, /rememberDeal\(/)
-  const pageSource = await readFile(
-    new URL("../app/page.tsx", import.meta.url),
-    "utf8"
-  )
+  const pageSource = await read("../app/page.tsx")
   assert.doesNotMatch(pageSource, /buildFamilyLibrary/)
   assert.doesNotMatch(appSource, /astra-hybrid/)
-  assert.match(shellSource, /"human agent"/)
-  assert.match(shellSource, /grid-area: dock/)
-  // Phones: the human dock is fixed to the bottom; the page itself scrolls.
-  assert.match(shellSource, /\.battle-dock \{\s*position: fixed/)
+  assert.match(shellSource, /\.phone \{/)
   assert.doesNotMatch(shellSource, /body \{[^}]*overflow: hidden/)
   assert.match(
     shellSource,
     /puzzle-cell:not\(\[data-fixed="true"\]\):active:not\(:disabled\)/
   )
-  const layoutSource = await readFile(
-    new URL("../app/layout.tsx", import.meta.url),
-    "utf8"
-  )
+  const layoutSource = await read("../app/layout.tsx")
   assert.match(layoutSource, /display: "swap"/)
   assert.match(layoutSource, /adjustFontFallback: true/)
-  assert.match(shellSource, /\.shared-rules/)
-  assert.doesNotMatch(shellSource, /max-height:\s*min\(12rem,\s*32svh\)/)
   assert.match(shellSource, /\.primary-button:disabled\s*\{[^}]*surface-muted/)
   assert.match(shellSource, /max\(36px,\s*min\(44px/)
   assert.match(shellSource, /max\(36px,\s*var\(--cell\)\)/)
   assert.match(shellSource, /min-width:\s*36px/)
   assert.doesNotMatch(shellSource, /\(100vi - 80px\) \/ 12/)
-  const sideLearnerSource = await readFile(
-    new URL("../hooks/use-side-learner.ts", import.meta.url),
-    "utf8"
-  )
+  // A chosen chip is outlined with a check; only the primary action is filled ink.
+  assert.doesNotMatch(shellSource, /\.option-chip:has\(input:checked\) \{[^}]*background: var\(--ink\)/)
+  assert.match(shellSource, /\.primary-button \{[^}]*background: var\(--ink\)/)
+  const sideLearnerSource = await read("../hooks/use-side-learner.ts")
   assert.match(sideLearnerSource, /interpretPolicy\(result\.policy/)
   assert.match(sideLearnerSource, /mix/)
   assert.match(sideLearnerSource, /fetchGameLearnerDecision/)
   assert.match(appSource, /useSideLearner/)
-  assert.match(appSource, /label: "Code"/)
-  assert.match(appSource, /Match length/)
-  assert.match(appSource, /useState<MatchLength>\(DEFAULT_MATCH_LENGTH\)/)
-  assert.match(appSource, /label: "Deep"/)
-  assert.match(appSource, /label: "Tour"/)
-  assert.match(appSource, /label: "Blitz"/)
-  assert.match(appSource, /3 min/)
-  // A chosen option is outlined with a check; only the primary action is filled ink.
-  assert.match(shellSource, /\.option-card:has\(input:checked\) \{[^}]*border-color: var\(--ink\)/)
-  assert.doesNotMatch(shellSource, /\.option-card:has\(input:checked\) \{[^}]*background: var\(--ink\)/)
-  assert.doesNotMatch(shellSource, /\.option-chip:has\(input:checked\) \{[^}]*background: var\(--ink\)/)
-  assert.match(shellSource, /\.primary-button \{[^}]*background: var\(--ink\)/)
-  assert.match(appSource, /transferGroup\(pack\) === group/)
-  assert.match(appSource, /\$\{count\}\/\$\{goal\} completed transfer rounds/)
-  assert.doesNotMatch(appSource, /\/3 completed transfer rounds/)
+  assert.match(appSource, /transferGroup\(packs\[cursor\.index\]\)/)
+  assert.match(appSource, /transfer rounds/)
   assert.doesNotMatch(appSource, /5 × 3|5×3/)
   console.log(
     "Battle bridge verified: Deep 1×5 default, Tour 5×1, Blitz 3:00 independent clocks, human Next leaves the agent thinking, Code policy steps, shared-rules scroll."
