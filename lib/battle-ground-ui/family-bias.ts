@@ -59,7 +59,7 @@ export const FAMILY_DEFS: readonly FamilyDef[] = [
     category: "path_cover",
     label: "Number trail",
     pattern:
-      "An endpoint with one exit fixes the next step; a dead end must be an endpoint.",
+      "Drag one line through every cell. A corner has two exits, so the line turns there.",
     n: 4,
     icon: "path",
     spirit: "Zip",
@@ -68,7 +68,7 @@ export const FAMILY_DEFS: readonly FamilyDef[] = [
     id: "checkpoint-snake",
     category: "path_cover",
     label: "Checkpoint snake",
-    pattern: "Numbered gates pin the path; fill the corridor without breaking adjacency.",
+    pattern: "Numbered gates pin the order. Never leave a pocket the line cannot get back out of.",
     n: 5,
     icon: "path",
     spirit: "Zip",
@@ -118,6 +118,8 @@ export type MatchFamily = {
 export type FamilyMarks = {
   played: readonly string[]
   disliked: readonly string[]
+  /** Families dealt lately, oldest first. Ties go to the one least recently dealt. */
+  recent?: readonly string[]
 }
 
 /** One row per creative pack, catalogue order with pipe last. */
@@ -143,14 +145,15 @@ export function rankMatchFamilies(
 ): readonly MatchFamily[] {
   const played = new Set(marks.played)
   const disliked = new Set(marks.disliked)
+  const recent = marks.recent ?? []
   return matchFamilies()
     .map((family, index) => {
       const novel = !played.has(family.id)
       const avoid = disliked.has(family.id) || family.demote
       const score = (novel ? 2 : 0) - (avoid ? 3 : 0)
-      return { family, index, score }
+      return { family, index, score, last: recent.lastIndexOf(family.id) }
     })
-    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .sort((a, b) => b.score - a.score || a.last - b.last || a.index - b.index)
     .map((item) => item.family)
 }
 

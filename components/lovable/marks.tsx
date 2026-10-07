@@ -52,7 +52,7 @@ export const cellFill = (
   if (category === "binary_fill")
     return value === 0 ? "cat-2" : value === 1 ? "cat-5" : ""
   if (category === "crown") return value === 1 ? "cat-6" : ""
-  if (category === "path_cover") return value !== null ? "cat-4" : ""
+  if (category === "path_cover") return ""
   if (category === "lights_toggle") return value === 1 ? "cat-2" : ""
   return ""
 }
@@ -89,6 +89,25 @@ const Strip = ({
 const sun = { v: 0 }
 const moon = { v: 1 }
 const empty = { v: null }
+
+/** 1 → 2 → 3 on a highlighter band, the way the board draws it. */
+const ZipStrip = () => (
+  <span
+    className="rule-strip zip-strip"
+    style={{ "--cols": 3 } as CSSProperties}
+  >
+    <svg className="path-lines" viewBox="0 0 3 1" aria-hidden="true">
+      <line x1={0.5} y1={0.5} x2={2.5} y2={0.5} />
+    </svg>
+    {[1, 2, 3].map((value) => (
+      <span key={value} className="game-cell mg-cell">
+        <span className={value === 2 ? "path-number" : "path-gate"}>
+          {value}
+        </span>
+      </span>
+    ))}
+  </span>
+)
 
 /** Picture postcards from the newer Lovable gallery. Text only where a strip cannot say it. */
 export const postcards: Record<
@@ -144,16 +163,13 @@ export const postcards: Record<
     ],
   },
   path_cover: {
-    goal: <>Number every open cell into one path</>,
+    goal: <>Draw one path through every cell</>,
     rules: [
       <>
-        <Strip category="path_cover" cells={[{ v: 1 }, { v: 2 }, { v: 3 }]} />{" "}
-        each next number touches the last
+        <ZipStrip /> pass the numbers in order
       </>,
-      <>
-        <Strip category="path_cover" cells={[{ v: null, blocked: true }]} />{" "}
-        stays empty
-      </>,
+      <>Drag from a number. Drag back to erase.</>,
+      <>Or tap a cell beside a number to add the next one.</>,
     ],
   },
   tile_rotate_connect: {
@@ -180,7 +196,10 @@ export const postcards: Record<
       <>
         <Strip
           category="tile_rotate_connect"
-          cells={[{ v: 0, mask: 2 }, { v: null, blocked: true }]}
+          cells={[
+            { v: 0, mask: 2 },
+            { v: null, blocked: true },
+          ]}
         />{" "}
         no end into a blank or the edge
       </>,

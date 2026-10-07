@@ -44,6 +44,8 @@ try {
   const {
     buildMatchDeck,
     dealMatch,
+    freshDeal,
+    boardId,
     pickDeepFamily,
     DEFAULT_MATCH_LENGTH,
     BLITZ_MATCH_MS,
@@ -299,6 +301,30 @@ try {
   assert.equal(tour.clock, "attempt")
   assert.equal(new Set(tour.packs.map((pack) => pack.category)).size, 5)
 
+  // Every deal is fresh: a rematch of the same family shares no board with the last one.
+  const noMarks = { played: [], disliked: [] }
+  const firstDeal = freshDeal("deep", noMarks)
+  const rematch = freshDeal("deep", noMarks, {
+    familyId: firstDeal.familyId,
+    avoid: new Set(firstDeal.packs.map(boardId)),
+  })
+  assert.equal(rematch.familyId, firstDeal.familyId)
+  assert.equal(rematch.packs.length, 5)
+  assert.ok(
+    rematch.packs.every(
+      (pack) => !firstDeal.packs.some((old) => boardId(old) === boardId(pack))
+    )
+  )
+  // Ties go to the family dealt least recently, so reloads rotate families.
+  assert.notEqual(
+    freshDeal("deep", { ...noMarks, recent: [firstDeal.familyId] }).familyId,
+    firstDeal.familyId
+  )
+  for (const kind of ["tour", "blitz"]) {
+    const a = freshDeal(kind, noMarks).packs.map(boardId)
+    const b = freshDeal(kind, noMarks).packs.map(boardId)
+    assert.notDeepEqual(a, b)
+  }
   const blitzDeal = dealMatch("blitz")
   assert.equal(blitzDeal.timeCapMs, BLITZ_MATCH_MS)
   assert.equal(blitzDeal.timeCapMs, 180_000)
@@ -596,12 +622,23 @@ try {
   ]) {
     assert.match(appSource, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
   }
-  assert.match(appSource, /legend="3 · Agent A"/)
-  assert.match(appSource, /legend="4 · Agent B"/)
-  assert.match(appSource, /legend="3 · Agent ability"/)
+  assert.match(appSource, /legend="Agent A"/)
+  assert.match(appSource, /legend="Agent B"/)
+  assert.match(appSource, /legend="Agent ability"/)
+  // Boards are dealt in the browser per Start/Rematch/Respawn, never baked into the static page.
+  assert.match(appSource, /freshDeal\(/)
+  assert.match(appSource, /rememberDeal\(/)
+  const pageSource = await readFile(
+    new URL("../app/page.tsx", import.meta.url),
+    "utf8"
+  )
+  assert.doesNotMatch(pageSource, /buildFamilyLibrary/)
   assert.doesNotMatch(appSource, /astra-hybrid/)
   assert.match(shellSource, /"human agent"/)
-  assert.match(shellSource, /grid-area: actions/)
+  assert.match(shellSource, /grid-area: dock/)
+  // Phones: the human dock is fixed to the bottom; the page itself scrolls.
+  assert.match(shellSource, /\.battle-dock \{\s*position: fixed/)
+  assert.doesNotMatch(shellSource, /body \{[^}]*overflow: hidden/)
   assert.match(
     shellSource,
     /puzzle-cell:not\(\[data-fixed="true"\]\):active:not\(:disabled\)/
@@ -613,8 +650,7 @@ try {
   assert.match(layoutSource, /display: "swap"/)
   assert.match(layoutSource, /adjustFontFallback: true/)
   assert.match(shellSource, /\.shared-rules/)
-  assert.match(shellSource, /max-height:\s*min\(12rem,\s*32svh\)/)
-  assert.match(shellSource, /overflow:\s*auto/)
+  assert.doesNotMatch(shellSource, /max-height:\s*min\(12rem,\s*32svh\)/)
   assert.match(shellSource, /\.primary-button:disabled\s*\{[^}]*surface-muted/)
   assert.match(shellSource, /max\(36px,\s*min\(44px/)
   assert.match(shellSource, /max\(36px,\s*var\(--cell\)\)/)
@@ -635,14 +671,11 @@ try {
   assert.match(appSource, /label: "Tour"/)
   assert.match(appSource, /label: "Blitz"/)
   assert.match(appSource, /3 min/)
-  assert.match(
-    shellSource,
-    /\.length-choice \.paper-button\[aria-pressed="true"\]/
-  )
-  assert.match(
-    shellSource,
-    /\.length-choice \.paper-button\[aria-pressed="true"\][\s\S]*background:\s*var\(--ink\)/
-  )
+  // A chosen option is outlined with a check; only the primary action is filled ink.
+  assert.match(shellSource, /\.option-card:has\(input:checked\) \{[^}]*border-color: var\(--ink\)/)
+  assert.doesNotMatch(shellSource, /\.option-card:has\(input:checked\) \{[^}]*background: var\(--ink\)/)
+  assert.doesNotMatch(shellSource, /\.option-chip:has\(input:checked\) \{[^}]*background: var\(--ink\)/)
+  assert.match(shellSource, /\.primary-button \{[^}]*background: var\(--ink\)/)
   assert.match(appSource, /transferGroup\(pack\) === group/)
   assert.match(appSource, /\$\{count\}\/\$\{goal\} completed transfer rounds/)
   assert.doesNotMatch(appSource, /\/3 completed transfer rounds/)

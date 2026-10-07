@@ -24,6 +24,26 @@ export function neighbors(cell: number, n: number) {
     col > 0 ? cell - 1 : -1,
   ].filter((id) => id >= 0)
 }
+/**
+ * Zip cycle alphabet for one path cell: values one step from an orthogonal
+ * numbered neighbour that no other cell already holds, ascending.
+ */
+export function pathCandidates(
+  n: number,
+  cells: readonly (number | null)[],
+  cell: number,
+  length: number
+) {
+  const used = new Set(cells)
+  const options = new Set<number>()
+  for (const id of neighbors(cell, n)) {
+    const value = cells[id]
+    if (value === null) continue
+    for (const next of [value - 1, value + 1])
+      if (next >= 1 && next <= length && !used.has(next)) options.add(next)
+  }
+  return [...options].sort((a, b) => a - b)
+}
 export function rotatePorts(mask: number, turns: number) {
   for (let i = 0; i < ((turns % 4) + 4) % 4; i++)
     mask = ((mask << 1) & 15) | (mask >> 3)
@@ -86,6 +106,15 @@ export function applyGameAction(
       })
       next = (unique.indexOf(cells[cell]) + 1) % unique.length
       cells[cell] = unique[next]
+    } else if (pack.category === "path_cover") {
+      // ±1 only: never steps through unrelated orders or steals a placed one.
+      const current = cells[cell]
+      const options = pathCandidates(pack.n, cells, cell, values.length - 1)
+      cells[cell] =
+        current === null
+          ? (options[0] ?? null)
+          : (options.find((value) => value > current) ?? null)
+      if (cells[cell] === current) return state
     } else cells[cell] = values[next]
   }
   return {

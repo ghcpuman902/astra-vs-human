@@ -1,5 +1,5 @@
-import { useState, type CSSProperties } from "react"
-import { RotateCcw, Undo2 } from "lucide-react"
+import { useState, type CSSProperties, type ReactNode } from "react"
+import { Eye } from "lucide-react"
 
 import { postcards } from "@/components/lovable/marks"
 import { PaperBoard } from "@/components/lovable/paper-board"
@@ -16,6 +16,14 @@ const coverStyle = (board: BoardProps): CSSProperties => {
   } as CSSProperties
 }
 
+const STATUS: Record<string, string> = {
+  playing: "playing",
+  finished: "solved",
+  "action-cap": "out of taps",
+  "time-cap": "out of time",
+}
+export const statusWord = (status: string) => STATUS[status] ?? status
+
 type BattleFieldProps = {
   pack: GamePack
   practice: boolean
@@ -30,7 +38,6 @@ type BattleFieldProps = {
   learnerActions: number
   humanStatus: string
   learnerStatus: string
-  canUndo: boolean
   agentStatus: string
   claim: string
   invalidIndex: number | null
@@ -38,9 +45,48 @@ type BattleFieldProps = {
   humanDone: boolean
   agentWorking: boolean
   splitBoards: boolean
+  /** Undo · Clear · primary action. Sits under the human board, fixed on phones. */
+  dock: ReactNode
   onTap: (cell: number) => void
-  onUndo: () => void
-  onClear: () => void
+  onPathStep: (cell: number, cycles: number) => void
+}
+
+function Cover({
+  board,
+  text,
+  label,
+}: {
+  board: BoardProps
+  text: string
+  label: string
+}) {
+  const [peek, setPeek] = useState(false)
+  return (
+    <button
+      type="button"
+      className="puzzle-cover"
+      style={coverStyle(board)}
+      data-peek={peek || undefined}
+      aria-pressed={peek}
+      onClick={() => setPeek((value) => !value)}
+    >
+      {peek ? (
+        <PaperBoard
+          key={`peek-${board.seed}`}
+          board={board}
+          interactive={false}
+          invalidIndex={null}
+          label={label}
+          onTap={() => {}}
+        />
+      ) : (
+        <span className="cover-copy">
+          <Eye aria-hidden="true" />
+          {text}
+        </span>
+      )}
+    </button>
+  )
 }
 
 export const BattleField = ({
@@ -57,7 +103,6 @@ export const BattleField = ({
   learnerActions,
   humanStatus,
   learnerStatus,
-  canUndo,
   agentStatus,
   claim,
   invalidIndex,
@@ -65,14 +110,11 @@ export const BattleField = ({
   humanDone,
   agentWorking,
   splitBoards,
+  dock,
   onTap,
-  onUndo,
-  onClear,
+  onPathStep,
 }: BattleFieldProps) => {
   const card = postcards[pack.category]
-  const playing = started && humanInteractive && humanBoard.status === "playing"
-  const [peekHuman, setPeekHuman] = useState(false)
-  const [peekAgent, setPeekAgent] = useState(false)
   return (
     <div className="battle-field" id="boards">
       <section
@@ -84,10 +126,13 @@ export const BattleField = ({
         <header className="arena-header">
           <strong>
             {humanTitle}
-            {humanDone ? <em className="done-mark">Done</em> : null}
+            {humanDone && humanStatus === "finished" ? (
+              <em className="done-mark">Solved</em>
+            ) : null}
           </strong>
           <span>
-            {humanActions} taps · {started ? humanStatus : "ready"}
+            {humanActions} taps
+            {started ? ` · ${statusWord(humanStatus)}` : ""}
           </span>
         </header>
         <div className="arena-stage">
@@ -95,78 +140,34 @@ export const BattleField = ({
             <PaperBoard
               key={humanBoard.seed}
               board={humanBoard}
-              interactive
+              interactive={humanInteractive}
               invalidIndex={invalidIndex}
-              label={`Human ${pack.n} by ${pack.n} board`}
+              label={`${humanTitle} ${pack.n} by ${pack.n} board`}
               onTap={onTap}
+              onPathStep={humanInteractive ? onPathStep : undefined}
             />
           ) : (
-            <button
-              type="button"
-              className="puzzle-cover"
-              style={coverStyle(humanBoard)}
-              data-peek={peekHuman || undefined}
-              aria-pressed={peekHuman}
-              onClick={() => setPeekHuman((value) => !value)}
-            >
-              {peekHuman ? (
-                <PaperBoard
-                  key={`peek-h-${humanBoard.seed}`}
-                  board={humanBoard}
-                  interactive={false}
-                  invalidIndex={null}
-                  label="Peek at human board"
-                  onTap={() => {}}
-                />
-              ) : (
-                <span>
-                  {humanInteractive
-                    ? "Your board. Tap to peek, then share rules."
-                    : "Agent A. Tap to peek at the empty craft."}
-                </span>
-              )}
-            </button>
+            <Cover
+              board={humanBoard}
+              label={`Peek at ${humanTitle} board`}
+              text={
+                humanInteractive
+                  ? "Your board. Tap to peek."
+                  : "Agent A board. Tap to peek."
+              }
+            />
           )}
         </div>
-        <footer className="arena-footer">
-          <div className="battle-controls">
-            <button
-              type="button"
-              className="paper-button"
-              disabled={!playing || !canUndo}
-              onClick={onUndo}
-            >
-              <Undo2 />
-              Undo
-            </button>
-            <button
-              type="button"
-              className="paper-button"
-              disabled
-              title="Hints unavailable in scored play"
-            >
-              Hint
-            </button>
-            <button
-              type="button"
-              className="paper-button"
-              disabled={!playing}
-              onClick={onClear}
-            >
-              <RotateCcw />
-              Clear
-            </button>
-          </div>
-        </footer>
       </section>
-      <aside className="shared-rules">
+      {dock}
+      <aside className="shared-rules" aria-label="Rules for both boards">
         {rulesShown ? (
           <div className="postcard-rules">
-            {splitBoards ? (
-              <p className="rules-pending">These clues are your current round.</p>
-            ) : null}
-            {practice ? (
-              <p className="rules-pending">Practice. Not scored.</p>
+            {splitBoards || practice ? (
+              <p className="rules-pending">
+                {splitBoards ? "These clues are your current round. " : ""}
+                {practice ? "Practice. Not scored." : ""}
+              </p>
             ) : null}
             <p className="postcard-goal">{card.goal}</p>
             <ul>
@@ -176,26 +177,18 @@ export const BattleField = ({
             </ul>
           </div>
         ) : (
-          <p className="rules-pending">Shared clues appear here for both players.</p>
+          <p className="rules-pending">
+            The same rules for both boards appear here.
+          </p>
         )}
         <div className="learner-note" aria-live="polite">
-          {agentWorking ? "Agent still on its own round. " : null}
-          {learnerStatus === "playing"
-            ? agentStatus
-            : started
-              ? learnerStatus
-              : "Agent waits for Start."}
+          {agentWorking ? `${learnerTitle} is still on its own round. ` : null}
+          {!started
+            ? `${learnerTitle} waits for Start.`
+            : learnerStatus === "playing"
+              ? agentStatus
+              : `${learnerTitle} ${statusWord(learnerStatus)}.`}
           {finished && claim ? <blockquote>{claim}</blockquote> : null}
-        </div>
-        <div className="mobile-agent-dock" aria-live="polite">
-          <strong>{learnerTitle}</strong>
-          <span>
-            {agentWorking
-              ? "Still solving — scroll rules below."
-              : started
-                ? learnerStatus
-                : "Waiting"}
-          </span>
         </div>
       </aside>
       <section
@@ -207,10 +200,13 @@ export const BattleField = ({
         <header className="arena-header">
           <strong>
             {learnerTitle}
-            {agentWorking ? <em className="behind-mark">Still here</em> : null}
+            {agentWorking ? (
+              <em className="behind-mark">Still solving</em>
+            ) : null}
           </strong>
           <span>
-            {learnerActions} taps · {started ? learnerStatus : "ready"}
+            {learnerActions} taps
+            {started ? ` · ${statusWord(learnerStatus)}` : " · read only"}
           </span>
         </header>
         <div className="arena-stage">
@@ -220,37 +216,17 @@ export const BattleField = ({
               board={learnerBoard}
               interactive={false}
               invalidIndex={null}
-              label={`Agent ${learnerBoard.n} by ${learnerBoard.n} board`}
+              label={`${learnerTitle} ${learnerBoard.n} by ${learnerBoard.n} board`}
               onTap={() => {}}
             />
           ) : (
-            <button
-              type="button"
-              className="puzzle-cover"
-              style={coverStyle(learnerBoard)}
-              data-peek={peekAgent || undefined}
-              aria-pressed={peekAgent}
-              onClick={() => setPeekAgent((value) => !value)}
-            >
-              {peekAgent ? (
-                <PaperBoard
-                  key={`peek-a-${learnerBoard.seed}`}
-                  board={learnerBoard}
-                  interactive={false}
-                  invalidIndex={null}
-                  label="Peek at agent board"
-                  onTap={() => {}}
-                />
-              ) : (
-                <span>Agent board. Tap to peek empty craft.</span>
-              )}
-            </button>
+            <Cover
+              board={learnerBoard}
+              label={`Peek at ${learnerTitle} board`}
+              text={`${learnerTitle} board. Tap to peek.`}
+            />
           )}
         </div>
-        <footer className="arena-footer">
-          <span className="agent-idle">Read only</span>
-          <span>{started ? agentStatus : "Starts with you"}</span>
-        </footer>
       </section>
     </div>
   )

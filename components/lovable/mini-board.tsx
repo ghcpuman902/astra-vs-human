@@ -1,0 +1,88 @@
+import { rotatePorts } from "@/lib/mini-game-rules/runtime"
+import type { GamePack } from "@/lib/mini-game-rules/schema"
+
+const ARMS = [
+  [0.5, 0],
+  [1, 0.5],
+  [0.5, 1],
+  [0, 0.5],
+] as const
+
+/** Read-only SVG thumbnail of a fresh board: givens only, same craft tokens. */
+export function MiniBoard({ pack }: { pack: GamePack }) {
+  const n = pack.n
+  const blocked = (id: number) =>
+    (pack.category === "crown" && pack.rules.blocked.includes(id)) ||
+    (pack.category === "path_cover" && !pack.rules.active.includes(id)) ||
+    (pack.category === "tile_rotate_connect" && pack.rules.ports[id] === 0)
+  const fill = (id: number) => {
+    const value = pack.cells[id].value
+    if (blocked(id)) return "var(--mini-blocked)"
+    if (pack.category === "binary_fill" && value !== null)
+      return value === 0 ? "var(--cat-2)" : "var(--cat-5)"
+    if (pack.category === "lights_toggle" && value === 1) return "var(--cat-2)"
+    return "var(--canvas)"
+  }
+  return (
+    <svg
+      className="mini-board"
+      viewBox={`-0.06 -0.06 ${n + 0.12} ${n + 0.12}`}
+      role="img"
+      aria-label={`${n} by ${n} board preview`}
+    >
+      {pack.cells.map((cell, id) => {
+        const x = id % n
+        const y = Math.floor(id / n)
+        const mask =
+          pack.category === "tile_rotate_connect"
+            ? rotatePorts(pack.rules.ports[id], cell.value ?? 0)
+            : 0
+        const order =
+          pack.category === "path_cover" && cell.locked && cell.value !== null
+            ? cell.value
+            : null
+        return (
+          <g key={id} transform={`translate(${x} ${y})`}>
+            <rect width={1} height={1} fill={fill(id)} className="mini-cell" />
+            {ARMS.map(([ax, ay], bit) =>
+              mask & (1 << bit) ? (
+                <line
+                  key={bit}
+                  x1={0.5}
+                  y1={0.5}
+                  x2={ax}
+                  y2={ay}
+                  className="mini-pipe"
+                />
+              ) : null
+            )}
+            {pack.category === "binary_fill" && cell.value !== null ? (
+              <circle
+                cx={0.5}
+                cy={0.5}
+                r={0.16}
+                className={cell.value === 0 ? "mini-sun" : "mini-moon"}
+              />
+            ) : null}
+            {order !== null ? (
+              <>
+                <circle cx={0.5} cy={0.5} r={0.3} className="mini-gate" />
+                <text x={0.5} y={0.5} className="mini-order">
+                  {order}
+                </text>
+              </>
+            ) : null}
+          </g>
+        )
+      })}
+      <rect
+        x={0}
+        y={0}
+        width={n}
+        height={n}
+        fill="none"
+        className="mini-frame"
+      />
+    </svg>
+  )
+}

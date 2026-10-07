@@ -1,10 +1,14 @@
 "use client"
 
-import { useRef, useState, type CSSProperties } from "react"
+import { useRef, useState, type CSSProperties, type PointerEvent } from "react"
 
 import { cellFill, cellGlyph } from "@/components/lovable/marks"
 import type { BoardProps } from "@/lib/battle-ground-ui/controller"
-import { neighbors, rotatePorts } from "@/lib/mini-game-rules/runtime"
+import {
+  neighbors,
+  pathCandidates,
+  rotatePorts,
+} from "@/lib/mini-game-rules/runtime"
 
 type PaperBoardProps = {
   board: BoardProps
@@ -12,13 +16,20 @@ type PaperBoardProps = {
   invalidIndex: number | null
   label: string
   onTap: (cell: number) => void
+  /** Zip only: select `cell`, then cycle it `cycles` times. Counted like taps. */
+  onPathStep?: (cell: number, cycles: number) => void
 }
 
-const quotaFor = (
-  board: BoardProps,
-  line: number,
-  axis: "row" | "column"
-) => {
+type Trace = {
+  pointerId: number
+  head: number
+  /** +1 draws upward orders, -1 downward. 0 until the first step. */
+  direction: 1 | -1 | 0
+  cells: (number | null)[]
+  moved: boolean
+}
+
+const quotaFor = (board: BoardProps, line: number, axis: "row" | "column") => {
   if (!("constraints" in board.clues)) return undefined
   const rule = board.clues.constraints.find(
     (item) =>
@@ -33,17 +44,44 @@ const quotaFor = (
   return rule?.kind === "quota" ? rule.ones : undefined
 }
 
+/** Cycles needed to turn `cell` into `want` under the ±1 path cycle, or null. */
+function cyclesTo(
+  n: number,
+  cells: readonly (number | null)[],
+  cell: number,
+  want: number | null,
+  length: number
+) {
+  const sim = [...cells]
+  for (let cycles = 1; cycles <= 6; cycles++) {
+    const current = sim[cell]
+    const options = pathCandidates(n, sim, cell, length)
+    const next =
+      current === null
+        ? (options[0] ?? null)
+        : (options.find((value) => value > current) ?? null)
+    if (next === current) return null
+    sim[cell] = next
+    if (next === want) return cycles
+  }
+  return null
+}
+
 export const PaperBoard = ({
   board,
   interactive,
   invalidIndex,
   label,
   onTap,
+  onPathStep,
 }: PaperBoardProps) => {
   const grid = useRef<HTMLDivElement>(null)
+  const trace = useRef<Trace | null>(null)
+  const swallowClick = useRef(false)
   const [rejected, setRejected] = useState<number | null>(null)
   const [hover, setHover] = useState<number | null>(null)
   const [focus, setFocus] = useState<number | null>(null)
+  const [head, setHead] = useState<number | null>(null)
   const n = board.n
   const blocked =
     "blocked" in board.clues ? new Set(board.clues.blocked) : new Set<number>()
@@ -57,23 +95,25 @@ export const PaperBoard = ({
       ? board.clues.constraints.filter((rule) => rule.kind === "friend")
       : []
   const selected = board.cells.find((cell) => cell.selected) ?? null
-  const pathOrder = active?.size ?? 0
-  const segments =
-    board.category === "path_cover"
-      ? board.cells.flatMap((cell) => {
-          if (!cell.visible || cell.value === null) return []
-          const next = board.cells.find(
-            (other) => other.visible && other.value === cell.value! + 1
-          )
-          if (
-            !next ||
-            Math.abs(cell.row - next.row) + Math.abs(cell.column - next.column) !==
-              1
-          )
-            return []
-          return [[cell.index, next.index] as const]
-        })
-      : []
+  const zip = board.category === "path_cover"
+  const pathLength = board.actionSurface.cycleValues.length - 1
+  const tracing = zip && interactive && !board.readOnly && !!onPathStep
+  const segments = zip
+    ? board.cells.flatMap((cell) => {
+        if (!cell.visible || cell.value === null) return []
+        const next = board.cells.find(
+          (other) => other.visible && other.value === cell.value! + 1
+        )
+        if (
+          !next ||
+          Math.abs(cell.row - next.row) +
+            Math.abs(cell.column - next.column) !==
+            1
+        )
+          return []
+        return [[cell.index, next.index] as const]
+      })
+    : []
 
   const isBlocked = (index: number) => {
     if (blocked.has(index)) return true
@@ -126,6 +166,122 @@ export const PaperBoard = ({
     grid.current?.querySelectorAll<HTMLButtonElement>("button")[next]?.focus()
   }
 
+  const cellAt = (x: number, y: number) => {
+    const rect = grid.current?.getBoundingClientRect()
+    if (!rect) return null
+    const column = Math.floor(((x - rect.left) / rect.width) * n)
+    const row = Math.floor(((y - rect.top) / rect.height) * n)
+    if (column < 0 || row < 0 || column >= n || row >= n) return null
+    return row * n + column
+  }
+
+  const editable = (index: number) =>
+    !isBlocked(index) && !board.cells[index].locked
+
+  /** One orthogonal move of the trace head. False stops the drag there. */
+  const stepTo = (current: Trace, to: number) => {
+    const value = current.cells[current.head]
+    const there = current.cells[to]
+    if (value === null || isBlocked(to)) return false
+    const send = (cell: number, want: number | null) => {
+      const cycles = cyclesTo(n, current.cells, cell, want, pathLength)
+      if (cycles === null) return false
+      onPathStep?.(cell, cycles)
+      current.cells[cell] = want
+      current.moved = true
+      return true
+    }
+    if (there !== null) {
+      const delta = there - value
+      if (Math.abs(delta) !== 1) return false
+      // Pulling off the tip of a chain erases it, as in Zip.
+      if (
+        current.direction === 0 &&
+        editable(current.head) &&
+        !neighbors(current.head, n).some(
+          (id) => current.cells[id] === value - delta
+        )
+      )
+        current.direction = -delta as 1 | -1
+      // Back along the line erases the cell being left; forward just follows it.
+      if (current.direction !== 0 && delta === -current.direction) {
+        if (editable(current.head) && !send(current.head, null)) return false
+      } else current.direction = delta as 1 | -1
+      current.head = to
+      current.moved = true
+      return true
+    }
+    if (!editable(to)) return false
+    const used = new Set(current.cells)
+    const direction =
+      current.direction ||
+      (value + 1 <= pathLength && !used.has(value + 1)
+        ? 1
+        : value - 1 >= 1 && !used.has(value - 1)
+          ? -1
+          : 0)
+    if (!direction || used.has(value + direction)) return false
+    if (!send(to, value + direction)) return false
+    current.direction = direction
+    current.head = to
+    return true
+  }
+
+  const traceHandlers = tracing
+    ? {
+        onPointerDown: (event: PointerEvent<HTMLDivElement>) => {
+          swallowClick.current = false
+          if (trace.current || event.button !== 0) return
+          const cell = cellAt(event.clientX, event.clientY)
+          if (cell === null || board.cells[cell].value === null) return
+          trace.current = {
+            pointerId: event.pointerId,
+            head: cell,
+            direction: 0,
+            cells: board.cells.map((item) => item.value),
+            moved: false,
+          }
+          setHead(cell)
+        },
+        onPointerMove: (event: PointerEvent<HTMLDivElement>) => {
+          const current = trace.current
+          if (!current || event.pointerId !== current.pointerId) return
+          const target = cellAt(event.clientX, event.clientY)
+          if (target === null || target === current.head) return
+          if (!current.moved) grid.current?.setPointerCapture?.(event.pointerId)
+          // Fast swipes skip cells; walk there one edge at a time.
+          for (
+            let guard = 0;
+            guard < n * 2 && current.head !== target;
+            guard++
+          ) {
+            const dr = Math.floor(target / n) - Math.floor(current.head / n)
+            const dc = (target % n) - (current.head % n)
+            const to =
+              Math.abs(dc) >= Math.abs(dr)
+                ? current.head + Math.sign(dc)
+                : current.head + Math.sign(dr) * n
+            if (!stepTo(current, to)) {
+              setRejected(to)
+              break
+            }
+          }
+          setHead(current.head)
+        },
+        onPointerUp: (event: PointerEvent<HTMLDivElement>) => {
+          const current = trace.current
+          if (!current || event.pointerId !== current.pointerId) return
+          swallowClick.current = current.moved
+          trace.current = null
+          setHead(null)
+        },
+        onPointerCancel: () => {
+          trace.current = null
+          setHead(null)
+        },
+      }
+    : {}
+
   return (
     <div
       className="clue-board"
@@ -144,22 +300,14 @@ export const PaperBoard = ({
         className={`puzzle-grid mg-grid mg-${board.category}`}
         role="group"
         aria-label={label}
+        data-tracing={head !== null || undefined}
+        data-trace={tracing || undefined}
         onMouseLeave={() => setHover(null)}
+        {...traceHandlers}
       >
         {board.cells.map((cell) => {
           const blockedCell = isBlocked(cell.index)
           const fixed = cell.locked && !blockedCell
-          const showNext =
-            interactive &&
-            board.category === "path_cover" &&
-            cell.selected &&
-            !cell.locked
-          const nextLabel =
-            cell.value === null
-              ? 1
-              : cell.value >= pathOrder
-                ? "·"
-                : cell.value + 1
           return (
             <button
               key={cell.index}
@@ -175,9 +323,10 @@ export const PaperBoard = ({
                   : undefined
               }
               data-cross={cross?.has(cell.index) || undefined}
-              data-selected={cell.selected || undefined}
+              data-selected={(!zip && cell.selected) || undefined}
+              data-head={head === cell.index || undefined}
               data-rejected={rejected === cell.index || undefined}
-              aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}${blockedCell ? ", blocked" : ""}${fixed ? ", fixed" : ""}${cell.selected ? ", selected" : ""}`}
+              aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}${zip && cell.value !== null ? `, ${cell.value}` : ""}${blockedCell ? ", blocked" : ""}${fixed ? ", fixed" : ""}${cell.selected ? ", selected" : ""}`}
               aria-pressed={cell.selected}
               disabled={!interactive || board.readOnly}
               onAnimationEnd={() => setRejected(null)}
@@ -187,8 +336,26 @@ export const PaperBoard = ({
                 setFocus((current) => (current === cell.index ? null : current))
               }
               onClick={() => {
+                if (swallowClick.current) {
+                  swallowClick.current = false
+                  return
+                }
                 if (!interactive || board.readOnly) return
                 if (fixed || blockedCell) {
+                  setRejected(cell.index)
+                  return
+                }
+                if (
+                  zip &&
+                  cell.value === null &&
+                  !pathCandidates(
+                    n,
+                    board.cells.map((item) => item.value),
+                    cell.index,
+                    pathLength
+                  ).length
+                ) {
+                  // Nothing to number yet: no counted tap, just say so.
                   setRejected(cell.index)
                   return
                 }
@@ -198,13 +365,12 @@ export const PaperBoard = ({
                 interactive && handleKeyDown(event, cell.index)
               }
             >
-              {board.category === "path_cover" && !blockedCell ? (
-                <span className="path-number">
-                  {cell.value ?? ""}
-                  {showNext ? (
-                    <small className="next-value">→{nextLabel}</small>
-                  ) : null}
-                </span>
+              {zip && !blockedCell ? (
+                cell.value !== null ? (
+                  <span className={fixed ? "path-gate" : "path-number"}>
+                    {cell.value}
+                  </span>
+                ) : null
               ) : (
                 cellGlyph(
                   board.category,
@@ -231,8 +397,7 @@ export const PaperBoard = ({
               style={
                 {
                   "--cx": ((a % n) + (b % n)) / 2 + 0.5,
-                  "--cy":
-                    (Math.floor(a / n) + Math.floor(b / n)) / 2 + 0.5,
+                  "--cy": (Math.floor(a / n) + Math.floor(b / n)) / 2 + 0.5,
                 } as CSSProperties
               }
             >
@@ -265,10 +430,7 @@ export const PaperBoard = ({
           ))}
         </div>
       ) : null}
-      {selected &&
-      interactive &&
-      board.category !== "path_cover" &&
-      !selected.locked ? (
+      {selected && interactive && !zip && !selected.locked ? (
         <span className="sr-only">
           Selected row {selected.row + 1}, column {selected.column + 1}
         </span>

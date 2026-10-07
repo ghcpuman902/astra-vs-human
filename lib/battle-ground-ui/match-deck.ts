@@ -69,6 +69,16 @@ const fingerprint = (pack: GamePack) =>
     cells: pack.cells,
   })
 
+/** Short stable id for a board, so a browser can skip boards it has already dealt. */
+export function boardId(pack: GamePack): string {
+  let hash = 0x811c9dc5
+  for (const char of fingerprint(pack)) {
+    hash ^= char.charCodeAt(0)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(36)
+}
+
 /** Fresh salt each library build so Summer Moons is not identical every load. */
 function librarySalt(): number {
   const entropy =
@@ -86,7 +96,8 @@ function assembleDistinct(
   round: number,
   salt: number,
   usedSeeds: Set<number>,
-  usedBoards: Set<string>
+  usedBoards: Set<string>,
+  avoid: ReadonlySet<string>
 ): GamePack {
   for (let step = 0; step < 120; step++) {
     const seed =
@@ -119,7 +130,12 @@ function assembleDistinct(
     }
     const board = fingerprint(pack)
     const cells = JSON.stringify(pack.cells)
-    if (usedSeeds.has(pack.seed) || usedBoards.has(board) || usedBoards.has(cells))
+    if (
+      usedSeeds.has(pack.seed) ||
+      usedBoards.has(board) ||
+      usedBoards.has(cells) ||
+      (step < 60 && avoid.has(boardId(pack)))
+    )
       continue
     usedSeeds.add(pack.seed)
     usedBoards.add(board)
@@ -134,12 +150,14 @@ function assembleDistinct(
 let shelves: readonly FamilyShelf[] | null = null
 let shelvesSalt = 0
 
-function familyShelves(forceSalt?: number): readonly FamilyShelf[] {
-  const salt = forceSalt ?? (shelvesSalt || librarySalt())
-  if (shelves && shelvesSalt === salt) return shelves
-  shelvesSalt = salt
+function assembleShelves(
+  defs: readonly (typeof FAMILY_DEFS)[number][],
+  salt: number,
+  avoid: ReadonlySet<string>
+): FamilyShelf[] {
   const usedSeeds = new Set<number>()
-  shelves = FAMILY_DEFS.map((def, index) => {
+  return defs.map((def) => {
+    const index = FAMILY_DEFS.indexOf(def)
     const usedBoards = new Set<string>()
     const packs = Array.from({ length: FAMILY_PACKS }, (_, round) =>
       assembleDistinct(
@@ -150,7 +168,8 @@ function familyShelves(forceSalt?: number): readonly FamilyShelf[] {
         round,
         salt,
         usedSeeds,
-        usedBoards
+        usedBoards,
+        avoid
       )
     )
     const group = transferGroup(packs[0])
@@ -166,6 +185,16 @@ function familyShelves(forceSalt?: number): readonly FamilyShelf[] {
       packs,
     }
   })
+}
+
+function familyShelves(
+  forceSalt?: number,
+  avoid: ReadonlySet<string> = new Set()
+): readonly FamilyShelf[] {
+  const salt = forceSalt ?? (shelvesSalt || librarySalt())
+  if (shelves && shelvesSalt === salt) return shelves
+  shelvesSalt = salt
+  shelves = assembleShelves(FAMILY_DEFS, salt, avoid)
   return shelves
 }
 
@@ -180,15 +209,50 @@ export function pickDeepFamily(
   return ranked[0] ?? matchFamilies()[0]
 }
 
-/** Build (or rebuild) the family library. Pass refresh to force new boards. */
+/**
+ * Build (or rebuild) the family library. Pass refresh to force new boards,
+ * and avoid to skip board ids this browser has already been dealt.
+ */
 export function buildFamilyLibrary(options?: {
   refresh?: boolean
+  avoid?: ReadonlySet<string>
 }): readonly FamilyShelf[] {
   if (options?.refresh) {
     shelves = null
     shelvesSalt = librarySalt()
   }
-  return familyShelves()
+  return familyShelves(undefined, options?.avoid)
+}
+
+/** Same spec, new boards. Every Start, Rematch and Respawn goes through here. */
+export function freshDeal(
+  length: MatchLength,
+  marks: FamilyMarks,
+  options: { familyId?: string | null; avoid?: ReadonlySet<string> } = {}
+): DealtMatch {
+  const avoid = options.avoid ?? new Set<string>()
+  if (length === "deep") {
+    // Deep needs one shelf; skip assembling the other eight.
+    const familyId = options.familyId ?? pickDeepFamily(marks).id
+    const def = FAMILY_DEFS.find((item) => item.id === familyId)
+    if (!def) throw new Error(`No family ${familyId}`)
+    const [shelf] = assembleShelves([def], librarySalt(), avoid)
+    return {
+      length,
+      packs: shelf.packs,
+      gameCount: 1,
+      roundsPerGame: shelf.packs.length,
+      clock: "attempt",
+      timeCapMs: null,
+      category: def.category,
+      familyId,
+    }
+  }
+  return dealMatch(
+    length,
+    marks,
+    assembleShelves(FAMILY_DEFS, librarySalt(), avoid)
+  )
 }
 
 function shelfFor(
@@ -199,7 +263,6 @@ function shelfFor(
   if (!shelf) throw new Error(`No packs for ${familyId}`)
   return shelf
 }
-
 
 function uniqueCategoryShelves(
   marks: FamilyMarks,
@@ -277,7 +340,9 @@ export function dealMatch(
   }
   if (length === "tour") {
     // One board from each mechanic (pipe demoted). Setup lists creative packs.
-    const packs = uniqueCategoryShelves(marks, source).map((shelf) => shelf.packs[0])
+    const packs = uniqueCategoryShelves(marks, source).map(
+      (shelf) => shelf.packs[0]
+    )
     return {
       length,
       packs,

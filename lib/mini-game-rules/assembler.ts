@@ -253,63 +253,156 @@ export function assembleGamePack(
       solution,
     }
   } else if (category === "path_cover") {
-    const length = request.preferences?.pathLength ?? Math.min(12, n * 2)
-    // A seeded self-avoiding walk defines the covered area; numbered checkpoints select a route.
-    const route = [Math.floor(rng() * count)]
-    while (route.length < length) {
-      checkpoint()
-      const next = shuffle(
-        neighbors(route.at(-1)!, n).filter((id) => !route.includes(id)),
-        rng
-      )[0]
-      if (next === undefined) break
-      route.push(next)
+    const requested = request.preferences?.pathLength
+    // Zip: a seeded route covers the whole board unless a shorter corridor is asked for.
+    const walk = () => {
+      const path = [Math.floor(rng() * count)]
+      while (path.length < requested!) {
+        checkpoint()
+        const next = shuffle(
+          neighbors(path.at(-1)!, n).filter((id) => !path.includes(id)),
+          rng
+        )[0]
+        if (next === undefined) break
+        path.push(next)
+      }
+      return path
     }
+    // Warnsdorff order with seeded ties; odd boards start on the majority colour.
+    const tour = () => {
+      for (let attempt = 0; attempt < 8; attempt++) {
+        let first = Math.floor(rng() * count)
+        if (n % 2 && (Math.floor(first / n) + (first % n)) % 2)
+          first = (first + 1) % count
+        const path = [first],
+          used = new Set(path)
+        let budget = 4_000
+        const extend = (): boolean => {
+          checkpoint()
+          if (path.length === count) return true
+          if (--budget < 0) return false
+          const options = shuffle(
+            neighbors(path.at(-1)!, n).filter((id) => !used.has(id)),
+            rng
+          )
+            .map((id) => ({
+              id,
+              exits: neighbors(id, n).filter((other) => !used.has(other))
+                .length,
+            }))
+            .sort((a, b) => a.exits - b.exits)
+          for (const { id } of options) {
+            path.push(id)
+            used.add(id)
+            if (extend()) return true
+            path.pop()
+            used.delete(id)
+          }
+          return false
+        }
+        if (extend()) return path
+      }
+      throw new Error("No covering route for this seed")
+    }
+    const route = requested ? walk() : tour()
     const active = [...route],
+      open = new Set(active),
       start = route[0],
       end = route.at(-1)!,
       checkpoints = [
         { cell: start, order: 1 },
         { cell: end, order: route.length },
       ]
+    const distance = (a: number, b: number) =>
+      Math.abs(Math.floor(a / n) - Math.floor(b / n)) +
+      Math.abs((a % n) - (b % n))
+    // Up to two routes through the public clues; prunes on reach and connectivity.
     const findSolutions = () => {
       const found: number[][] = []
-      const visit = (path: number[]) => {
+      const orderAt = new Map(
+        checkpoints.map((point) => [point.cell, point.order])
+      )
+      const cellFor = new Map(
+        checkpoints.map((point) => [point.order, point.cell])
+      )
+      const path = [start],
+        used = new Set(path)
+      const connected = () => {
+        const head = path.at(-1)!
+        const left = active.length - path.length
+        if (!left) return true
+        const seen = new Set<number>()
+        const pending = neighbors(head, n).filter(
+          (id) => open.has(id) && !used.has(id)
+        )
+        if (!pending.length) return false
+        while (pending.length) {
+          const id = pending.pop()!
+          if (seen.has(id)) continue
+          seen.add(id)
+          for (const other of neighbors(id, n))
+            if (open.has(other) && !used.has(other) && !seen.has(other))
+              pending.push(other)
+        }
+        return seen.size === left
+      }
+      const reachable = () => {
+        const head = path.at(-1)!
+        for (const [order, cell] of cellFor)
+          if (order > path.length && distance(head, cell) > order - path.length)
+            return false
+        return true
+      }
+      const visit = () => {
         checkpoint()
         if (found.length >= 2) return
-        const id = path.at(-1)!
-        const clue = checkpoints.find((point) => point.cell === id)
-        if (clue && clue.order !== path.length) return
-        if (id === end) {
-          if (path.length === active.length) found.push(path)
+        if (path.length === active.length) {
+          if (path.at(-1) === end) found.push([...path])
           return
         }
-        for (const other of neighbors(id, n))
-          if (active.includes(other) && !path.includes(other))
-            visit([...path, other])
+        const order = path.length + 1
+        const pinned = cellFor.get(order)
+        for (const other of neighbors(path.at(-1)!, n)) {
+          if (!open.has(other) || used.has(other)) continue
+          if (pinned !== undefined ? other !== pinned : orderAt.has(other))
+            continue
+          path.push(other)
+          used.add(other)
+          if (reachable() && connected()) visit()
+          path.pop()
+          used.delete(other)
+        }
       }
-      visit([start])
+      visit()
       return found
     }
+    // Pin the route where a rival first leaves it, until only the route remains.
     let solutions = findSolutions()
-    for (const cell of shuffle(route.slice(1, -1), rng)) {
-      if (solutions.length === 1) break
-      checkpoints.push({ cell, order: route.indexOf(cell) + 1 })
+    while (solutions.length > 1) {
+      const fork = Math.min(
+        ...solutions
+          .map((path) => path.findIndex((id, index) => id !== route[index]))
+          .filter((index) => index > 0)
+      )
+      checkpoints.push({ cell: route[fork], order: fork + 1 })
       solutions = findSolutions()
     }
     // Keep a visible one-step foothold when a branch remains beside the start.
+    // Full-cover boards stay sparse; only corridors get the extra pins.
     const second = route[1]
-    const startChoices = neighbors(start, n).filter(
-      (id) =>
-        active.includes(id) &&
-        !checkpoints.some((point) => point.cell === id && point.order !== 2)
-    )
-    if (startChoices.length !== 1) {
-      for (const cell of startChoices.filter((id) => id !== second)) {
+    const startChoices = () =>
+      neighbors(start, n).filter(
+        (id) =>
+          active.includes(id) &&
+          !checkpoints.some((point) => point.cell === id && point.order !== 2)
+      )
+    if (requested && startChoices().length !== 1) {
+      for (const cell of startChoices().filter((id) => id !== second)) {
         if (!checkpoints.some((point) => point.cell === cell))
           checkpoints.push({ cell, order: route.indexOf(cell) + 1 })
       }
     }
+    checkpoints.sort((a, b) => a.order - b.order)
     const cells = common.cells.map((cell, id) => {
       const point = checkpoints.find((p) => p.cell === id)
       return point
@@ -335,12 +428,14 @@ export function assembleGamePack(
       rules: { active, start, end, checkpoints },
       winPredicate: "orthogonal-numbered-path-cover",
       postcard: {
-        goal: `Number the ${route.length} open cells into one path, from 1 to ${route.length}.`,
+        goal: `Draw one path from 1 to ${route.length} through every open cell.`,
         rules: [
-          "Consecutive numbers share an edge.",
-          "Use each number exactly once and cover every open cell.",
-          "Numbered checkpoints are fixed. Blocked cells stay empty.",
-          "Cycle an open cell through empty and the path numbers.",
+          "Each step moves to an edge neighbour.",
+          "Pass the numbered checkpoints in order.",
+          requested
+            ? "Blocked cells stay empty."
+            : "Cover every cell exactly once.",
+          "Drag from a number, or tap a cell beside one to add the next.",
         ],
       },
       transfer: {
@@ -353,7 +448,7 @@ export function assembleGamePack(
         ],
       },
     }
-    const forced = !cells[second].locked
+    const forced = !cells[second].locked && startChoices().length === 1
     audit = {
       certified: true,
       solutionCount: 1,

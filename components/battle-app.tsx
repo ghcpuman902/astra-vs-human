@@ -1,23 +1,31 @@
 "use client"
 
-import { useEffect, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import {
+  ArrowLeft,
   Bot,
+  Check,
   Crown,
   LayoutGrid,
   Lightbulb,
-  Lock,
-  LockOpen,
   Moon,
   Play,
   RefreshCw,
+  RotateCcw,
   Sparkles,
   Timer,
+  Undo2,
   User,
   Waypoints,
 } from "lucide-react"
 
-import { BattleField } from "@/components/lovable/battle-field"
+import { BattleField, statusWord } from "@/components/lovable/battle-field"
+import { MiniBoard } from "@/components/lovable/mini-board"
+import {
+  rememberDeal,
+  useDealMemory,
+  useMounted,
+} from "@/hooks/use-deal-memory"
 import { useLearnerModel } from "@/hooks/use-learner-model"
 import { useSideLearner } from "@/hooks/use-side-learner"
 import {
@@ -26,6 +34,8 @@ import {
   scoreTransfer,
   tallyBlitz,
   transferGroup,
+  type BattleRecord,
+  type Side,
   type SideCursor,
 } from "@/lib/battle-ground-ui/controller"
 import {
@@ -38,11 +48,10 @@ import {
   type LearnerMixId,
 } from "@/lib/battle-ground-ui/learner-mix"
 import {
-  buildFamilyLibrary,
-  dealMatch,
   DEFAULT_MATCH_LENGTH,
+  freshDeal,
   MATCH_LENGTHS,
-  type FamilyShelf,
+  type DealtMatch,
   type MatchLength,
 } from "@/lib/battle-ground-ui/match-deck"
 import { packSchema, type GamePack } from "@/lib/mini-game-rules/schema"
@@ -57,7 +66,9 @@ const FALLBACK_NAMES: Record<GamePack["category"], string> = {
   lights_toggle: "Cross lights",
 }
 const familyLabel = (pack: GamePack) => {
-  const hit = matchFamilies().find((family) => family.id === pack.transfer.family)
+  const hit = matchFamilies().find(
+    (family) => family.id === pack.transfer.family
+  )
   return hit?.label ?? FALLBACK_NAMES[pack.category]
 }
 const ModeIcon = ({ length }: { length: MatchLength }) => {
@@ -80,7 +91,6 @@ const ModeIcon = ({ length }: { length: MatchLength }) => {
   return (
     <span className="mode-icon blitz" aria-hidden="true">
       <Timer />
-      <RefreshCw />
     </span>
   )
 }
@@ -114,6 +124,12 @@ type Generated = {
   pack: GamePack
   meta: { source: string; contentHash: string; elapsedMs: number }
 }
+type Servers = {
+  openai: boolean
+  gateway: boolean
+  jev: boolean
+  laya: boolean
+}
 
 const LENGTH_COPY: Record<MatchLength, { label: string; hint: string }> = {
   deep: {
@@ -126,7 +142,7 @@ const LENGTH_COPY: Record<MatchLength, { label: string; hint: string }> = {
   },
   blitz: {
     label: "Blitz",
-    hint: "Your own 3:00. Boards count until it hits zero.",
+    hint: "3 min each. Most boards wins.",
   },
 }
 
@@ -160,24 +176,67 @@ const formatClock = (ms: number) => {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
 }
 
-export function BattleApp({ library: initialLibrary }: { library: readonly FamilyShelf[] }) {
-  const [library, setLibrary] = useState(initialLibrary)
-  const [dealt, setDealt] = useState<ReturnType<typeof dealMatch> | null>(null)
-  const [marks, setMarks] = useState<FamilyMarks>({ played: [], disliked: [] })
+const spentMs = (records: readonly BattleRecord[], side: Side) =>
+  records
+    .filter((record) => record.side === side)
+    .reduce((sum, record) => sum + record.elapsedMs, 0)
+
+const dealTitle = (dealt: DealtMatch) => {
+  if (dealt.length === "deep") return familyLabel(dealt.packs[0])
+  if (dealt.length === "tour") return `${dealt.packs.length} families`
+  return `${dealt.packs.length} boards, 3 min`
+}
+
+export function BattleApp() {
+  const mounted = useMounted()
+  const memory = useDealMemory()
   const [arena, setArena] = useState<"play" | "watch">("play")
   const [leftMix, setLeftMix] = useState<LearnerMixId>("astra")
   const [rightMix, setRightMix] = useState<LearnerMixId>("astra")
   const [length, setLength] = useState<MatchLength>(DEFAULT_MATCH_LENGTH)
+  const [marks, setMarks] = useState<FamilyMarks>({ played: [], disliked: [] })
+  const [preview, setPreview] = useState<DealtMatch | null>(null)
+  const [dealt, setDealt] = useState<DealtMatch | null>(null)
   const [practice, setPractice] = useState(false)
   const [session, setSession] = useState(0)
-  const [source, setSource] = useState("verified starter")
-  const [hash, setHash] = useState<string | undefined>()
-  const deal = (nextMarks: FamilyMarks, nextLength = length, shelf = library) => {
-    setMarks(nextMarks)
-    setDealt(dealMatch(nextLength, nextMarks, shelf))
+  const [source, setSource] = useState("fresh local boards")
+  const [servers, setServers] = useState<Servers | null>(null)
+  const avoid = useMemo(() => new Set(memory.boards), [memory.boards])
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/learner-mix")
+      .then((response) => response.json())
+      .then((body: Partial<Record<keyof Servers, unknown>>) => {
+        if (cancelled) return
+        setServers({
+          openai: body.openai === true,
+          gateway: body.gateway === true,
+          jev: body.jev === true,
+          laya: body.laya === true,
+        })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  // Boards are assembled in this browser on every deal, never cached server-side.
+  const dealFor = (
+    nextLength: MatchLength,
+    nextMarks: FamilyMarks,
+    familyId?: string | null
+  ) =>
+    freshDeal(
+      nextLength,
+      { ...nextMarks, recent: memory.recent },
+      { familyId, avoid }
+    )
+  if (mounted && !dealt && !preview) setPreview(dealFor(length, marks))
+  const play = (next: DealtMatch, label = "fresh local boards") => {
+    rememberDeal(next)
+    setDealt(next)
+    setSource(label)
     setSession((value) => value + 1)
-    setSource("verified starter")
-    setHash(undefined)
   }
   if (!dealt) {
     return (
@@ -187,48 +246,52 @@ export function BattleApp({ library: initialLibrary }: { library: readonly Famil
         rightMix={rightMix}
         length={length}
         marks={marks}
+        preview={preview}
+        servers={servers}
         onArena={setArena}
         onLeftMix={setLeftMix}
         onRightMix={setRightMix}
-        onLength={setLength}
-        onMarks={setMarks}
-        onRefreshLibrary={() => {
-          const next = buildFamilyLibrary({ refresh: true })
-          setLibrary(next)
+        onLength={(next) => {
+          setLength(next)
+          setPreview(dealFor(next, marks))
         }}
-        onPlay={(nextMarks) => deal(nextMarks, length, library)}
+        onMarks={(next) => {
+          setMarks(next)
+          setPreview(dealFor(length, next))
+        }}
+        onRespawn={() => setPreview(dealFor(length, marks, preview?.familyId))}
+        onPlay={() => {
+          const next = preview ?? dealFor(length, marks)
+          setPreview(null)
+          play(next)
+        }}
       />
     )
   }
   const packs = dealt.packs
   return (
     <BattleSession
-      key={`${session}:${dealt.length}:${practice}:${packs.map((pack) => pack.seed).join("-")}`}
-      packs={packs}
+      key={`${session}:${practice}`}
+      dealt={dealt}
       arena={arena}
       leftMix={leftMix}
       rightMix={rightMix}
-      length={dealt.length}
-      gameCount={dealt.gameCount}
-      roundsPerGame={dealt.roundsPerGame}
-      clock={dealt.clock}
-      cap={dealt.timeCapMs ?? 600_000}
       practice={practice}
       source={source}
-      hash={hash}
+      servers={servers}
       onPractice={() => setPractice((value) => !value)}
-      onSource={setSource}
-      onHash={setHash}
-      onRematch={() => deal(marks, dealt.length, library)}
+      onRematch={() => play(dealFor(dealt.length, marks, dealt.familyId))}
+      onNextFamily={() => play(dealFor("deep", marks))}
       onSetup={() => setDealt(null)}
-      onReplaceFirst={(pack) => {
-        setDealt((current) =>
-          current
-            ? { ...current, packs: [pack, ...current.packs.slice(1)] }
-            : current
-        )
-        setSession((value) => value + 1)
+      onInvent={(pack, label) => {
+        const next = dealFor(dealt.length, marks, dealt.familyId)
+        const rest = next.packs
+          .slice(1)
+          .filter((item) => item.seed !== pack.seed)
+        if (rest.length !== next.packs.length - 1) return
+        play({ ...next, packs: [pack, ...rest] }, label)
       }}
+      sameFamilyLabel={dealt.length === "deep" ? familyLabel(packs[0]) : null}
     />
   )
 }
@@ -239,11 +302,13 @@ const mixCopy: Record<
 > = {
   astra: {
     label: "Astra",
-    detail: "Same public board as you. Astra names one cell or a short burst of taps.",
+    detail:
+      "Same public board as you. Astra names one cell or a short burst of taps.",
   },
   code: {
     label: "Code",
-    detail: "Astra writes a tiny policy. This browser runs it. No JavaScript is eval'd.",
+    detail:
+      "Astra writes a tiny policy. This browser runs it. No JavaScript is eval'd.",
   },
   "astra-jev": {
     label: "Astra + Jev",
@@ -257,11 +322,13 @@ const mixCopy: Record<
   },
   "astra-laya": {
     label: "Astra + Laya",
-    detail: "Astra writes the plan as context. Laya commits it when a Laya credential is set.",
+    detail:
+      "Astra writes the plan as context. Laya commits it when a Laya credential is set.",
   },
   "laya-bare": {
     label: "Laya bare",
-    detail: "Laya sees the public board only. No Astra plan is wrapped around it.",
+    detail:
+      "Laya sees the public board only. No Astra plan is wrapped around it.",
   },
   "openai-decisions": {
     label: "OpenAI Decisions",
@@ -270,10 +337,7 @@ const mixCopy: Record<
   },
 }
 
-function modeNote(
-  mix: LearnerMixId,
-  servers: { openai: boolean; gateway: boolean; jev: boolean; laya: boolean } | null
-) {
+function modeNote(mix: LearnerMixId, servers: Servers | null) {
   if (!servers) return ""
   if (mix === "openai-decisions") {
     return servers.openai || servers.gateway
@@ -297,36 +361,93 @@ function modeNote(
 
 function ModePicker({
   legend,
+  name,
   mix,
   servers,
   onMix,
 }: {
   legend: string
+  name: string
   mix: LearnerMixId
-  servers: { openai: boolean; gateway: boolean; jev: boolean; laya: boolean } | null
+  servers: Servers | null
   onMix: (mix: LearnerMixId) => void
 }) {
   const note = modeNote(mix, servers)
   const copy = mixCopy[mix as (typeof learnerModeIds)[number]] ?? mixCopy.astra
   return (
-    <fieldset className="choice-row">
+    <fieldset className="setup-group">
       <legend>{legend}</legend>
-      {learnerModeIds.map((id) => (
-        <button
-          key={id}
-          type="button"
-          className="paper-button"
-          aria-pressed={mix === id}
-          onClick={() => onMix(id)}
-        >
-          {mixCopy[id].label}
-        </button>
-      ))}
-      <p>
+      <div className="chip-row">
+        {learnerModeIds.map((id) => (
+          <label key={id} className="option-chip">
+            <input
+              type="radio"
+              name={name}
+              value={id}
+              checked={mix === id}
+              onChange={() => onMix(id)}
+            />
+            <Check className="chip-check" aria-hidden="true" />
+            {mixCopy[id].label}
+          </label>
+        ))}
+      </div>
+      <p className="setup-note" aria-live="polite">
         {copy.detail}
         {note ? ` ${note}` : ""}
       </p>
     </fieldset>
+  )
+}
+
+function UpNext({
+  preview,
+  onRespawn,
+}: {
+  preview: DealtMatch | null
+  onRespawn: () => void
+}) {
+  const [turns, setTurns] = useState(0)
+  const first = preview?.packs[0]
+  return (
+    <section className="up-next" aria-label="Next match" aria-live="polite">
+      <div className="up-next-board">
+        {first ? (
+          <div key={first.seed} className="board-swap">
+            <MiniBoard pack={first} />
+          </div>
+        ) : (
+          <div className="mini-board-skeleton" />
+        )}
+      </div>
+      <div className="up-next-copy">
+        <strong>{preview ? dealTitle(preview) : "Dealing…"}</strong>
+        <span>
+          {preview
+            ? preview.length === "deep"
+              ? `${first?.n} × ${first?.n} · ${preview.packs.length} fresh boards`
+              : `Starts with ${familyLabel(preview.packs[0])}`
+            : "Assembling fresh boards"}
+        </span>
+      </div>
+      <button
+        type="button"
+        className="paper-button respawn-button"
+        disabled={!preview}
+        aria-label="Respawn: assemble new boards"
+        onClick={() => {
+          setTurns((value) => value + 1)
+          onRespawn()
+        }}
+      >
+        <RefreshCw
+          className="respawn-icon"
+          style={{ rotate: `${turns * 180}deg` }}
+          aria-hidden="true"
+        />
+        <span className="hide-narrow">Respawn</span>
+      </button>
+    </section>
   )
 }
 
@@ -336,12 +457,14 @@ function FamilyGate({
   rightMix,
   length,
   marks,
+  preview,
+  servers,
   onArena,
   onLeftMix,
   onRightMix,
   onLength,
   onMarks,
-  onRefreshLibrary,
+  onRespawn,
   onPlay,
 }: {
   arena: "play" | "watch"
@@ -349,63 +472,23 @@ function FamilyGate({
   rightMix: LearnerMixId
   length: MatchLength
   marks: FamilyMarks
+  preview: DealtMatch | null
+  servers: Servers | null
   onArena: (arena: "play" | "watch") => void
   onLeftMix: (mix: LearnerMixId) => void
   onRightMix: (mix: LearnerMixId) => void
   onLength: (length: MatchLength) => void
   onMarks: (marks: FamilyMarks) => void
-  onRefreshLibrary: () => void
-  onPlay: (marks: FamilyMarks) => void
+  onRespawn: () => void
+  onPlay: () => void
 }) {
   const families = matchFamilies()
-  const [played, setPlayed] = useState<readonly string[]>(marks.played)
-  const [disliked, setDisliked] = useState<readonly string[]>(marks.disliked)
-  const [servers, setServers] = useState<{
-    openai: boolean
-    gateway: boolean
-    jev: boolean
-    laya: boolean
-  } | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/learner-mix")
-      .then((response) => response.json())
-      .then(
-        (body: {
-          openai?: unknown
-          gateway?: unknown
-          jev?: unknown
-          laya?: unknown
-        }) => {
-          if (cancelled) return
-          setServers({
-            openai: body.openai === true,
-            gateway: body.gateway === true,
-            jev: body.jev === true,
-            laya: body.laya === true,
-          })
-        }
-      )
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  const toggle = (
-    id: string,
-    selected: readonly string[],
-    setSelected: (next: readonly string[]) => void,
-    kind: "played" | "disliked"
-  ) => {
+  const toggle = (id: string, kind: "played" | "disliked") => {
+    const selected = marks[kind]
     const next = selected.includes(id)
       ? selected.filter((item) => item !== id)
       : [...selected, id]
-    setSelected(next)
-    onMarks(
-      kind === "played"
-        ? { played: next, disliked }
-        : { played, disliked: next }
-    )
+    onMarks({ ...marks, [kind]: next })
   }
   const watching = arena === "watch"
   return (
@@ -414,212 +497,201 @@ function FamilyGate({
         Skip to start
       </a>
       <form
-        className="family-gate"
+        className="setup"
         onSubmit={(event) => {
           event.preventDefault()
-          onPlay({ played, disliked })
+          onPlay()
         }}
       >
-        <header className="setup-intro">
-          <p className="wordmark">astra-vs-human</p>
-          <h1>Same rules. Two clocks.</h1>
-          <p>
-            Pick who plays, then how long the match is. Mark families you
-            have played or want less of. New families come first.
-          </p>
-        </header>
-        <fieldset className="variant-grid">
-          <legend>1 · Who plays</legend>
-          <button
-            type="button"
-            className="variant-card"
-            aria-pressed={arena === "play"}
-            onClick={() => onArena("play")}
-          >
-            <span className="variant-boards" aria-hidden="true">
-              <span>
-                <User /> You
-              </span>
-              <span>
-                <Bot /> Agent
-              </span>
-            </span>
-            <strong>You vs Agent</strong>
-            <span>You tap the left board.</span>
-          </button>
-          <button
-            type="button"
-            className="variant-card"
-            aria-pressed={arena === "watch"}
-            onClick={() => onArena("watch")}
-          >
-            <span className="variant-boards" aria-hidden="true">
-              <span>
-                <Bot /> A
-              </span>
-              <span>
-                <Bot /> B
-              </span>
-            </span>
-            <strong>Agent vs Agent</strong>
-            <span>You watch both clocks.</span>
-          </button>
-        </fieldset>
-        <fieldset className="length-choices">
-          <legend>Match length</legend>
-          {MATCH_LENGTHS.map((id) => (
-            <div key={id} className="length-choice">
-              <button
-                type="button"
-                className="paper-button length-button"
-                aria-pressed={length === id}
-                onClick={() => onLength(id)}
-              >
-                <ModeIcon length={id} />
-                {LENGTH_COPY[id].label}
-              </button>
-              <p>{LENGTH_COPY[id].hint}</p>
+        <div className="setup-main">
+          <header className="setup-intro">
+            <p className="wordmark">astra-vs-human</p>
+            <h1>Same rules. Two clocks.</h1>
+            <p>
+              Pick who plays and how long. Every start deals boards nobody has
+              seen in this browser.
+            </p>
+          </header>
+          <fieldset className="setup-group">
+            <legend>Who plays</legend>
+            <div className="option-grid two">
+              <label className="option-card">
+                <input
+                  type="radio"
+                  name="arena"
+                  value="play"
+                  checked={arena === "play"}
+                  onChange={() => onArena("play")}
+                />
+                <span className="option-art" aria-hidden="true">
+                  <User /> <span>vs</span> <Bot />
+                </span>
+                <strong>You vs Agent</strong>
+                <span className="option-note">You play the left board.</span>
+                <Check className="option-check" aria-hidden="true" />
+              </label>
+              <label className="option-card">
+                <input
+                  type="radio"
+                  name="arena"
+                  value="watch"
+                  checked={arena === "watch"}
+                  onChange={() => onArena("watch")}
+                />
+                <span className="option-art" aria-hidden="true">
+                  <Bot /> <span>vs</span> <Bot />
+                </span>
+                <strong>Agent vs Agent</strong>
+                <span className="option-note">You watch both clocks.</span>
+                <Check className="option-check" aria-hidden="true" />
+              </label>
             </div>
-          ))}
-        </fieldset>
-        <fieldset className="family-block">
-          <legend>2 · Families you already know</legend>
-          <ul className="family-list">
-            {families.map((family) => (
-              <li
-                key={family.id}
-                className="family-row"
-                data-demoted={family.demote || undefined}
-              >
-                <div className="family-copy">
-                  <FamilyIcon family={family} />
-                  <div>
-                    <strong>
-                      {family.label}
-                      {family.spirit ? (
-                        <em className="family-spirit"> · {family.spirit}</em>
-                      ) : null}
-                      {family.demote ? (
-                        <em className="family-spirit"> · demoted</em>
-                      ) : null}
-                    </strong>
-                    <p>
-                      {family.n}×{family.n}. {family.pattern}
-                    </p>
-                  </div>
-                </div>
-                <div className="family-marks">
-                  <button
-                    type="button"
-                    className="paper-button"
-                    aria-pressed={played.includes(family.id)}
-                    aria-label={`Played ${family.label}`}
-                    onClick={() =>
-                      toggle(family.id, played, setPlayed, "played")
-                    }
-                  >
-                    Played
-                  </button>
-                  <button
-                    type="button"
-                    className="paper-button"
-                    aria-pressed={disliked.includes(family.id)}
-                    aria-label={`Less of ${family.label}`}
-                    onClick={() =>
-                      toggle(family.id, disliked, setDisliked, "disliked")
-                    }
-                  >
-                    Less
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </fieldset>
-        {watching ? (
-          <>
+          </fieldset>
+          <fieldset className="setup-group">
+            <legend>Match length</legend>
+            <div className="option-grid three">
+              {MATCH_LENGTHS.map((id) => (
+                <label key={id} className="option-card length-option">
+                  <input
+                    type="radio"
+                    name="length"
+                    value={id}
+                    checked={length === id}
+                    onChange={() => onLength(id)}
+                  />
+                  <ModeIcon length={id} />
+                  <strong>{LENGTH_COPY[id].label}</strong>
+                  <span className="option-note">{LENGTH_COPY[id].hint}</span>
+                  <Check className="option-check" aria-hidden="true" />
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          {watching ? (
+            <>
+              <ModePicker
+                legend="Agent A"
+                name="mix-a"
+                mix={leftMix}
+                servers={servers}
+                onMix={onLeftMix}
+              />
+              <ModePicker
+                legend="Agent B"
+                name="mix-b"
+                mix={rightMix}
+                servers={servers}
+                onMix={onRightMix}
+              />
+            </>
+          ) : (
             <ModePicker
-              legend="3 · Agent A"
-              mix={leftMix}
-              servers={servers}
-              onMix={onLeftMix}
-            />
-            <ModePicker
-              legend="4 · Agent B"
+              legend="Agent ability"
+              name="mix"
               mix={rightMix}
               servers={servers}
               onMix={onRightMix}
             />
-          </>
-        ) : (
-          <ModePicker
-            legend="3 · Agent ability"
-            mix={rightMix}
-            servers={servers}
-            onMix={onRightMix}
-          />
-        )}
-        <div className="setup-actions">
-          <button
-            type="button"
-            className="paper-button"
-            onClick={() => onRefreshLibrary()}
-          >
-            <RefreshCw />
-            Respawn pack bank
-          </button>
-          <button id="start-match" type="submit" className="primary-button">
-            Start
-          </button>
+          )}
+          <fieldset className="setup-group">
+            <legend>Families you already know</legend>
+            <p className="setup-note">
+              New families come first. Less sends one to the back.
+            </p>
+            <ul className="family-list">
+              {families.map((family) => (
+                <li
+                  key={family.id}
+                  className="family-row"
+                  data-demoted={family.demote || undefined}
+                >
+                  <FamilyIcon family={family} />
+                  <div className="family-copy">
+                    <strong>
+                      {family.label}
+                      <span className="family-spirit">
+                        {family.n}×{family.n}
+                        {family.spirit ? ` · ${family.spirit}` : ""}
+                        {family.demote ? " · demoted" : ""}
+                      </span>
+                    </strong>
+                    <p>{family.pattern}</p>
+                  </div>
+                  <div className="family-marks">
+                    <label className="option-chip small">
+                      <input
+                        type="checkbox"
+                        checked={marks.played.includes(family.id)}
+                        aria-label={`Played ${family.label}`}
+                        onChange={() => toggle(family.id, "played")}
+                      />
+                      <Check className="chip-check" aria-hidden="true" />
+                      Played
+                    </label>
+                    <label className="option-chip small">
+                      <input
+                        type="checkbox"
+                        checked={marks.disliked.includes(family.id)}
+                        aria-label={`Less of ${family.label}`}
+                        onChange={() => toggle(family.id, "disliked")}
+                      />
+                      <Check className="chip-check" aria-hidden="true" />
+                      Less
+                    </label>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </fieldset>
         </div>
-        <p className="setup-footnote">
-          Fresh boards assemble locally from the bank. Invent / Sol uses OpenAI
-          only when you ask mid-match.
-        </p>
+        <aside className="setup-side">
+          <UpNext preview={preview} onRespawn={onRespawn} />
+          <button
+            id="start-match"
+            type="submit"
+            className="primary-button start-button"
+            disabled={!preview}
+          >
+            <Play aria-hidden="true" />
+            Start match
+          </button>
+        </aside>
       </form>
     </main>
   )
 }
 
 function BattleSession({
-  packs,
+  dealt,
   arena,
   leftMix,
   rightMix,
-  length,
-  gameCount,
-  roundsPerGame,
-  clock,
-  cap,
   practice,
   source,
-  hash,
+  servers,
+  sameFamilyLabel,
   onPractice,
-  onSource,
-  onHash,
   onRematch,
+  onNextFamily,
   onSetup,
-  onReplaceFirst,
+  onInvent,
 }: {
-  packs: readonly GamePack[]
+  dealt: DealtMatch
   arena: "play" | "watch"
   leftMix: LearnerMixId
   rightMix: LearnerMixId
-  length: MatchLength
-  gameCount: number
-  roundsPerGame: number
-  clock: "attempt" | "side"
-  cap: number
   practice: boolean
   source: string
-  hash?: string
+  servers: Servers | null
+  sameFamilyLabel: string | null
   onPractice: () => void
-  onSource: (source: string) => void
-  onHash: (hash: string) => void
   onRematch: () => void
+  onNextFamily: () => void
   onSetup: () => void
-  onReplaceFirst: (pack: GamePack) => void
+  onInvent: (pack: GamePack, label: string) => void
 }) {
+  const { packs, length, gameCount, roundsPerGame, clock } = dealt
+  const cap = dealt.timeCapMs ?? 600_000
   const [battle] = useState(() =>
     createBattleGround(packs, {
       timeCapMs: cap,
@@ -643,11 +715,7 @@ function BattleSession({
   const [lastCell, setLastCell] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<{
-    x: number
-    y: number
-    text: string
-  } | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(true)
   const humanPack = packs[snapshot.cursors.human.index]
   const learnerPack = packs[snapshot.cursors.learner.index]
   const humanDone = started && snapshot.attempts.human.status !== "playing"
@@ -681,11 +749,6 @@ function BattleSession({
   const leftAbility = watching ? modeName(leftMix) : "Your taps"
   const rightAbility = modeName(rightMix)
 
-  useEffect(() => {
-    if (!notice) return
-    const timer = setTimeout(() => setNotice(null), 1600)
-    return () => clearTimeout(timer)
-  }, [notice])
   useEffect(() => {
     if (!started) return
     const timer = setInterval(battle.tick, 250)
@@ -726,11 +789,9 @@ function BattleSession({
     return () => window.removeEventListener("keydown", onKey)
   }, [battle, watching])
 
-  async function generate(transfer: boolean) {
-    if (busy || armed) {
-      setNotice({ x: 24, y: 24, text: "Finish your attempt first" })
-      return
-    }
+  /** Sol (or the local engine when no key is set) invents one board for a rematch. */
+  async function invent() {
+    if (busy) return
     setBusy(true)
     setError(null)
     try {
@@ -739,13 +800,12 @@ function BattleSession({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           seed: crypto.getRandomValues(new Uint32Array(1))[0],
-          n: humanPack.n,
+          n: packs[0].n,
           preferences: {
-            categories: [humanPack.category],
+            categories: [packs[0].category],
             visibility: "full",
-            targetSeconds: humanPack.session.targetSeconds,
+            targetSeconds: packs[0].session.targetSeconds,
           },
-          ...(transfer && hash ? { transferFrom: hash } : {}),
         }),
         signal: AbortSignal.timeout(60000),
       })
@@ -753,15 +813,15 @@ function BattleSession({
       if (!response.ok)
         throw new Error(result.error ?? "Generation did not finish. Try again.")
       const next = packSchema.parse(result.pack)
-      if (next.category !== humanPack.category)
+      if (next.category !== packs[0].category)
         throw new Error("The generator returned another game category.")
-      if (packs.some((pack, index) => index > 0 && pack.seed === next.seed))
-        throw new Error("That seed is already in this match.")
-      onSource(
+      onInvent(
+        {
+          ...next,
+          transfer: { ...next.transfer, family: packs[0].transfer.family },
+        },
         `${result.meta.source} · ${(result.meta.elapsedMs / 1000).toFixed(1)}s`
       )
-      onHash(result.meta.contentHash)
-      onReplaceFirst(next)
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not generate a pack."
@@ -795,6 +855,13 @@ function BattleSession({
     actions.selectCell(cell)
     actions.cycle()
   }
+  const handlePathStep = (cell: number, cycles: number) => {
+    if (watching) return
+    setLastCell(cell)
+    const actions = battle.actions("human")
+    actions.selectCell(cell)
+    for (let step = 0; step < cycles; step++) actions.cycle()
+  }
   const handleNext = () => {
     if (!battle.advance("human")) return
   }
@@ -820,14 +887,16 @@ function BattleSession({
       : length === "blitz"
         ? "Next board"
         : "Next round"
+  // A side is finished when its attempt ended and nothing is left to advance to.
+  const sideFinished = (side: Side) =>
+    started &&
+    snapshot.attempts[side].status !== "playing" &&
+    !snapshot.canAdvance[side]
+  const humanFinished = sideFinished("human")
   const matchOver =
     snapshot.matchComplete ||
     blitzDone ||
-    (started &&
-      !snapshot.canAdvance.human &&
-      !snapshot.canAdvance.learner &&
-      humanDone &&
-      !learnerPlaying)
+    (humanFinished && sideFinished("learner"))
   const humanTally = tallyBlitz(
     snapshot.records,
     "human",
@@ -839,197 +908,256 @@ function BattleSession({
     snapshot.remainingMs.learner
   )
   const winner = compareBlitz(humanTally, learnerTally)
-  const winnerLabel =
-    winner === "tie"
+  const youName = watching ? leftName : "You"
+  const headline = !matchOver
+    ? `${youName} finished`
+    : winner === "tie"
       ? "Tie"
       : winner === "human"
-        ? leftName
-        : rightName
+        ? watching
+          ? `${leftName} wins`
+          : "You win"
+        : `${rightName} wins`
+  const learnerCursor = snapshot.cursors.learner
+  const phase = !rulesShown ? "rules" : !started ? "start" : "next"
+  const sides = [
+    {
+      side: "human" as const,
+      label: leftName,
+      ability: leftAbility,
+      status: watching ? leftLearner.status : statusWord(humanAttempt.status),
+    },
+    {
+      side: "learner" as const,
+      label: rightName,
+      ability: rightAbility,
+      status: agentStatus,
+    },
+  ]
+  const hint =
+    watching && started
+      ? "You are watching. Each agent keeps its own clock."
+      : !rulesShown
+        ? "Rules are the same for both players."
+        : !started
+          ? models.status === "ready"
+            ? watching
+              ? "Start begins both agent clocks."
+              : "Start begins both clocks together."
+            : "Learner model is loading."
+          : blitzResult
+            ? blitzResult
+            : length === "blitz" && !humanDone
+              ? "Finish this attempt to unlock Next. Your 3:00 keeps running."
+              : !humanDone
+                ? "Finish this attempt to unlock Next. The agent is not moved."
+                : learnerPlaying
+                  ? "The agent is still on its round."
+                  : snapshot.canAdvance.human
+                    ? "Your next board. The agent keeps going."
+                    : "Both sides finished this match."
+  const dock = (
+    <div className="battle-dock" data-phase={phase}>
+      <p className="match-hint">{hint}</p>
+      <div className="dock-row">
+        {watching ? null : (
+          <>
+            <button
+              type="button"
+              className="paper-button icon-text"
+              disabled={
+                !started ||
+                humanAttempt.status !== "playing" ||
+                !humanAttempt.state.history.length
+              }
+              onClick={() => battle.actions("human").undo()}
+              aria-keyshortcuts="z"
+            >
+              <Undo2 aria-hidden="true" />
+              Undo
+            </button>
+            <button
+              type="button"
+              className="paper-button icon-text"
+              disabled={!started || humanAttempt.status !== "playing"}
+              onClick={() => battle.actions("human").clear()}
+            >
+              <RotateCcw aria-hidden="true" />
+              Clear
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          className="primary-button"
+          data-slot="match-next"
+          data-phase={!rulesShown ? "rules" : !started ? "start" : "next"}
+          disabled={
+            busy ||
+            (watching && started) ||
+            (!rulesShown
+              ? false
+              : !started
+                ? models.status !== "ready"
+                : !humanDone || !snapshot.canAdvance.human)
+          }
+          onClick={() => {
+            if (!rulesShown) {
+              setRulesShown(true)
+              return
+            }
+            if (!started) {
+              handleStart()
+              return
+            }
+            handleNext()
+          }}
+        >
+          <Play aria-hidden="true" />
+          {!rulesShown
+            ? "Show rules"
+            : !started
+              ? "Start both"
+              : watching
+                ? "Watching"
+                : nextLabel}
+        </button>
+      </div>
+    </div>
+  )
   return (
-    <main className="battle-ground" data-match-over={matchOver || undefined}>
+    <main
+      className="battle-ground is-battle"
+      data-match-over={matchOver || undefined}
+      data-sheet={(humanFinished && sheetOpen) || undefined}
+    >
       <a className="skip-link" href="#boards">
         Skip to boards
       </a>
-      <header className="battle-top">
-        <div className="match-progress" aria-label="Human and Agent match progress">
-          {(["human", "learner"] as const).map((side) => {
-            const cursor = snapshot.cursors[side]
-            const label = side === "human" ? leftName : rightName
-            return (
-              <section key={side} className="match-side" aria-label={`${label} progress`}>
-                <header>
-                  <strong>{label}</strong>
-                  <span
-                    className="match-clock"
-                    aria-label={
-                      length === "blitz"
-                        ? `${label} 3 minute clock`
-                        : `${label} clock`
-                    }
-                  >
-                    {length === "blitz" ? (
-                      <span className="clock-tag">3 min</span>
-                    ) : null}
-                    <span className="clock-digits">
-                      {formatClock(snapshot.remainingMs[side])}
-                    </span>
-                  </span>
-                </header>
-                <span className="match-ability">
-                  {side === "human" ? leftAbility : rightAbility}
+      <header className="battle-bar">
+        <button
+          type="button"
+          className="icon-button"
+          disabled={armed && !humanFinished}
+          aria-label="Back to setup"
+          title={
+            armed && !humanFinished
+              ? "Finish or wait for the match to end"
+              : "Back to setup"
+          }
+          onClick={onSetup}
+        >
+          <ArrowLeft aria-hidden="true" />
+        </button>
+        <div className="bar-heading">
+          <h1>{familyLabel(humanPack)}</h1>
+          <span className="battle-size">
+            {humanPack.n} × {humanPack.n}
+          </span>
+          <span className="mode-badge">{humanPack.mode}</span>
+        </div>
+        <div className="battle-tools">
+          {!started ? (
+            <button
+              type="button"
+              className="paper-button icon-text"
+              onClick={onRematch}
+              title="Assemble new boards for this match"
+            >
+              <RefreshCw aria-hidden="true" />
+              <span className="hide-narrow">New boards</span>
+            </button>
+          ) : null}
+          <div className="score-toggle" role="group" aria-label="Scoring">
+            <button
+              type="button"
+              aria-pressed={!practice}
+              disabled={armed || busy || !practice}
+              onClick={onPractice}
+            >
+              Scored
+            </button>
+            <button
+              type="button"
+              aria-pressed={practice}
+              disabled={armed || busy || practice}
+              onClick={onPractice}
+            >
+              Test
+            </button>
+          </div>
+        </div>
+      </header>
+      <section
+        className="scoreboard"
+        aria-label="Human and Agent match progress"
+      >
+        {sides.map(({ side, label, ability, status }) => {
+          const cursor = snapshot.cursors[side]
+          const thinking =
+            started &&
+            snapshot.attempts[side].status === "playing" &&
+            (side === "learner" || watching) &&
+            /think/i.test(status)
+          return (
+            <section
+              key={side}
+              className="score-side"
+              data-side={side}
+              aria-label={`${label} progress`}
+            >
+              <div className="score-name">
+                <strong>{label}</strong>
+                <span className="match-ability">{ability}</span>
+              </div>
+              <div
+                className="match-clock"
+                aria-label={
+                  length === "blitz"
+                    ? `${label} 3 minute clock`
+                    : `${label} clock`
+                }
+              >
+                <span className="clock-digits">
+                  {formatClock(snapshot.remainingMs[side])}
                 </span>
+                <span className="clock-tag">
+                  {length === "blitz" ? "3 min" : "per board"}
+                </span>
+              </div>
+              <div className="score-progress">
                 <span className="match-round">
                   {roundText(length, cursor, gameCount, roundsPerGame)}
                 </span>
                 {length === "blitz" ? null : (
-                <ol className="match-games">
-                  {Array.from({ length: gameCount }, (_, game) => (
-                    <li key={game} className="match-game">
-                      <span className="match-game-name">
-                        {familyLabel(packs[game * roundsPerGame])}
-                      </span>
-                      <span className="small-rounds">
-                        {Array.from({ length: roundsPerGame }, (_, round) => {
-                          const index = game * roundsPerGame + round
-                          const done = snapshot.records.some(
-                            (record) =>
-                              record.side === side &&
-                              record.seed === packs[index].seed
-                          )
-                          const current = cursor.index === index
-                          return (
-                            <span
-                              key={packs[index].seed}
-                              className="small-round"
-                              data-current={current || undefined}
-                              data-done={done || undefined}
-                              aria-label={
-                                done
-                                  ? `${label} game ${game + 1} round ${round + 1}, done`
-                                  : current
-                                    ? `${label} game ${game + 1} round ${round + 1}, current`
-                                    : `${label} game ${game + 1} round ${round + 1}`
-                              }
-                            >
-                              {round + 1}
-                            </span>
-                          )
-                        })}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
+                  <ol className="small-rounds">
+                    {packs.map((pack, index) => {
+                      const done = snapshot.records.some(
+                        (record) =>
+                          record.side === side && record.seed === pack.seed
+                      )
+                      const current = cursor.index === index
+                      return (
+                        <li
+                          key={pack.seed}
+                          className="small-round"
+                          data-current={current || undefined}
+                          data-done={done || undefined}
+                          title={familyLabel(pack)}
+                          aria-label={`${label} ${length === "tour" ? familyLabel(pack) : `round ${index + 1}`}${done ? ", done" : current ? ", current" : ""}`}
+                        />
+                      )
+                    })}
+                  </ol>
                 )}
-              </section>
-            )
-          })}
-        </div>
-        <div className="brand-block">
-          <div className="wordmark">astra-vs-human</div>
-          <p className="match-lede">
-            {watching
-              ? "Two agents, two clocks. You watch. Next does not move either of them."
-              : "You play the left board. The agent plays the right, on its own clock."}
-          </p>
-        </div>
-        <div className="battle-settings">
-          {length === "blitz" ? (
-            <span className="clock-tag">3 min each</span>
-          ) : (
-            <span className="clock-tag">10 min if stuck</span>
-          )}
-          <button
-            type="button"
-            className="paper-button"
-            aria-pressed={practice}
-            disabled={armed || busy}
-            aria-label={
-              practice
-                ? "Test mode: scores excluded. Switch to a scored round"
-                : "Scored round. Switch to test mode"
-            }
-            onClick={onPractice}
-          >
-            {practice ? <LockOpen /> : <Lock />}
-            {practice ? "Test" : "Real"}
-          </button>
-          <button
-            type="button"
-            className="paper-button"
-            disabled={armed || busy}
-            onClick={onSetup}
-          >
-            Setup
-          </button>
-        </div>
-        <div className="match-actions">
-          <button
-            type="button"
-            className="primary-button"
-            data-slot="match-next"
-            data-phase={!rulesShown ? "rules" : !started ? "start" : "next"}
-            disabled={
-              busy ||
-              (watching && started) ||
-              (!rulesShown
-                ? false
-                : !started
-                  ? models.status !== "ready"
-                  : !humanDone || !snapshot.canAdvance.human)
-            }
-            onClick={() => {
-              if (!rulesShown) {
-                setRulesShown(true)
-                return
-              }
-              if (!started) {
-                handleStart()
-                return
-              }
-              handleNext()
-            }}
-          >
-            <Play />
-            {!rulesShown
-              ? "Show rules"
-              : !started
-                ? "Start both"
-                : watching
-                  ? "Watching"
-                  : nextLabel}
-          </button>
-          <p className="match-hint">
-            {watching && started
-              ? "You are watching. Each agent keeps its own clock."
-              : !rulesShown
-                ? "Rules are the same for both players."
-                : !started
-                  ? models.status === "ready"
-                    ? watching
-                      ? "Start begins both agent clocks."
-                      : "Start begins both clocks together."
-                    : "Learner model is loading."
-                  : blitzResult
-                    ? blitzResult
-                    : length === "blitz" && !humanDone
-                      ? "Finish this attempt to unlock Next. Your 3:00 keeps running."
-                      : !humanDone
-                        ? "Finish this attempt to unlock Next. The agent is not moved."
-                        : learnerPlaying
-                          ? "The agent is still on its round."
-                          : snapshot.canAdvance.human
-                            ? "Your next board. The agent keeps going."
-                            : "Both sides finished this match."}
-          </p>
-        </div>
-      </header>
-      <div className="battle-title">
-        <h1>{familyLabel(humanPack)}</h1>
-        <span className="mode-badge">{humanPack.mode}</span>
-        <span className="battle-size">
-          {humanPack.n} × {humanPack.n}
-        </span>
-      </div>
+              </div>
+              <p className="score-status" data-thinking={thinking || undefined}>
+                {started ? status : "Ready"}
+              </p>
+            </section>
+          )
+        })}
+      </section>
       <BattleField
         pack={humanPack}
         practice={practice}
@@ -1046,7 +1174,6 @@ function BattleSession({
           watching && started ? leftLearner.status : humanAttempt.status
         }
         learnerStatus={learnerAttempt.status}
-        canUndo={humanAttempt.state.history.length > 0}
         agentStatus={agentStatus}
         claim={claim}
         invalidIndex={showInvalid ? lastCell : null}
@@ -1054,54 +1181,15 @@ function BattleSession({
         humanDone={humanDone}
         agentWorking={!watching && humanDone && learnerPlaying}
         splitBoards={snapshot.seeds.human !== snapshot.seeds.learner}
+        dock={dock}
         onTap={handleTap}
-        onUndo={() => battle.actions("human").undo()}
-        onClear={() => battle.actions("human").clear()}
+        onPathStep={handlePathStep}
       />
-      {matchOver ? (
-        <section className="match-results" role="dialog" aria-label="Match results">
-          <header>
-            <p className="wordmark">Match over</p>
-            <h2>{winnerLabel}</h2>
-            <p>
-              {leftName}: {humanTally.rounds} boards · {humanTally.actions} taps
-              {length === "blitz"
-                ? ` · ${formatClock(snapshot.remainingMs.human)} left`
-                : ""}
-            </p>
-            <p>
-              {rightName}: {learnerTally.rounds} boards · {learnerTally.actions}{" "}
-              taps
-              {length === "blitz"
-                ? ` · ${formatClock(snapshot.remainingMs.learner)} left`
-                : ""}
-            </p>
-            {blitzResult ? <p className="results-blitz">{blitzResult}</p> : null}
-          </header>
-          <div className="results-actions">
-            <button type="button" className="primary-button" onClick={onRematch}>
-              <RefreshCw />
-              Rematch
-            </button>
-            <button type="button" className="paper-button" onClick={onSetup}>
-              Back to setup
-            </button>
-            <button
-              type="button"
-              className="paper-button"
-              disabled={busy}
-              onClick={() => void generate(true)}
-            >
-              {busy ? "Generating…" : "Sol respawn family"}
-            </button>
-          </div>
-        </section>
-      ) : null}
       <footer className="battle-footer">
         <span className="seed">
-          HUMAN SEED {humanPack.seed}
+          {leftName.toUpperCase()} SEED {humanPack.seed}
           {snapshot.seeds.human !== snapshot.seeds.learner
-            ? ` · AGENT SEED ${learnerPack.seed}`
+            ? ` · ${rightName.toUpperCase()} SEED ${learnerPack.seed}`
             : ""}
           {source ? ` · ${source}` : ""}
         </span>
@@ -1134,16 +1222,118 @@ function BattleSession({
             })
           )}
         </div>
-        {error ? (
-          <p role="alert" className="battle-error">
-            {error}
-          </p>
-        ) : null}
       </footer>
-      {notice ? (
-        <div role="status" className="cursor-notice" style={{ left: notice.x + 12, top: notice.y + 12 }}>
-          {notice.text}
-        </div>
+      {humanFinished ? (
+        <section
+          className="match-results"
+          role="region"
+          aria-label="Match results"
+          aria-live="polite"
+          data-open={sheetOpen || undefined}
+        >
+          <button
+            type="button"
+            className="results-grip"
+            aria-expanded={sheetOpen}
+            onClick={() => setSheetOpen((value) => !value)}
+          >
+            <span className="results-headline">
+              <strong>{headline}</strong>
+              <span>
+                {matchOver
+                  ? sheetOpen
+                    ? "Hide to see the boards"
+                    : "Show results"
+                  : `${rightName} is on ${roundText(length, learnerCursor, gameCount, roundsPerGame).toLowerCase()}`}
+              </span>
+            </span>
+          </button>
+          <div className="results-body" hidden={!sheetOpen}>
+            <table className="results-table">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    <span className="sr-only">Side</span>
+                  </th>
+                  <th scope="col">Boards</th>
+                  <th scope="col">Taps</th>
+                  <th scope="col">{length === "blitz" ? "Left" : "Time"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(
+                  [
+                    ["human", leftName, humanTally],
+                    ["learner", rightName, learnerTally],
+                  ] as const
+                ).map(([side, name, tally]) => (
+                  <tr
+                    key={side}
+                    data-winner={(matchOver && winner === side) || undefined}
+                  >
+                    <th scope="row">
+                      {name}
+                      {!sideFinished(side) ? (
+                        <span className="results-live"> · playing</span>
+                      ) : null}
+                    </th>
+                    <td>
+                      {tally.rounds}/{packs.length}
+                    </td>
+                    <td>{tally.actions}</td>
+                    <td>
+                      {formatClock(
+                        length === "blitz"
+                          ? snapshot.remainingMs[side]
+                          : spentMs(snapshot.records, side)
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {blitzResult ? (
+              <p className="results-blitz">{blitzResult}</p>
+            ) : null}
+            {error ? (
+              <p role="alert" className="battle-error">
+                {error}
+              </p>
+            ) : null}
+            <div className="results-actions">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={onRematch}
+              >
+                <RefreshCw aria-hidden="true" />
+                {sameFamilyLabel ? `Rematch ${sameFamilyLabel}` : "Rematch"}
+              </button>
+              {length === "deep" ? (
+                <button
+                  type="button"
+                  className="paper-button"
+                  onClick={onNextFamily}
+                >
+                  Next family
+                </button>
+              ) : null}
+              <button type="button" className="paper-button" onClick={onSetup}>
+                Back to setup
+              </button>
+              {servers?.openai ? (
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={busy}
+                  onClick={() => void invent()}
+                >
+                  {busy ? "Sol is inventing…" : "Invent a board with Sol"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </section>
       ) : null}
     </main>
   )
