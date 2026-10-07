@@ -214,6 +214,56 @@ export function bareControlQuestions(cells: readonly number[]) {
   }
 }
 
+export const captionSchema = z.strictObject({
+  option: z.string().min(1).max(40),
+  outcome: z.string().min(1).max(160),
+})
+
+export type Caption = z.infer<typeof captionSchema>
+
+/**
+ * Choice over legal controls with Astra planner captions.
+ * Mirrors labs: Decisions/Jev see precomputed outcomes + a short instruction,
+ * never a bare board-only state.
+ */
+export function plannedControlQuestions(
+  cells: readonly number[],
+  captions: Readonly<Record<string, string>> = {},
+  patternClaim: string | null = null
+) {
+  const claim = patternClaim?.trim()
+  const caption = (key: string, fallback: string) => {
+    const written = captions[key]?.trim()
+    return written || fallback
+  }
+  const criteria: Record<string, string> = {
+    wait: caption(
+      "wait",
+      claim
+        ? `Wait. The plan claim "${claim}" is not supported by the visible board yet.`
+        : "Wait. No supported next tap on the visible board."
+    ),
+    cycle: caption(
+      "cycle",
+      "Cycle the selected editable cell once after the plan's selection."
+    ),
+    undo: caption("undo", "Undo the last counted change."),
+    clear: caption("clear", "Restore the round's starting board."),
+  }
+  for (const cell of cells.slice(0, 6)) {
+    const key = `cell-${cell}`
+    criteria[key] = caption(key, `Select visible cell ${cell} as the next counted tap.`)
+  }
+  return {
+    control: {
+      type: "choice" as const,
+      instructions:
+        "Choose the single next counted control. Use the public plan and captions as context. Do not search hidden values.",
+      criteria,
+    },
+  }
+}
+
 export function readBareControl(
   body: unknown,
   cells: readonly number[]

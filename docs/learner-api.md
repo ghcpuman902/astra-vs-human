@@ -136,6 +136,7 @@ The live Learner path is `openai-generate-text` through `/api/game-learner`. The
 
 - **Astra + Jev** sends that plan to TypeSafe only when `TYPESAFE_API_KEY` is set (`POST /v1/systemone`) or, if not, to the Vercel AI Gateway decision model `typesafe-ai/jev` when `AI_GATEWAY_API_KEY` or `VERCEL_OIDC_TOKEN` is set. With neither credential, Jev is not called.
 - **Astra + batch** returns placements. The browser expands them into `selectCell` and `cycle` taps. It does not search for a hidden solution.
-- **OpenAI Decisions API**: preview only, no stable public schema. `openAIDecisionsRequest` is a placeholder and does not send it.
+- **OpenAI Decisions**: Astra or Sol writes a short placement plan plus outcome captions, then `gpt-6-luna` Decisions chooses the single next counted control via `experimental_decide`. Requires `OPENAI_API_KEY` (preferred) or an AI Gateway credential. Bare board-only Decisions is not the scored path; `jev-bare` / `laya-bare` remain labeled controls only.
+- **Astra + Jev**: same planner/captions wrap; Jev commits wait/one/batch when `TYPESAFE_API_KEY` or Gateway is set.
 
-`assertLearnerBackendWired("typesafe-jev")` throws when no Jev credential is present, and does not itself send a request. `jevActionRequest` still only builds an object.
+`assertLearnerBackendWired("typesafe-jev")` throws when no Jev credential is present, and does not itself send a request. `assertLearnerBackendWired("openai-decisions")` throws when neither OpenAI nor Gateway credentials exist. `jevActionRequest` / `openAIDecisionsRequest` still only build objects.

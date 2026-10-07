@@ -247,11 +247,13 @@ const mixCopy: Record<
   },
   "astra-jev": {
     label: "Astra + Jev",
-    detail: "Astra writes the plan as context. Jev commits it when a Jev credential is set.",
+    detail:
+      "Astra writes the plan and captions. Jev commits wait/one/batch when a Jev credential is set. Prefer this over bare Jev.",
   },
   "jev-bare": {
     label: "Jev bare",
-    detail: "Jev sees the public board only. No Astra plan is wrapped around it.",
+    detail:
+      "Control only: Jev sees the public board with no Astra plan. Scored play should use Astra + Jev.",
   },
   "astra-laya": {
     label: "Astra + Laya",
@@ -263,7 +265,8 @@ const mixCopy: Record<
   },
   "openai-decisions": {
     label: "OpenAI Decisions",
-    detail: "OpenAI Decisions stays on this machine. Nothing is sent.",
+    detail:
+      "Astra or Sol writes a short plan and captions. Decisions picks the single next tap — never a bare board.",
   },
 }
 
@@ -272,7 +275,11 @@ function modeNote(
   servers: { openai: boolean; gateway: boolean; jev: boolean; laya: boolean } | null
 ) {
   if (!servers) return ""
-  if (mix === "openai-decisions") return ""
+  if (mix === "openai-decisions") {
+    return servers.openai || servers.gateway
+      ? "Decisions runs planner-wrapped on this server."
+      : "OpenAI Decisions is not configured, so this side waits."
+  }
   if (mix === "jev-bare" || mix === "astra-jev") {
     return servers.jev
       ? "Jev can run on this server."

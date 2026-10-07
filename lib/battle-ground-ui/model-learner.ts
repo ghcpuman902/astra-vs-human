@@ -458,9 +458,10 @@ export function createGameLearnerRunner(options: {
 /**
  * Decision backends for the Learner.
  * The live route uses `openai-generate-text` (structured generateText).
- * Jev and Laya commit a public plan only when their own credentials are set.
- * OpenAI Decisions stays a local placeholder. It is not a live Decisions API
- * call, and its builder must not be posted.
+ * Jev and Laya commit a public Astra plan only when their own credentials are set.
+ * OpenAI Decisions is live when Astra/OpenAI or Gateway credentials exist: Astra
+ * (or Sol) writes planner/captions, then Decisions chooses the next control.
+ * Bare board-only Decisions is never the default scored path.
  */
 export type LearnerDecisionBackendId =
   | "openai-generate-text"
@@ -470,15 +471,18 @@ export type LearnerDecisionBackendId =
 
 export type LearnerDecisionBackend = {
   id: LearnerDecisionBackendId
-  /** True only when a route already performs this call without extra credentials. */
+  /**
+   * True when `/api/game-learner` already performs this backend.
+   * Credential-gated backends still need keys at request time.
+   */
   wired: boolean
 }
 
 export const learnerDecisionBackends: readonly LearnerDecisionBackend[] = [
   { id: "openai-generate-text", wired: true },
-  { id: "typesafe-jev", wired: false },
-  { id: "convai-laya", wired: false },
-  { id: "openai-decisions", wired: false },
+  { id: "typesafe-jev", wired: true },
+  { id: "convai-laya", wired: true },
+  { id: "openai-decisions", wired: true },
 ]
 
 export type JevChoiceQuestion = {
@@ -495,8 +499,9 @@ export type TypeSafeJevRequest = {
 }
 
 /**
- * Placeholder for a local OpenAI Decisions client.
- * This is not the OpenAI Decisions API and must not be posted.
+ * Shape of a planner-wrapped OpenAI Decisions request.
+ * The live route builds this after Astra/Sol writes plan + captions.
+ * Builders alone do not post; `/api/game-learner` does when credentials exist.
  */
 export type OpenAIDecisionsRequest = {
   model: "gpt-6-luna"
@@ -528,7 +533,8 @@ const publicState = (board: BoardProps, priorClaims: readonly string[]) =>
 
 const actionQuestion = {
   id: "next-control",
-  prompt: "Which one counted control should the Learner take next?",
+  prompt:
+    "Choose the single next counted control. Use the public plan and captions.",
   options: ["selectCell", "cycle", "undo", "clear", "wait"],
 } as const
 
@@ -542,13 +548,22 @@ export const jevActionRequest = (
   questions: [actionQuestion],
 })
 
-/** Maps the public board into the Decisions placeholder. No network. */
+/**
+ * Maps the public board into a planner-shaped Decisions input. No network.
+ * Live play fills `plan` and `captions` from Astra/Sol before posting.
+ */
 export const openAIDecisionsRequest = (
   board: BoardProps,
   priorClaims: readonly string[]
 ): OpenAIDecisionsRequest => ({
   model: "gpt-6-luna",
-  input: publicState(board, priorClaims),
+  input: JSON.stringify({
+    ...JSON.parse(publicState(board, priorClaims)),
+    plan: { placements: [], patternClaim: null },
+    captions: [],
+    instruction:
+      "Choose the single next counted control. Use the public plan and captions.",
+  }),
   questions: [actionQuestion],
 })
 
@@ -566,8 +581,8 @@ export const layaActionRequest = (
  * Refuses a backend that would send a request without credentials.
  * Jev is allowed when `TYPESAFE_API_KEY` or an AI Gateway credential is set.
  * Laya is allowed when `LAYA_API_KEY`, `IMPOSSIBL_API_KEY`, or `LAYA_BASE_URL` is set.
- * OpenAI Decisions stays refused until a local client exists.
- * This function does not call the network.
+ * OpenAI Decisions is allowed when OpenAI or AI Gateway credentials exist
+ * (Astra/Sol planner-writer + Decisions). This function does not call the network.
  */
 export const assertLearnerBackendWired = (
   id: LearnerDecisionBackendId,
@@ -581,6 +596,11 @@ export const assertLearnerBackendWired = (
   }
   if (id === "convai-laya") {
     if (!credentials.laya)
+      throw new Error(`${id} is a seam only. No request was sent.`)
+    return
+  }
+  if (id === "openai-decisions") {
+    if (!credentials.astra)
       throw new Error(`${id} is a seam only. No request was sent.`)
     return
   }

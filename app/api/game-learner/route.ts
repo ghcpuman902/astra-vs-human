@@ -2,6 +2,7 @@ import { allowedLearnerModel } from "@/lib/learner-models"
 import {
   bareLearnerControl,
   codeLearnerPolicy,
+  openaiDecisionsControl,
   planLearnerMix,
 } from "@/lib/battle-ground-ui/learner-providers"
 
@@ -13,8 +14,9 @@ import {
 export const runtime = "nodejs"
 export const maxDuration = 15
 
-// Astra plays or writes a policy. Jev and Laya commit only for their mixes.
-// OpenAI Decisions is a local placeholder: this route does not post it.
+// Astra plays or writes a policy / planner wrap. Jev, Laya, and OpenAI
+// Decisions commit only when their credentials exist. Decisions and scored
+// Jev paths are planner-wrapped — never bare board-only by default.
 export async function POST(request: Request) {
   const started = performance.now()
   const headers = { "cache-control": "no-store" }
@@ -75,19 +77,22 @@ export async function POST(request: Request) {
       ),
     },
   }
-  if (mix === "openai-decisions") {
-    return Response.json(
-      {
-        action: null,
-        state: "wait",
-        patternClaim: "OpenAI Decisions stays local.",
-      },
-      { headers }
-    )
-  }
   const result = await decideGameLearner(
     visibleInput,
     async (visible, signal) => {
+      if (mix === "openai-decisions") {
+        const decided = await openaiDecisionsControl(visible, signal)
+        if (decided.status === "unconfigured") {
+          return {
+            action: null,
+            patternClaim: decided.patternClaim,
+          }
+        }
+        return {
+          action: decided.action,
+          patternClaim: decided.patternClaim,
+        }
+      }
       if (mix === "code") {
         const policy = await codeLearnerPolicy(visible, signal)
         return { action: null, patternClaim: policy.note, policy }

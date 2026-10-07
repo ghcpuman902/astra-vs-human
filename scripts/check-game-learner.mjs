@@ -44,6 +44,7 @@ try {
     interpretPolicy,
     bareCandidateCells,
     bareControlQuestions,
+    plannedControlQuestions,
     readBareControl,
     jevCommitBody,
     layaCommitBody,
@@ -189,11 +190,20 @@ try {
         LAYA_BASE_URL: "http://127.0.0.1:8787",
       })
     )
+    assert.doesNotThrow(() =>
+      assertLearnerBackendWired("openai-decisions", {
+        OPENAI_API_KEY: "present",
+      })
+    )
+    assert.doesNotThrow(() =>
+      assertLearnerBackendWired("openai-decisions", {
+        AI_GATEWAY_API_KEY: "present",
+      })
+    )
     assert.throws(
       () =>
         assertLearnerBackendWired("openai-decisions", {
           LAYA_API_KEY: "present",
-          OPENAI_API_KEY: "present",
         }),
       /No request was sent/
     )
@@ -275,6 +285,21 @@ try {
       readBareControl({ answers: { control: { choice: "wait" } } }, candidates),
       "wait"
     )
+    const planned = plannedControlQuestions(
+      candidates,
+      { [`cell-${cell}`]: `Cell ${cell} settles a local neighbour.` },
+      "A local neighbour can settle the next move."
+    )
+    assert.equal(planned.control.type, "choice")
+    assert.match(
+      planned.control.instructions,
+      /single next counted control/i
+    )
+    assert.match(
+      planned.control.criteria[`cell-${cell}`],
+      /settles a local neighbour/
+    )
+    assert.equal(JSON.stringify(planned).includes("solution"), false)
     const coded = interpretPolicy(
       { rule: "named-cells", cells: [cell - 1, cell], cycles: 1, note: null },
       visible
@@ -324,10 +349,14 @@ try {
     assert.equal(batch.boardProps("learner").actions, 2)
     batchRunner.dispose()
     assert.throws(
-      () => assertLearnerBackendWired("openai-decisions"),
+      () => assertLearnerBackendWired("openai-decisions", {}),
       /No request was sent/
     )
     assertLearnerBackendWired("openai-generate-text")
+    const decisionsBody = JSON.parse(decisions.input)
+    assert.equal("plan" in decisionsBody, true)
+    assert.equal(Array.isArray(decisionsBody.captions), true)
+    assert.equal("solution" in decisionsBody, false)
   }
   console.log(
     "All five public board contracts, hidden-field rejection, deadlines, failure waits, stale cancellation and shared counted actions passed."

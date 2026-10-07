@@ -7,11 +7,13 @@ import {
   applyCommit,
   bareCandidateCells,
   bareControlQuestions,
+  captionSchema,
   jevCommitBody,
   layaCommitBody,
   layaSystemOneTarget,
   learnerCredentials,
   placementSchema,
+  plannedControlQuestions,
   policySchema,
   readBareControl,
   readJevCommit,
@@ -25,9 +27,11 @@ import type { GameLearnerRequest } from "./model-learner"
 const hybridSchema = z.strictObject({
   placements: z.array(placementSchema).max(6),
   patternClaim: z.string().max(240).nullable(),
+  captions: z.array(captionSchema).max(12).optional(),
 })
 
-const hybridPrompt = `Propose up to four placements on the public board. Each placement names one visible editable cell and how many cycle taps follow the selection (1 to 3). Skip locked cells. This is a short plan of counted taps, not a puzzle-class name and not a hidden solution. If useful, add one local pattern claim.`
+const hybridPrompt = `Propose up to four placements on the public board. Each placement names one visible editable cell and how many cycle taps follow the selection (1 to 3). Skip locked cells. This is a short plan of counted taps, not a puzzle-class name and not a hidden solution. If useful, add one local pattern claim.
+Also write short captions: for each legal next control you consider (wait, cycle, undo, clear, and cell-N for visible editable cells), give one precomputed outcome claim about what that single next tap would do on the visible board. Keep captions local and public — no hidden search.`
 
 const policyPrompt = `Write a tiny policy for this public board. rule is first-unlocked, selected-cycle, or named-cells. cells lists up to four visible editable indexes. cycles is 1 to 3. note is one local pattern claim or null. Return only that policy. Do not return JavaScript. The browser runs only these fields and never sees hidden cells.`
 
@@ -36,6 +40,29 @@ export type BareMix = "jev-bare" | "laya-bare"
 
 function gatewayModelId(model: string) {
   return model.includes("/") ? model : `openai/${model}`
+}
+
+/** Prefer cheap Sol for the planner-writer step; fall back to the round model. */
+function plannerWriterModel(
+  roundModel: string,
+  env: NodeJS.ProcessEnv
+) {
+  const pack = env.OPENAI_PACK_MODEL?.trim()
+  if (pack) return pack
+  if (allowedLearnerModel("gpt-6.1-sol")) return "gpt-6.1-sol"
+  return roundModel
+}
+
+function captionMap(
+  captions: { option: string; outcome: string }[] | undefined
+): Record<string, string> {
+  const map: Record<string, string> = {}
+  for (const entry of captions ?? []) {
+    const option = entry.option.trim()
+    const outcome = entry.outcome.trim()
+    if (option && outcome) map[option] = outcome
+  }
+  return map
 }
 
 async function astraPlan(
@@ -303,6 +330,9 @@ export async function planLearnerMix(
     context: parsed.patternClaim,
     cells: publicCells(input),
     placements: parsed.placements,
+    captions: parsed.captions ?? [],
+    instruction:
+      "Commit how much of this public plan to play. Captions are precomputed public outcomes, not hidden thinking.",
   })
   let choice: JevCommit | null = null
   try {
@@ -318,5 +348,111 @@ export async function planLearnerMix(
     patternClaim: parsed.patternClaim,
     jev: decision === "jev" ? "used" : "off",
     laya: decision === "laya" ? "used" : "off",
+  }
+}
+
+/**
+ * OpenAI Decisions path: Astra/Sol writes planner + captions, then Decisions
+ * chooses the single next legal control. Never posts a bare board-only state.
+ */
+export async function openaiDecisionsControl(
+  input: GameLearnerRequest,
+  signal: AbortSignal,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<{
+  action: CountedAction | null
+  patternClaim: string | null
+  status: "ok" | "wait" | "unconfigured" | "unavailable"
+}> {
+  const credentials = learnerCredentials(env)
+  if (!credentials.astra)
+    return {
+      action: null,
+      patternClaim: "OpenAI Decisions is not configured.",
+      status: "unconfigured",
+    }
+  const roundModel = allowedLearnerModel(input.model)
+  if (!roundModel) throw new Error("Model is not allowed")
+  const writer = plannerWriterModel(roundModel, env)
+  let plan: z.infer<typeof hybridSchema>
+  try {
+    plan = hybridSchema.parse(await astraPlan(input, writer, signal, env))
+  } catch {
+    return {
+      action: null,
+      patternClaim: null,
+      status: "unavailable",
+    }
+  }
+  const cells = bareCandidateCells(input.board.cells)
+  const captions = captionMap(plan.captions)
+  const questions = plannedControlQuestions(
+    cells,
+    captions,
+    plan.patternClaim
+  )
+  const state = JSON.stringify({
+    category: input.board.category,
+    postcard: input.board.postcard,
+    clues: input.board.clues,
+    cells: publicCells(input),
+    plan: {
+      placements: plan.placements,
+      patternClaim: plan.patternClaim,
+    },
+    captions: plan.captions ?? [],
+    priorClaims: input.priorClaims,
+    instruction:
+      "Choose the single next counted control. Use the public plan and captions.",
+  })
+  try {
+    let choice: CountedAction | "wait" | null = null
+    if (credentials.openAI && env.OPENAI_API_KEY) {
+      const openai = createOpenAI({
+        apiKey: env.OPENAI_API_KEY,
+        organization: env.OPENAI_ORG_ID,
+      })
+      const result = await experimental_decide({
+        model: openai.decisionModel("gpt-6-luna"),
+        state,
+        questions,
+        abortSignal: signal,
+        maxRetries: 0,
+      })
+      choice = readBareControl({ answers: result.answers }, cells)
+    } else if (credentials.gateway) {
+      const result = await experimental_decide({
+        model: gateway.decision("openai/gpt-6-luna"),
+        state,
+        questions,
+        abortSignal: signal,
+        maxRetries: 0,
+      })
+      choice = readBareControl({ answers: result.answers }, cells)
+    } else {
+      return {
+        action: null,
+        patternClaim: "OpenAI Decisions is not configured.",
+        status: "unconfigured",
+      }
+    }
+    if (choice === "wait" || choice === null) {
+      return {
+        action: null,
+        patternClaim: plan.patternClaim,
+        status: "wait",
+      }
+    }
+    return {
+      action: choice,
+      patternClaim: plan.patternClaim,
+      status: "ok",
+    }
+  } catch {
+    return {
+      action: null,
+      patternClaim: plan.patternClaim,
+      status: "unavailable",
+    }
   }
 }
