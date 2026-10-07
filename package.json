@@ -11,7 +11,10 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "check:puzzles": "node scripts/check-puzzles.mjs"
+    "check:puzzles": "node scripts/check-puzzles.mjs",
+    "check:agents": "node scripts/check-agent-loops.mjs",
+    "check:games": "node scripts/check-game-validity.mjs",
+    "check:agent-suite": "node scripts/check-agent-loops.mjs && node scripts/check-game-validity.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.84",

@@ -6,6 +6,7 @@ import {
   openaiDecisionsControl,
   planLearnerMix,
 } from "@/lib/battle-ground-ui/learner-providers"
+import { dispatchMix } from "@/lib/battle-ground-ui/mix-dispatch"
 
 import {
   decideGameLearner,
@@ -82,88 +83,20 @@ export async function POST(request: Request) {
   }
   const result = await decideGameLearner(
     visibleInput,
-    async (visible, signal) => {
-      if (mix === "openai-decisions") {
-        const decided = await openaiDecisionsControl(
-          visible,
-          signal,
-          process.env,
-          trace
-        )
-        if (decided.status === "unconfigured") {
-          return {
-            action: null,
-            patternClaim: decided.patternClaim,
-          }
-        }
-        return {
-          action: decided.action,
-          patternClaim: decided.patternClaim,
-          ...(decided.placements?.length
-            ? { placements: decided.placements }
-            : {}),
-        }
-      }
-      if (mix === "code") {
-        const policy = await codeLearnerPolicy(
-          visible,
-          signal,
-          process.env,
-          trace
-        )
-        return { action: null, patternClaim: policy.note, policy }
-      }
-      if (
-        mix === "jev-bare" ||
-        mix === "laya-bare" ||
-        mix === "openai-bare"
-      ) {
-        const choice = await bareLearnerControl(
-          visible,
-          mix,
-          signal,
-          process.env,
-          trace
-        )
-        if (choice === "unconfigured") {
-          return {
-            action: null,
-            patternClaim:
-              mix === "laya-bare"
-                ? "Laya is not configured."
-                : mix === "openai-bare"
-                  ? "OpenAI Decisions is not configured."
-                  : "Jev is not configured.",
-          }
-        }
-        if (!choice || choice === "wait")
-          return { action: null, patternClaim: null }
-        if (choice.type === "selectCell") {
-          const options =
-            visible.board.affordances.cells[choice.cell]?.options ?? []
-          const value =
-            options[0] ?? visible.board.cells[choice.cell]?.value ?? null
-          return {
-            action: choice,
-            patternClaim: null,
-            placements: [{ cell: choice.cell, value }],
-          }
-        }
-        return { action: choice, patternClaim: null }
-      }
-      const plan = await planLearnerMix(
-        visible,
+    (visible, signal) =>
+      dispatchMix(
         mix,
+        visible,
+        {
+          bare: bareLearnerControl,
+          plan: planLearnerMix,
+          decisions: openaiDecisionsControl,
+          policy: codeLearnerPolicy,
+        },
         signal,
         process.env,
         trace
-      )
-      return {
-        action: null,
-        patternClaim: plan.patternClaim,
-        placements: plan.placements,
-      }
-    },
+      ),
     request.signal
   )
   return Response.json({ ...result, trace: trace.slice(0, 8) }, { headers })

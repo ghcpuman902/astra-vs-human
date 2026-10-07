@@ -260,6 +260,11 @@ export const gameLearnerBoardSchema = z
     )
       fail("Repeated cycle values")
   })
+const learnerRecentSchema = z.strictObject({
+  action: z.enum(["selectCell", "cycle", "undo", "clear", "wait", "invalid"]),
+  cell: z.number().int().min(0).max(35).optional(),
+  changed: z.boolean(),
+})
 export const gameLearnerRequestSchema = z.strictObject({
   board: gameLearnerBoardSchema,
   priorClaims: z.array(z.string().max(240)).max(30),
@@ -270,6 +275,7 @@ export const gameLearnerRequestSchema = z.strictObject({
     .regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/)
     .optional(),
   mix: z.enum(learnerMixIds).optional(),
+  recent: z.array(learnerRecentSchema).max(12).optional(),
 })
 export type GameLearnerRequest = z.infer<typeof gameLearnerRequestSchema>
 export type GameLearnerDecision = ModelLearnerResult & {
@@ -409,6 +415,29 @@ const revision = (board: BoardProps) =>
   JSON.stringify(
     canonical({ ...board, remainingMs: undefined, readOnly: undefined })
   )
+/** Cell values and selection only. Action counters and clocks are not progress. */
+const fingerprint = (board: BoardProps) =>
+  board.cells.map((cell) => `${cell.value ?? "e"}:${cell.selected ? 1 : 0}`).join("|")
+const VISIT_LIMIT = 3
+const IDLE_LIMIT = 3
+const actionKey = (action: CountedAction | "wait" | "invalid") =>
+  typeof action === "string"
+    ? action
+    : action.type === "selectCell"
+      ? `select:${action.cell}`
+      : action.type
+const offerBoard = (board: BoardProps, skip?: ReadonlySet<string>) => {
+  if (!skip?.size) return board
+  const next = structuredClone(board)
+  const controls = next.affordances.controls
+  if (skip.has("cycle")) controls.cycle = false
+  if (skip.has("undo")) controls.undo = false
+  if (skip.has("clear")) controls.clear = false
+  controls.selectCell = controls.selectCell.filter(
+    (cell) => !skip.has(`select:${cell}`)
+  )
+  return next
+}
 const playAction = (
   live: BoardProps,
   action: CountedAction,
@@ -444,6 +473,11 @@ export function createGameLearnerRunner(options: {
   let pendingModel: string | undefined
   let phase: "idle" | "waiting" | "applying" = "idle"
   let disposed = false
+  let stuck = false
+  let idle = 0
+  const visits = new Map<string, number>()
+  const blocked = new Map<string, Set<string>>()
+  const recent: { action: string; cell?: number; changed: boolean }[] = []
   const sync = () => {
     if (
       phase === "waiting" &&
@@ -454,21 +488,59 @@ export function createGameLearnerRunner(options: {
     )
       pending.abort()
   }
+  const remember = (
+    action: CountedAction | "wait" | "invalid",
+    changed: boolean
+  ) => {
+    recent.push({
+      action: typeof action === "string" ? action : action.type,
+      ...(typeof action !== "string" && action.type === "selectCell"
+        ? { cell: action.cell }
+        : {}),
+      changed,
+    })
+    if (recent.length > 8) recent.shift()
+    if (changed) {
+      idle = 0
+      return
+    }
+    idle += 1
+    const key = fingerprint(options.observe())
+    const skip = blocked.get(key) ?? new Set<string>()
+    skip.add(actionKey(action))
+    blocked.set(key, skip)
+    if (idle >= IDLE_LIMIT) stuck = true
+  }
   return {
     sync,
     cancel: () => pending?.abort(),
     busy: () => pending !== null,
+    reason: () => (stuck ? ("stuck" as const) : null),
     dispose: () => {
       disposed = true
       pending?.abort()
     },
     step: async () => {
-      if (disposed || pending) return false
+      if (disposed || pending || stuck) return false
+      const live = options.observe()
+      if (
+        live.status !== "playing" ||
+        live.remainingMs <= 0 ||
+        live.remainingActions <= 0
+      )
+        return false
+      const mark = fingerprint(live)
+      const seen = (visits.get(mark) ?? 0) + 1
+      if (seen > VISIT_LIMIT || idle >= IDLE_LIMIT) {
+        stuck = true
+        return false
+      }
       const parsed = gameLearnerRequestSchema.safeParse({
-        board: options.observe(),
+        board: offerBoard(live, blocked.get(mark)),
         priorClaims: options.memory.claims.slice(-30),
         model: options.model?.(),
         mix: options.mix,
+        ...(recent.length ? { recent: recent.slice() } : {}),
       })
       if (
         !parsed.success ||
@@ -477,10 +549,11 @@ export function createGameLearnerRunner(options: {
         parsed.data.board.remainingActions <= 0
       )
         return false
+      visits.set(mark, seen)
       const controller = new AbortController()
       pending = controller
       phase = "waiting"
-      pendingRevision = revision(parsed.data.board)
+      pendingRevision = revision(live)
       pendingModel = parsed.data.model
       const timer = setTimeout(
         () => controller.abort(),
@@ -491,13 +564,13 @@ export function createGameLearnerRunner(options: {
           parsed.data,
           controller.signal
         )
-        const live = options.observe()
+        const current = options.observe()
         if (
           disposed ||
           controller.signal.aborted ||
-          revision(live) !== pendingRevision ||
+          revision(current) !== pendingRevision ||
           options.model?.() !== pendingModel ||
-          live.remainingMs <= 0
+          current.remainingMs <= 0
         )
           return false
         if (decision.patternClaim)
@@ -507,27 +580,36 @@ export function createGameLearnerRunner(options: {
             .slice(0, 240)
         const expanded = decision.steps?.length
           ? decision.steps.slice(0, 24)
-          : expandPlacements(decision.placements, live)
+          : expandPlacements(decision.placements, current)
         const steps: CountedAction[] = expanded.length
           ? expanded
           : decision.action
             ? [decision.action]
             : []
-        if (!steps.length) return false
+        if (!steps.length) {
+          remember(
+            decision.reason === "invalid-decision" ? "invalid" : "wait",
+            false
+          )
+          return false
+        }
         phase = "applying"
         let applied = 0
         for (const action of steps) {
-          const current = options.observe()
+          const now = options.observe()
           if (
             disposed ||
-            current.status !== "playing" ||
-            current.remainingMs <= 0 ||
-            current.remainingActions <= 0
+            now.status !== "playing" ||
+            now.remainingMs <= 0 ||
+            now.remainingActions <= 0
           )
             break
-          if (!playAction(current, action, options.api)) break
+          if (!playAction(now, action, options.api)) break
           applied += 1
         }
+        const changed = fingerprint(options.observe()) !== mark
+        const last = steps[Math.min(applied, steps.length) - 1] ?? steps[0]
+        remember(last, changed)
         return applied > 0
       } catch {
         return false

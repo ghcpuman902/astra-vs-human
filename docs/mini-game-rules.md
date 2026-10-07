@@ -36,7 +36,7 @@ Modes are certified outcomes rather than stickers requested by the model. In par
 4. Add `describe` / option / compile paths in `affordances.ts` (cell roles, options, effect text).
 5. Add a category renderer (marks / board paint). The solver and Decision question sets stay untouched if they only read `affordances`.
 
-Run `node scripts/check-affordances.mjs` after engine changes.
+Run `node scripts/check-affordances.mjs` after engine changes. `pnpm check:games` checks pinned packs in `fixtures/agent-games/` plus a fresh seed sweep: schema, a certified solution that is not already filled in, and the same open cells and cycle options for the human and every Learner mix.
 
 The full research axes are FORCED-CHAIN → BRANCHY → MULTI → RISK and full → partial visibility. RISK and partial visibility remain research tonight. They cannot be silently shipped with another mode or visibility. Neighboring occupied flavors include Tango, Queens, Sudoku, Zip, Wordle, Mines, 2048, and Zendo-ish toys; word/trivia, large Sudoku, Rush Hour, and heavy probability scoring are outside this engine's initial scope. The catalogue is not a novelty rejection filter.
 

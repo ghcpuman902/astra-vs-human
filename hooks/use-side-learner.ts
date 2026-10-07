@@ -314,6 +314,11 @@ export function useSideLearner({
       }
       try {
         await runner.step()
+        if (runner.reason() === "stuck") {
+          halt = true
+          if (!disposed)
+            trace.phase("done", "Repeating a move, so this round stopped.")
+        }
       } catch {
         if (!disposed)
           trace.phase("retrying", "Connection interrupted; retrying")

@@ -292,6 +292,7 @@ function publicBoardState(input: GameLearnerRequest) {
       role: cell.role,
       selected: cell.visible && cell.selected,
     })),
+    recent: input.recent ?? [],
   })
 }
 
