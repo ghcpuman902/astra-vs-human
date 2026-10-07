@@ -19,7 +19,7 @@ try {
   )
   for (const [folder, files] of Object.entries({
     puzzle: ["author", "types", "verifier", "model-learner"],
-    "mini-game-rules": ["schema", "runtime", "verifier", "assembler"],
+    "mini-game-rules": ["schema", "runtime", "verifier", "binary", "assembler"],
     "battle-ground-ui": ["agent-trace", "controller", "learner-mix", "model-learner"],
   })) {
     await mkdir(join(output, folder))

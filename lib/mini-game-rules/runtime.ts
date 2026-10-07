@@ -24,19 +24,28 @@ export function neighbors(cell: number, n: number) {
     col > 0 ? cell - 1 : -1,
   ].filter((id) => id >= 0)
 }
+export type Walls = readonly (readonly [number, number])[]
+/** True when a wall stands between these two cells. */
+export function walled(walls: Walls | undefined, a: number, b: number) {
+  return !!walls?.some(
+    ([x, y]) => (x === a && y === b) || (x === b && y === a)
+  )
+}
 /**
  * Zip cycle alphabet for one path cell: values one step from an orthogonal
- * numbered neighbour that no other cell already holds, ascending.
+ * numbered neighbour, not across a wall, that no other cell already holds, ascending.
  */
 export function pathCandidates(
   n: number,
   cells: readonly (number | null)[],
   cell: number,
-  length: number
+  length: number,
+  walls?: Walls
 ) {
   const used = new Set(cells)
   const options = new Set<number>()
   for (const id of neighbors(cell, n)) {
+    if (walled(walls, cell, id)) continue
     const value = cells[id]
     if (value === null) continue
     for (const next of [value - 1, value + 1])
@@ -109,7 +118,13 @@ export function applyGameAction(
     } else if (pack.category === "path_cover") {
       // ±1 only: never steps through unrelated orders or steals a placed one.
       const current = cells[cell]
-      const options = pathCandidates(pack.n, cells, cell, values.length - 1)
+      const options = pathCandidates(
+        pack.n,
+        cells,
+        cell,
+        values.length - 1,
+        pack.rules.walls
+      )
       cells[cell] =
         current === null
           ? (options[0] ?? null)

@@ -8,7 +8,19 @@ import {
   neighbors,
   pathCandidates,
   rotatePorts,
+  walled,
+  type Walls,
 } from "@/lib/mini-game-rules/runtime"
+
+/** Queens paint: one craft hue per region, washed toward the canvas. */
+export const REGION_FILLS = [
+  "var(--cat-1)",
+  "var(--cat-2)",
+  "var(--cat-3)",
+  "var(--cat-4)",
+  "var(--cat-5)",
+  "var(--cat-6)",
+] as const
 
 type PaperBoardProps = {
   board: BoardProps
@@ -50,12 +62,13 @@ function cyclesTo(
   cells: readonly (number | null)[],
   cell: number,
   want: number | null,
-  length: number
+  length: number,
+  walls?: Walls
 ) {
   const sim = [...cells]
   for (let cycles = 1; cycles <= 6; cycles++) {
     const current = sim[cell]
-    const options = pathCandidates(n, sim, cell, length)
+    const options = pathCandidates(n, sim, cell, length, walls)
     const next =
       current === null
         ? (options[0] ?? null)
@@ -86,6 +99,21 @@ export const PaperBoard = ({
   const blocked =
     "blocked" in board.clues ? new Set(board.clues.blocked) : new Set<number>()
   const active = "active" in board.clues ? new Set(board.clues.active) : null
+  const walls = "active" in board.clues ? board.clues.walls : undefined
+  const regions = "blocked" in board.clues ? board.clues.regions : undefined
+  // Heavy edges: region borders for Queens, walls for Zip.
+  const fences: Walls = regions
+    ? board.cells.flatMap((cell) =>
+        [cell.index + 1, cell.index + n]
+          .filter(
+            (other) =>
+              other < n * n &&
+              (other === cell.index + n || other % n !== 0) &&
+              regions[other] !== regions[cell.index]
+          )
+          .map((other) => [cell.index, other] as const)
+      )
+    : (walls ?? [])
   const quotas =
     "constraints" in board.clues
       ? board.clues.constraints.some((rule) => rule.kind === "quota")
@@ -182,9 +210,10 @@ export const PaperBoard = ({
   const stepTo = (current: Trace, to: number) => {
     const value = current.cells[current.head]
     const there = current.cells[to]
-    if (value === null || isBlocked(to)) return false
+    if (value === null || isBlocked(to) || walled(walls, current.head, to))
+      return false
     const send = (cell: number, want: number | null) => {
-      const cycles = cyclesTo(n, current.cells, cell, want, pathLength)
+      const cycles = cyclesTo(n, current.cells, cell, want, pathLength, walls)
       if (cycles === null) return false
       onPathStep?.(cell, cycles)
       current.cells[cell] = want
@@ -199,7 +228,9 @@ export const PaperBoard = ({
         current.direction === 0 &&
         editable(current.head) &&
         !neighbors(current.head, n).some(
-          (id) => current.cells[id] === value - delta
+          (id) =>
+            current.cells[id] === value - delta &&
+            !walled(walls, current.head, id)
         )
       )
         current.direction = -delta as 1 | -1
@@ -326,6 +357,13 @@ export const PaperBoard = ({
               data-selected={(!zip && cell.selected) || undefined}
               data-head={head === cell.index || undefined}
               data-rejected={rejected === cell.index || undefined}
+              style={
+                regions && cell.value !== 1
+                  ? {
+                      background: `color-mix(in oklab, ${REGION_FILLS[regions[cell.index] % REGION_FILLS.length]} 34%, var(--canvas))`,
+                    }
+                  : undefined
+              }
               aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}${zip && cell.value !== null ? `, ${cell.value}` : ""}${blockedCell ? ", blocked" : ""}${fixed ? ", fixed" : ""}${cell.selected ? ", selected" : ""}`}
               aria-pressed={cell.selected}
               disabled={!interactive || board.readOnly}
@@ -352,7 +390,8 @@ export const PaperBoard = ({
                     n,
                     board.cells.map((item) => item.value),
                     cell.index,
-                    pathLength
+                    pathLength,
+                    walls
                   ).length
                 ) {
                   // Nothing to number yet: no counted tap, just say so.
@@ -420,6 +459,42 @@ export const PaperBoard = ({
                 y2={Math.floor(to / n) + 0.5}
               />
             ))}
+          </svg>
+        ) : null}
+        {fences.length > 0 ? (
+          <svg
+            className="fence-lines"
+            viewBox={`0 0 ${n} ${n}`}
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 2,
+              width: "100%",
+              height: "100%",
+              overflow: "visible",
+              pointerEvents: "none",
+              stroke: "var(--ink)",
+              // Region borders are firm lines; walls read heavier, with round ends.
+              strokeWidth: regions ? 0.06 : 0.12,
+              strokeLinecap: regions ? "square" : "round",
+            }}
+          >
+            {fences.map(([a, b]) => {
+              // The shared edge of two neighbours: vertical if they sit in one row.
+              const row = Math.max(Math.floor(a / n), Math.floor(b / n))
+              const col = Math.max(a % n, b % n)
+              const across = Math.floor(a / n) === Math.floor(b / n)
+              return (
+                <line
+                  key={`${a}-${b}`}
+                  x1={col}
+                  y1={across ? Math.floor(a / n) : row}
+                  x2={across ? col : col + 1}
+                  y2={across ? Math.floor(a / n) + 1 : row}
+                />
+              )
+            })}
           </svg>
         ) : null}
       </div>

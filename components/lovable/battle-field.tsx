@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import { Eye, Pause } from "lucide-react"
 
-import { postcards } from "@/components/lovable/marks"
+import { postcardFor } from "@/components/lovable/marks"
 import { PaperBoard } from "@/components/lovable/paper-board"
 import type { BoardProps } from "@/lib/battle-ground-ui/controller"
 import type { GamePack } from "@/lib/mini-game-rules/schema"
@@ -185,7 +185,7 @@ export function BoardStage({
 
 /** The shared rules, shown once under the left board. */
 export function Rules({ pack }: { pack: GamePack }) {
-  const card = postcards[pack.category]
+  const card = postcardFor(pack)
   return (
     <div className="postcard-rules">
       <p className="postcard-goal">{card.goal}</p>

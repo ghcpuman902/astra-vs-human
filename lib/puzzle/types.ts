@@ -4,6 +4,13 @@ export type Constraint =
   | { kind: "no-three"; cells: readonly [number, number, number] }
   | { kind: "quota"; cells: readonly number[]; ones: number }
   | { kind: "friend"; cells: readonly [number, number]; relation: "=" | "×" }
+  /** Half ones, half zeros. Stated once on the postcard, never drawn per line. */
+  | { kind: "balance"; cells: readonly number[] }
+  /** A 2×2 block may not be all one value. */
+  | {
+      kind: "no-square"
+      cells: readonly [number, number, number, number]
+    }
 
 export type RulePack = {
   seed: number

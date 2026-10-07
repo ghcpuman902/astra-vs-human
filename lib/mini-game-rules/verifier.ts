@@ -1,5 +1,5 @@
 import { constraintPossible } from "../puzzle/verifier"
-import { neighbors, rotatePorts } from "./runtime"
+import { neighbors, rotatePorts, walled } from "./runtime"
 import { packSchema, type GamePack } from "./schema"
 
 export type Verification = {
@@ -47,6 +47,12 @@ export function verifyGame(
         crowns.filter((id) => id % pack.n === line).length > 1
       )
         errors.push("Two crowns share a row or column")
+    const regions = pack.rules.regions
+    if (
+      regions &&
+      new Set(crowns.map((id) => regions[id])).size !== crowns.length
+    )
+      errors.push("Two crowns share a region")
     if (
       pack.rules.noDiagonalTouch &&
       crowns.some((a, i) =>
@@ -81,6 +87,8 @@ export function verifyGame(
       )
       if (next !== undefined && !neighbors(id, pack.n).includes(next))
         errors.push("Consecutive path cells must share an edge")
+      else if (next !== undefined && walled(pack.rules.walls, id, next))
+        errors.push("The path crosses a wall")
     }
     if (
       cells[start] !== 1 ||

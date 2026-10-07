@@ -1,3 +1,4 @@
+import { REGION_FILLS } from "@/components/lovable/paper-board"
 import { rotatePorts } from "@/lib/mini-game-rules/runtime"
 import type { GamePack } from "@/lib/mini-game-rules/schema"
 
@@ -21,8 +22,11 @@ export function MiniBoard({ pack }: { pack: GamePack }) {
     if (pack.category === "binary_fill" && value !== null)
       return value === 0 ? "var(--cat-2)" : "var(--cat-5)"
     if (pack.category === "lights_toggle" && value === 1) return "var(--cat-2)"
+    if (pack.category === "crown" && pack.rules.regions)
+      return `color-mix(in oklab, ${REGION_FILLS[pack.rules.regions[id] % REGION_FILLS.length]} 34%, var(--canvas))`
     return "var(--canvas)"
   }
+  const walls = pack.category === "path_cover" ? (pack.rules.walls ?? []) : []
   return (
     <svg
       className="mini-board"
@@ -73,6 +77,21 @@ export function MiniBoard({ pack }: { pack: GamePack }) {
               </>
             ) : null}
           </g>
+        )
+      })}
+      {walls.map(([a, b]) => {
+        const across = Math.floor(a / n) === Math.floor(b / n)
+        const row = Math.max(Math.floor(a / n), Math.floor(b / n))
+        const col = Math.max(a % n, b % n)
+        return (
+          <line
+            key={`${a}-${b}`}
+            x1={col}
+            y1={across ? Math.floor(a / n) : row}
+            x2={across ? col : col + 1}
+            y2={across ? Math.floor(a / n) + 1 : row}
+            className="mini-frame"
+          />
         )
       })}
       <rect

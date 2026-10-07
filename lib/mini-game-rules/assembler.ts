@@ -1,6 +1,7 @@
 // Author-only assembly. Never include PackAudit in a Learner observation or public response.
-import { authorPack, certify, forcedChain } from "../puzzle/author"
-import { neighbors, rotatePorts } from "./runtime"
+import { certify } from "../puzzle/author"
+import { authorBinary } from "./binary"
+import { neighbors, rotatePorts, walled } from "./runtime"
 import {
   assemblyRequestSchema,
   packSchema,
@@ -81,15 +82,20 @@ export function assembleGamePack(
   }
   let pack: GamePack, audit: PackAudit
   if (category === "binary_fill") {
-    const authored = authorPack(seed, n, checkpoint)
-    const chain = forcedChain(authored, checkpoint),
-      solution = [...authored.cells] as number[]
-    for (const step of chain.steps) solution[step.cell] = step.value
-    const density = request.preferences?.clueDensity ?? 0.2
+    // Tango on even boards; odd boards cannot balance, so they count a few lines.
+    const rule = request.preferences?.binaryRule ?? (n % 2 ? "tally" : "tango")
+    const authored = authorBinary(seed, n, rule, rng, checkpoint)
+    const solution = authored.solution as number[]
+    // Carving leaves the minimum; an explicit density adds easy givens back.
+    const density = request.preferences?.clueDensity ?? 0
     const cells = authored.cells.map((value, id) => {
       if (value === null && rng() < density / 2) value = solution[id] as 0 | 1
       return { value, locked: value !== null }
     })
+    const line =
+      rule === "garden"
+        ? "No 2×2 block of four equal cells."
+        : "No three equal cells side by side in a row or column."
     pack = {
       ...common,
       category,
@@ -104,24 +110,43 @@ export function assembleGamePack(
       postcard: {
         goal: "Fill every cell with 0 or 1.",
         rules: [
-          "No three consecutive equal cells in a row or column.",
-          "Each visible row or column quota gives its exact number of ones.",
-          "Friends marked = match. Friends marked × differ.",
+          line,
+          rule === "tally"
+            ? "A number beside a line gives its count of ones."
+            : "Every row and column holds as many 0s as 1s.",
+          "= joins equal neighbours. × joins different ones.",
           "Cycle empty → 0 → 1 → empty. Givens stay fixed.",
         ],
       },
       transfer: {
         ...common.transfer,
-        family: "binary-friends",
-        friendPatterns: [
-          "AA_ forces the other bit.",
-          "A_A forces the other bit.",
-          "A filled quota forces all remaining cells.",
-        ],
+        family: `binary-${rule}`,
+        friendPatterns:
+          rule === "garden"
+            ? [
+                "Three equal corners of a square force the fourth.",
+                "A marker carries a known cell across.",
+                "A line with its half filled forces the rest.",
+              ]
+            : [
+                "AA_ forces the other bit.",
+                "A_A forces the other bit.",
+                rule === "tally"
+                  ? "A filled count forces all remaining cells."
+                  : "A line with its half filled forces the rest.",
+              ],
       },
     }
     const certificate = certify(
-      { ...authored, cells: cells.map((cell) => cell.value as 0 | 1 | null) },
+      {
+        seed,
+        n,
+        mode: "FORCED-CHAIN",
+        rulesPostcard: [],
+        constraints: authored.constraints,
+        cells: cells.map((cell) => cell.value as 0 | 1 | null),
+        verifierSpec: { version: 1, alphabet: [0, 1], empty: null },
+      },
       nodeCap,
       checkpoint
     )
@@ -140,7 +165,9 @@ export function assembleGamePack(
       solution,
     }
   } else if (category === "crown") {
-    const noDiagonalTouch = request.preferences?.noDiagonalTouch ?? true
+    const paintRegions = request.preferences?.regions ?? false
+    const noDiagonalTouch =
+      paintRegions || (request.preferences?.noDiagonalTouch ?? true)
     const permutations: number[][] = []
     const enumerate = (columns: number[]) => {
       checkpoint()
@@ -168,15 +195,55 @@ export function assembleGamePack(
     const solution = Array.from({ length: count }, (_, id) =>
       chosen[Math.floor(id / n)] === id % n ? 1 : 0
     )
-    const blocked = Array.from({ length: count }, (_, id) => id).filter(
-      (id) =>
-        solution[id] === 0 && rng() < (request.preferences?.clueDensity ?? 0.4)
-    )
+    // Queens: grow one region from each crown, keeping the layout with the
+    // fewest answers. Uneven appetites leave small regions that decide first.
+    const regions = paintRegions
+      ? (() => {
+          let best: { owner: number[]; fits: number } | null = null
+          for (let attempt = 0; attempt < 48; attempt++) {
+            checkpoint()
+            const owner = Array.from({ length: count }, () => -1)
+            chosen.forEach((col, row) => (owner[row * n + col] = row))
+            const appetite = chosen.map(() => 0.25 + rng() * 1.5)
+            for (let left = count - n; left > 0; left--) {
+              const options = owner.flatMap((region, id) =>
+                region < 0
+                  ? []
+                  : neighbors(id, n)
+                      .filter((other) => owner[other] < 0)
+                      .map((other) => ({ other, region }))
+              )
+              let pick = rng() * options.reduce((sum, o) => sum + appetite[o.region], 0)
+              const hit =
+                options.find((o) => (pick -= appetite[o.region]) <= 0) ??
+                options.at(-1)!
+              owner[hit.other] = hit.region
+            }
+            const fits = permutations.filter(
+              (cols) =>
+                new Set(cols.map((col, row) => owner[row * n + col])).size === n
+            ).length
+            if (!best || fits < best.fits) best = { owner, fits }
+            if (fits === 1) break
+          }
+          return best!.owner
+        })()
+      : null
+    const blocked = regions
+      ? []
+      : Array.from({ length: count }, (_, id) => id).filter(
+          (id) =>
+            solution[id] === 0 &&
+            rng() < (request.preferences?.clueDensity ?? 0.4)
+        )
     const cells = common.cells.map((cell, id) =>
       blocked.includes(id) ? { value: 0, locked: true } : cell
     )
-    let legal = permutations.filter((cols) =>
-      cols.every((col, row) => !blocked.includes(row * n + col))
+    let legal = permutations.filter(
+      (cols) =>
+        cols.every((col, row) => !blocked.includes(row * n + col)) &&
+        (!regions ||
+          new Set(cols.map((col, row) => regions[row * n + col])).size === n)
     )
     for (const row of shuffle(
       Array.from({ length: n }, (_, i) => i),
@@ -187,60 +254,94 @@ export function assembleGamePack(
       cells[id] = { value: 1, locked: true }
       legal = legal.filter((cols) => cols[row] === chosen[row])
     }
-    // Hide one forced crown if all rows were given during certification.
-    const fixedRows = cells.flatMap((cell, id) =>
-      cell.locked && cell.value === 1 ? [Math.floor(id / n)] : []
+    // A row, column or region left with one legal cell is the visible foothold.
+    const placed = cells.flatMap((cell, id) =>
+      cell.locked && cell.value === 1 ? [id] : []
     )
-    const row =
-      Array.from({ length: n }, (_, i) => i).find(
-        (i) => !fixedRows.includes(i)
-      ) ?? 0
-    const foothold = {
-      cell: row * n + chosen[row],
-      value: 1,
-      reason:
-        "Only one cell remains legal in this row after blocked cells and placed crowns.",
-    }
-    const rowCandidates = Array.from(
-      { length: n },
-      (_, col) => row * n + col
-    ).filter(
+    const rowOf = (id: number) => Math.floor(id / n)
+    const colOf = (id: number) => id % n
+    const free = Array.from({ length: count }, (_, id) => id).filter(
       (id) =>
         !blocked.includes(id) &&
-        !fixedRows.some(
-          (r) =>
-            chosen[r] === id % n ||
+        !placed.some(
+          (crown) =>
+            rowOf(crown) === rowOf(id) ||
+            colOf(crown) === colOf(id) ||
+            (regions && regions[crown] === regions[id]) ||
             (noDiagonalTouch &&
-              Math.abs(r - row) === 1 &&
-              Math.abs(chosen[r] - (id % n)) === 1)
+              Math.abs(rowOf(crown) - rowOf(id)) === 1 &&
+              Math.abs(colOf(crown) - colOf(id)) === 1)
         )
     )
-    const forced = rowCandidates.length === 1
+    const groups = [
+      ...Array.from({ length: n }, (_, line) => ({
+        name: "row",
+        has: (id: number) => rowOf(id) === line,
+      })),
+      ...Array.from({ length: n }, (_, line) => ({
+        name: "column",
+        has: (id: number) => colOf(id) === line,
+      })),
+      ...(regions
+        ? Array.from({ length: n }, (_, region) => ({
+            name: "region",
+            has: (id: number) => regions[id] === region,
+          }))
+        : []),
+    ]
+    const lone = groups
+      .filter((group) => !placed.some(group.has))
+      .map((group) => ({ group, spots: free.filter(group.has) }))
+      .find((item) => item.spots.length === 1)
+    const forced = !!lone
+    const foothold = lone && {
+      cell: lone.spots[0],
+      value: 1,
+      reason: `Only one cell remains legal in this ${lone.group.name} after blocked cells and placed crowns.`,
+    }
     pack = {
       ...common,
       category,
       mode: forced ? "FORCED-CHAIN" : "BRANCHY",
       cells,
-      rules: { blocked, noDiagonalTouch },
+      rules: { blocked, noDiagonalTouch, ...(regions ? { regions } : {}) },
       winPredicate: "one-crown-per-row-column",
-      postcard: {
-        goal: "Place one crown in every row and column.",
-        rules: [
-          "Blocked cells cannot hold crowns.",
-          ...(noDiagonalTouch ? ["Crowns cannot touch diagonally."] : []),
-          "Cycle empty → mark empty → crown → empty. Givens stay fixed.",
-        ],
-      },
+      postcard: regions
+        ? {
+            goal: "Place one crown in every row, column and colour region.",
+            rules: [
+              "Crowns cannot touch, not even diagonally.",
+              "Cycle empty → mark empty → crown → empty. Givens stay fixed.",
+            ],
+          }
+        : {
+            goal: "Place one crown in every row and column.",
+            rules: [
+              "Blocked cells cannot hold crowns.",
+              ...(noDiagonalTouch ? ["Crowns cannot touch diagonally."] : []),
+              "Cycle empty → mark empty → crown → empty. Givens stay fixed.",
+            ],
+          },
       transfer: {
         ...common.transfer,
-        family: noDiagonalTouch ? "crown-nontouch" : "crown-columns",
-        friendPatterns: [
-          "A placed crown removes its column from every other row.",
-          ...(noDiagonalTouch
-            ? ["A crown removes the two diagonal neighbor cells."]
-            : []),
-          "A row with one legal spot forces a crown.",
-        ],
+        family: regions
+          ? "crown-regions"
+          : noDiagonalTouch
+            ? "crown-nontouch"
+            : "crown-columns",
+        friendPatterns: regions
+          ? [
+              "A region squeezed into one row claims that row.",
+              "A crown removes the eight cells around it.",
+              "The smallest region decides first.",
+            ]
+          : [
+              "A placed crown removes its column from every other row.",
+              ...(noDiagonalTouch
+                ? ["A crown removes the two diagonal neighbor cells."]
+                : []),
+              "A row with one legal spot forces a crown.",
+            ],
       },
     }
     audit = {
@@ -249,7 +350,7 @@ export function assembleGamePack(
       solutionMeaning: "Crown placements; empty pencil marks are ignored",
       unique: legal.length === 1,
       nodes,
-      foothold: forced ? foothold : null,
+      foothold: foothold || null,
       solution,
     }
   } else if (category === "path_cover") {
@@ -268,44 +369,45 @@ export function assembleGamePack(
       }
       return path
     }
-    // Warnsdorff order with seeded ties; odd boards start on the majority colour.
+    const holes = requested ? 0 : (request.preferences?.holes ?? 0)
+    const wallBudget = requested ? 0 : (request.preferences?.walls ?? 0)
+    // Backbite: seeded end rewires of a serpentine, near-uniform over covering
+    // routes (Warnsdorff hugged walls and folded into hairpins). Holes are
+    // bitten off the tail between rounds of mixing, so they land anywhere.
     const tour = () => {
-      for (let attempt = 0; attempt < 8; attempt++) {
-        let first = Math.floor(rng() * count)
-        if (n % 2 && (Math.floor(first / n) + (first % n)) % 2)
-          first = (first + 1) % count
-        const path = [first],
-          used = new Set(path)
-        let budget = 4_000
-        const extend = (): boolean => {
-          checkpoint()
-          if (path.length === count) return true
-          if (--budget < 0) return false
-          const options = shuffle(
-            neighbors(path.at(-1)!, n).filter((id) => !used.has(id)),
-            rng
+      let path = Array.from({ length: count }, (_, i) => {
+        const row = Math.floor(i / n),
+          col = i % n
+        return row * n + (row % 2 ? n - 1 - col : col)
+      })
+      const alive = new Set(path)
+      const mix = (moves: number) => {
+        for (let move = 0; move < moves; move++) {
+          if (move % 64 === 0) checkpoint()
+          if (rng() < 0.5) path.reverse()
+          const tail = path.at(-1)!
+          const choices = neighbors(tail, n).filter(
+            (id) => alive.has(id) && id !== path.at(-2)
           )
-            .map((id) => ({
-              id,
-              exits: neighbors(id, n).filter((other) => !used.has(other))
-                .length,
-            }))
-            .sort((a, b) => a.exits - b.exits)
-          for (const { id } of options) {
-            path.push(id)
-            used.add(id)
-            if (extend()) return true
-            path.pop()
-            used.delete(id)
-          }
-          return false
+          if (!choices.length) continue
+          const at = path.indexOf(choices[Math.floor(rng() * choices.length)])
+          path = [...path.slice(0, at + 1), ...path.slice(at + 1).reverse()]
         }
-        if (extend()) return path
       }
-      throw new Error("No covering route for this seed")
+      mix(count * 20)
+      for (let hole = 0; hole < holes; hole++) {
+        alive.delete(path.pop()!)
+        mix(count * 4)
+      }
+      return path
     }
     const route = requested ? walk() : tour()
-    const active = [...route],
+    const walls: [number, number][] = []
+    const steps = new Set(
+      route.slice(1).map((id, i) => `${Math.min(id, route[i])}:${Math.max(id, route[i])}`)
+    )
+    // Sorted: route order here would hand the answer to anyone reading the clues.
+    const active = [...route].sort((a, b) => a - b),
       open = new Set(active),
       start = route[0],
       end = route.at(-1)!,
@@ -316,6 +418,10 @@ export function assembleGamePack(
     const distance = (a: number, b: number) =>
       Math.abs(Math.floor(a / n) - Math.floor(b / n)) +
       Math.abs((a % n) - (b % n))
+    const exits = (id: number) =>
+      neighbors(id, n).filter(
+        (other) => open.has(other) && !walled(walls, id, other)
+      )
     // Up to two routes through the public clues; prunes on reach and connectivity.
     const findSolutions = () => {
       const found: number[][] = []
@@ -332,17 +438,14 @@ export function assembleGamePack(
         const left = active.length - path.length
         if (!left) return true
         const seen = new Set<number>()
-        const pending = neighbors(head, n).filter(
-          (id) => open.has(id) && !used.has(id)
-        )
+        const pending = exits(head).filter((id) => !used.has(id))
         if (!pending.length) return false
         while (pending.length) {
           const id = pending.pop()!
           if (seen.has(id)) continue
           seen.add(id)
-          for (const other of neighbors(id, n))
-            if (open.has(other) && !used.has(other) && !seen.has(other))
-              pending.push(other)
+          for (const other of exits(id))
+            if (!used.has(other) && !seen.has(other)) pending.push(other)
         }
         return seen.size === left
       }
@@ -362,8 +465,8 @@ export function assembleGamePack(
         }
         const order = path.length + 1
         const pinned = cellFor.get(order)
-        for (const other of neighbors(path.at(-1)!, n)) {
-          if (!open.has(other) || used.has(other)) continue
+        for (const other of exits(path.at(-1)!)) {
+          if (used.has(other)) continue
           if (pinned !== undefined ? other !== pinned : orderAt.has(other))
             continue
           path.push(other)
@@ -376,24 +479,45 @@ export function assembleGamePack(
       visit()
       return found
     }
-    // Pin the route where a rival first leaves it, until only the route remains.
+    // Cut each rival route until only ours remains. A walled family spends its
+    // walls first, on a step the rival takes and ours does not. Pins go where
+    // the rival differs, as far in order from other pins as possible, so
+    // landmarks spread over the whole route instead of bunching near 1.
     let solutions = findSolutions()
     while (solutions.length > 1) {
-      const fork = Math.min(
-        ...solutions
-          .map((path) => path.findIndex((id, index) => id !== route[index]))
+      const rival = solutions.find((path) =>
+        path.some((id, index) => id !== route[index])
+      )!
+      const cuts = rival
+        .slice(1)
+        .map((id, i) => [Math.min(id, rival[i]), Math.max(id, rival[i])] as [number, number])
+        .filter(([a, b]) => !steps.has(`${a}:${b}`))
+      if (walls.length < wallBudget && cuts.length) {
+        walls.push(cuts[Math.floor(rng() * cuts.length)])
+      } else {
+        const orders = checkpoints.map((point) => point.order)
+        const fork = rival
+          .map((id, index) => (id !== route[index] ? index : -1))
           .filter((index) => index > 0)
-      )
-      checkpoints.push({ cell: route[fork], order: fork + 1 })
+          .reduce(
+            (best, index) => {
+              const gap = Math.min(
+                ...orders.map((order) => Math.abs(order - (index + 1)))
+              )
+              return gap > best.gap ? { index, gap } : best
+            },
+            { index: -1, gap: -1 }
+          ).index
+        checkpoints.push({ cell: route[fork], order: fork + 1 })
+      }
       solutions = findSolutions()
     }
     // Keep a visible one-step foothold when a branch remains beside the start.
     // Full-cover boards stay sparse; only corridors get the extra pins.
     const second = route[1]
     const startChoices = () =>
-      neighbors(start, n).filter(
+      exits(start).filter(
         (id) =>
-          active.includes(id) &&
           !checkpoints.some((point) => point.cell === id && point.order !== 2)
       )
     if (requested && startChoices().length !== 1) {
@@ -425,14 +549,22 @@ export function assembleGamePack(
           ...Array.from({ length: route.length }, (_, i) => i + 1),
         ],
       },
-      rules: { active, start, end, checkpoints },
+      rules: {
+        active,
+        start,
+        end,
+        checkpoints,
+        ...(walls.length ? { walls } : {}),
+      },
       winPredicate: "orthogonal-numbered-path-cover",
       postcard: {
         goal: `Draw one path from 1 to ${route.length} through every open cell.`,
         rules: [
-          "Each step moves to an edge neighbour.",
+          walls.length
+            ? "Each step moves to an edge neighbour, never through a wall."
+            : "Each step moves to an edge neighbour.",
           "Pass the numbered checkpoints in order.",
-          requested
+          requested || holes
             ? "Blocked cells stay empty."
             : "Cover every cell exactly once.",
           "Drag from a number, or tap a cell beside one to add the next.",
@@ -440,11 +572,19 @@ export function assembleGamePack(
       },
       transfer: {
         ...common.transfer,
-        family: "path-checkpoints",
+        family: walls.length
+          ? "path-walls"
+          : holes
+            ? "path-holes"
+            : "path-checkpoints",
         friendPatterns: [
-          "A corner with only two open neighbors must connect both.",
+          walls.length
+            ? "A cell walled on two sides is a corridor: it links its two open sides."
+            : "A corner with only two open neighbors must connect both.",
           "A checkpoint reserves its place in the sequence.",
-          "A dead end must be a path endpoint.",
+          holes
+            ? "A cell beside holes with one way in must be an endpoint."
+            : "A dead end must be a path endpoint.",
         ],
       },
     }
@@ -557,7 +697,7 @@ export function assembleGamePack(
       presses = shuffle(
         Array.from({ length: count }, (_, i) => i),
         rng
-      ).slice(0, Math.max(2, Math.floor(n / 2)))
+      ).slice(0, request.preferences?.presses ?? Math.max(2, Math.floor(n / 2)))
     for (const cell of presses)
       for (const id of [cell, ...neighbors(cell, n)]) initial[id] ^= 1
     if (initial.every((value) => value === 0))

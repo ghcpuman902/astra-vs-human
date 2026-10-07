@@ -10,9 +10,18 @@ export function constraintPossible(
     const empty = values.filter((value) => value === null).length
     return ones <= rule.ones && ones + empty >= rule.ones
   }
+  if (rule.kind === "balance") {
+    const half = rule.cells.length / 2
+    return (
+      values.filter((value) => value === 1).length <= half &&
+      values.filter((value) => value === 0).length <= half
+    )
+  }
   if (values.includes(null)) return true
   if (rule.kind === "no-three")
     return !(values[0] === values[1] && values[1] === values[2])
+  if (rule.kind === "no-square")
+    return !values.every((value) => value === values[0])
   return (values[0] === values[1]) === (rule.relation === "=")
 }
 
@@ -52,6 +61,10 @@ export function packErrors(pack: RulePack): string[] {
       errors.push("Invalid quota")
     if (rule.kind === "no-three" && rule.cells.length !== 3)
       errors.push("Invalid triple")
+    if (rule.kind === "no-square" && rule.cells.length !== 4)
+      errors.push("Invalid square")
+    if (rule.kind === "balance" && rule.cells.length % 2)
+      errors.push("Balance needs an even line")
     if (
       rule.kind === "friend" &&
       (rule.cells.length !== 2 || !["=", "×"].includes(rule.relation))

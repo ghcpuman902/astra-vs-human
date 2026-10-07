@@ -29,7 +29,15 @@ const constraintSchema = z.discriminatedUnion("kind", [
     cells: z.tuple([index, index]),
     relation: z.enum(["=", "×"]),
   }),
+  z.object({ kind: z.literal("balance"), cells: z.array(index).min(2) }),
+  z.object({
+    kind: z.literal("no-square"),
+    cells: z.tuple([index, index, index, index]),
+  }),
 ])
+/** Tango: no-three + balance. Garden: no 2×2 + balance. Tally: no-three + a few line counts. */
+export const binaryRuleSchema = z.enum(["tango", "garden", "tally"])
+export type BinaryRule = z.infer<typeof binaryRuleSchema>
 const common = {
   version: z.literal(1),
   seed: z.number().int().safe(),
@@ -80,6 +88,8 @@ export const packSchema = z
       rules: z.object({
         blocked: z.array(index),
         noDiagonalTouch: z.boolean(),
+        /** Queens: region id per cell, one crown per region. */
+        regions: z.array(index).optional(),
       }),
       winPredicate: z.literal("one-crown-per-row-column"),
     }),
@@ -91,6 +101,8 @@ export const packSchema = z
         start: index,
         end: index,
         checkpoints: z.array(z.object({ cell: index, order: index })),
+        /** Edge-neighbour pairs the path may not step between. */
+        walls: z.array(z.tuple([index, index])).optional(),
       }),
       winPredicate: z.literal("orthogonal-numbered-path-cover"),
     }),
@@ -168,6 +180,27 @@ export const packSchema = z
         if (rule.kind === "quota" && rule.ones > rule.cells.length)
           issue("Quota exceeds its cells")
       }
+    if (pack.category === "crown" && pack.rules.regions) {
+      const regions = pack.rules.regions
+      if (
+        regions.length !== count ||
+        regions.some((id) => id >= pack.n) ||
+        new Set(regions).size !== pack.n
+      )
+        issue("Crown regions must label every cell with one of n regions")
+    }
+    if (
+      pack.category === "path_cover" &&
+      pack.rules.walls?.some(
+        ([a, b]) =>
+          a >= count ||
+          b >= count ||
+          Math.abs(Math.floor(a / pack.n) - Math.floor(b / pack.n)) +
+            Math.abs((a % pack.n) - (b % pack.n)) !==
+            1
+      )
+    )
+      issue("Path walls must sit between edge neighbours")
     if (
       pack.category === "crown" &&
       pack.rules.blocked.some(
@@ -241,6 +274,15 @@ export const assemblyRequestSchema = z.object({
       clueDensity: z.number().min(0.2).max(0.8).optional(),
       noDiagonalTouch: z.boolean().optional(),
       pathLength: z.number().int().min(4).max(12).optional(),
+      binaryRule: binaryRuleSchema.optional(),
+      /** Crown: paint n regions, one crown each (Queens). */
+      regions: z.boolean().optional(),
+      /** Full-cover path: inactive holes punched into the square. */
+      holes: z.number().int().min(0).max(8).optional(),
+      /** Full-cover path: walls along the route that break the stripes. */
+      walls: z.number().int().min(0).max(14).optional(),
+      /** Lights: scramble presses. */
+      presses: z.number().int().min(1).max(12).optional(),
       targetSeconds: z.number().min(10).max(120).optional(),
     })
     .optional(),

@@ -235,6 +235,77 @@ export const postcards: Record<
   },
 }
 
+/** The picture card for this board's own rule set, so siblings read differently. */
+export function postcardFor(pack: GamePack): {
+  goal: ReactNode
+  rules: ReactNode[]
+} {
+  const card = postcards[pack.category]
+  if (pack.category === "binary_fill") {
+    const kinds = new Set(pack.rules.constraints.map((rule) => rule.kind))
+    const [line, count, markers] = card.rules
+    return {
+      goal: card.goal,
+      rules: [
+        kinds.has("no-square") ? (
+          <>
+            <Strip
+              category="binary_fill"
+              cols={2}
+              cells={[sun, sun, sun, { v: 0, wrong: true }]}
+            />{" "}
+            never a 2×2 of one kind
+          </>
+        ) : (
+          line
+        ),
+        kinds.has("quota") ? (
+          count
+        ) : (
+          <>
+            every line is half <Strip category="binary_fill" cells={[sun]} />{" "}
+            half <Strip category="binary_fill" cells={[moon]} />
+          </>
+        ),
+        markers,
+      ],
+    }
+  }
+  if (pack.category === "crown" && pack.rules.regions)
+    return {
+      goal: (
+        <>
+          One <Strip category="crown" cells={[{ v: 1 }]} /> per row, column and
+          colour
+        </>
+      ),
+      rules: card.rules.slice(1),
+    }
+  if (pack.category === "path_cover") {
+    const holes = pack.rules.active.length < pack.n ** 2
+    const walls = !!pack.rules.walls?.length
+    if (!holes && !walls) return card
+    return {
+      goal: holes ? <>Draw one path through every open cell</> : card.goal,
+      rules: [
+        card.rules[0],
+        walls ? (
+          <>
+            <b>Thick lines</b> are walls. The path never crosses one.
+          </>
+        ) : (
+          <>
+            <Strip category="path_cover" cells={[{ v: null, blocked: true }]} />{" "}
+            holes stay empty
+          </>
+        ),
+        ...card.rules.slice(1),
+      ],
+    }
+  }
+  return card
+}
+
 const PipeGlyph = ({ mask }: { mask: number }) => {
   const arms = [
     [50, 0],

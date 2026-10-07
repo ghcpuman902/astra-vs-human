@@ -1,4 +1,10 @@
-import type { GameCategory } from "../mini-game-rules/schema"
+import type { AssemblyRequest, GameCategory } from "../mini-game-rules/schema"
+
+/** Assembly knobs a family passes on. Siblings differ here, not only in name. */
+export type FamilyKnobs = Omit<
+  NonNullable<AssemblyRequest["preferences"]>,
+  "mode" | "visibility" | "targetSeconds"
+>
 
 /** Creative friend-pattern packs. LinkedIn-spirit framing OK; pipe demoted. */
 export type FamilyDef = {
@@ -8,6 +14,7 @@ export type FamilyDef = {
   pattern: string
   /** Board size for this shelf. */
   n: 4 | 5 | 6
+  knobs?: FamilyKnobs
   /** Lucide / emoji hint for setup cards. */
   icon: "sun-moon" | "crown" | "path" | "pipe" | "lights" | "islands" | "sparse" | "cascade"
   /**
@@ -26,29 +33,46 @@ export const FAMILY_DEFS: readonly FamilyDef[] = [
     category: "binary_fill",
     label: "Summer Moons",
     pattern:
-      "Two matching ends force the middle; a completed quota fixes the remaining cells.",
-    n: 4,
+      "Two alike push the next cell over; a gap between twins takes the other. Every line is half and half.",
+    n: 6,
+    knobs: { binaryRule: "tango" },
     icon: "sun-moon",
     paint: ["var(--cat-2)", "var(--cat-5)"],
     spirit: "Tango",
   },
   {
+    id: "moon-garden",
+    category: "binary_fill",
+    label: "Moon garden",
+    pattern:
+      "No 2×2 patch of one kind: three matching corners force the fourth.",
+    n: 6,
+    knobs: { binaryRule: "garden" },
+    icon: "sun-moon",
+    paint: ["var(--cat-5)", "var(--cat-3)"],
+    spirit: "Friend",
+  },
+  {
+    // Id kept so saved marks still match. Counts now sit on a few lines only.
     id: "quota-islands",
     category: "binary_fill",
-    label: "Quota islands",
-    pattern: "Equal friends and quotas carve small islands — count before you place.",
+    label: "Sparse tally",
+    pattern:
+      "Only a few lines are counted. Finish a counted line, then let pairs and gaps spread.",
     n: 5,
+    knobs: { binaryRule: "tally" },
     icon: "islands",
     paint: ["var(--cat-3)"],
-    spirit: "Tango",
+    spirit: "Friend",
   },
   {
     id: "crown-seats",
     category: "crown",
     label: "Crown seats",
     pattern:
-      "A forced seat removes its column and neighboring diagonal seats.",
-    n: 5,
+      "One crown per colour region. The smallest region decides first.",
+    n: 6,
+    knobs: { regions: true },
     icon: "crown",
     paint: ["var(--cat-6)"],
     spirit: "Queens",
@@ -57,8 +81,10 @@ export const FAMILY_DEFS: readonly FamilyDef[] = [
     id: "sparse-crowns",
     category: "crown",
     label: "Sparse crowns",
-    pattern: "Blocked lanes shrink the board; place one crown per row and column still.",
-    n: 5,
+    pattern:
+      "Blocked lanes shrink the board; a row with one open seat takes the crown.",
+    n: 6,
+    knobs: { clueDensity: 0.5 },
     icon: "sparse",
     paint: ["var(--cat-6)", "var(--cat-1)"],
     spirit: "Queens",
@@ -69,20 +95,35 @@ export const FAMILY_DEFS: readonly FamilyDef[] = [
     label: "Number trail",
     pattern:
       "Drag one line through every cell. A corner has two exits, so the line turns there.",
-    n: 4,
+    n: 6,
     icon: "path",
     paint: ["var(--cat-4)"],
     spirit: "Zip",
   },
   {
+    // Id kept so saved marks still match. Walls now do the work pins did.
     id: "checkpoint-snake",
     category: "path_cover",
-    label: "Checkpoint snake",
-    pattern: "Numbered gates pin the order. Never leave a pocket the line cannot get back out of.",
-    n: 5,
+    label: "Walled trail",
+    pattern:
+      "Walls fence the line. A cell walled on two sides is a corridor.",
+    n: 6,
+    knobs: { walls: 6 },
     icon: "path",
     paint: ["var(--cat-4)", "var(--cat-3)"],
     spirit: "Zip",
+  },
+  {
+    id: "odd-shapes",
+    category: "path_cover",
+    label: "Odd shapes",
+    pattern:
+      "Holes bend the board. A cell with one way in is where the line ends.",
+    n: 6,
+    knobs: { holes: 4 },
+    icon: "path",
+    paint: ["var(--cat-4)", "var(--cat-1)"],
+    spirit: "Friend",
   },
   {
     id: "cross-lights",
@@ -91,6 +132,7 @@ export const FAMILY_DEFS: readonly FamilyDef[] = [
     pattern:
       "Two presses cancel; shared neighbors flip twice and stay unchanged.",
     n: 4,
+    knobs: { presses: 2 },
     icon: "lights",
     paint: ["var(--cat-2)"],
     spirit: "Lights Out",
@@ -99,8 +141,10 @@ export const FAMILY_DEFS: readonly FamilyDef[] = [
     id: "cascade-taps",
     category: "lights_toggle",
     label: "Cascade taps",
-    pattern: "A larger cross network — plan cancel pairs before you tap.",
+    pattern:
+      "Four crosses overlap. Find a cross whose five lights are all on, then peel the next.",
     n: 5,
+    knobs: { presses: 4 },
     icon: "cascade",
     paint: ["var(--cat-1)", "var(--cat-2)"],
     spirit: "Lights Out",
@@ -117,6 +161,7 @@ export const FAMILY_DEFS: readonly FamilyDef[] = [
     demote: true,
   },
 ] as const
+
 
 export type MatchFamily = {
   id: string

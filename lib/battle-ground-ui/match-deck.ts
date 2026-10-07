@@ -1,8 +1,13 @@
 import { assembleGamePack } from "../mini-game-rules/assembler"
-import type { GameCategory, GamePack } from "../mini-game-rules/schema"
+import type {
+  AssemblyRequest,
+  GameCategory,
+  GamePack,
+} from "../mini-game-rules/schema"
 import { transferGroup } from "./controller"
 import {
   FAMILY_DEFS,
+  type FamilyDef,
   matchFamilies,
   rankMatchFamilies,
   type FamilyMarks,
@@ -95,10 +100,63 @@ function librarySalt(): number {
   return entropy >>> 0
 }
 
-function assembleDistinct(
+/** The assembly request for one round of a family: its size and its knobs. */
+export function familyRequest(
+  def: FamilyDef,
+  seed: number,
+  round: number
+): AssemblyRequest {
+  return {
+    category: def.category,
+    seed,
+    n: def.n,
+    variant: `${def.id}-r${round + 1}`,
+    preferences: {
+      ...def.knobs,
+      visibility: "full",
+      targetSeconds: def.n <= 4 ? 60 : def.n === 5 ? 75 : 90,
+    },
+  }
+}
+
+/**
+ * The answer up to the eight square symmetries (and route reversal for
+ * paths). Two deals that differ only in givens or orientation share it.
+ */
+export function solutionShape(
   category: GameCategory,
-  n: 4 | 5 | 6,
-  familyId: string,
+  n: number,
+  solution: readonly (number | null)[]
+): string {
+  const length = Math.max(0, ...solution.map((value) => value ?? 0))
+  const variants = [solution]
+  if (category === "path_cover")
+    variants.push(
+      solution.map((value) => (value === null ? null : length + 1 - value))
+    )
+  if (category === "binary_fill")
+    variants.push(
+      solution.map((value) => (value === null ? null : 1 - value))
+    )
+  const at = (cells: readonly (number | null)[], row: number, col: number) =>
+    cells[row * n + col]
+  let best = ""
+  for (const cells of variants)
+    for (let turn = 0; turn < 8; turn++) {
+      const key = Array.from({ length: n * n }, (_, id) => {
+        let row = Math.floor(id / n),
+          col = id % n
+        if (turn & 4) col = n - 1 - col
+        for (let i = 0; i < (turn & 3); i++) [row, col] = [col, n - 1 - row]
+        return at(cells, row, col) ?? "."
+      }).join(",")
+      if (!best || key < best) best = key
+    }
+  return `${category}:${n}:${best}`
+}
+
+function assembleDistinct(
+  def: FamilyDef,
   game: number,
   round: number,
   salt: number,
@@ -106,6 +164,7 @@ function assembleDistinct(
   usedBoards: Set<string>,
   avoid: ReadonlySet<string>
 ): { pack: GamePack; solution: readonly (number | null)[] } {
+  const { category, id: familyId } = def
   for (let step = 0; step < 120; step++) {
     const seed =
       (salt + game * 17_777 + round * 1_031 + step * 97 + familyId.length * 13) >>>
@@ -114,16 +173,7 @@ function assembleDistinct(
     let pack: GamePack
     let solution: readonly (number | null)[]
     try {
-      const built = assembleGamePack({
-        category,
-        seed,
-        n,
-        variant: `${familyId}-r${round + 1}`,
-        preferences: {
-          visibility: "full",
-          targetSeconds: n <= 4 ? 60 : n === 5 ? 75 : 90,
-        },
-      })
+      const built = assembleGamePack(familyRequest(def, seed, round))
       pack = built.pack
       solution = built.audit.solution
     } catch {
@@ -139,17 +189,24 @@ function assembleDistinct(
       },
     }
     const board = fingerprint(pack)
-    const cells = JSON.stringify(pack.cells)
+    // A blank start (Queens regions) says nothing; the rules carry that board.
+    const cells = pack.cells.some((cell) => cell.locked || cell.value !== null)
+      ? JSON.stringify(pack.cells)
+      : board
+    // Same answer in a new orientation reads as the same board to a player.
+    const shape = solutionShape(category, pack.n, solution)
     if (
       usedSeeds.has(pack.seed) ||
       usedBoards.has(board) ||
       usedBoards.has(cells) ||
+      (step < 90 && usedBoards.has(shape)) ||
       (step < 60 && avoid.has(boardId(pack)))
     )
       continue
     usedSeeds.add(pack.seed)
     usedBoards.add(board)
     usedBoards.add(cells)
+    usedBoards.add(shape)
     return { pack, solution }
   }
   throw new Error(
@@ -171,9 +228,7 @@ function assembleShelves(
     const usedBoards = new Set<string>()
     const built = Array.from({ length: FAMILY_PACKS }, (_, round) =>
       assembleDistinct(
-        def.category,
-        def.n,
-        def.id,
+        def,
         index,
         round,
         salt,

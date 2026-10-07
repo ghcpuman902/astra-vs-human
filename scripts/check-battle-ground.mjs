@@ -291,7 +291,7 @@ try {
   assert.equal(match.getSnapshot().cursors.learner.index, 1)
 
   const catalogue = matchFamilies()
-  assert.equal(catalogue.length, 9)
+  assert.equal(catalogue.length, 11)
   const rankedFresh = rankMatchFamilies()
   assert.equal(rankedFresh.length, catalogue.length)
   assert.equal(rankedFresh.at(-1).demote, true)
