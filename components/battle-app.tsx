@@ -1,15 +1,27 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
-import { ArrowLeft, Play, RotateCcw, SlidersHorizontal, Undo2 } from "lucide-react"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
+import { AlertDialog } from "@base-ui/react/alert-dialog"
+import {
+  ArrowLeft,
+  Hourglass,
+  Lock,
+  Play,
+  RotateCcw,
+  SlidersHorizontal,
+  Undo2,
+} from "lucide-react"
 
+import { AgentPip } from "@/components/agent-pip"
 import { AgentTrace } from "@/components/agent-trace"
 import { MatchResults } from "@/components/match-results"
-import {
-  BoardStage,
-  Phone,
-  Rules,
-} from "@/components/lovable/battle-field"
+import { BoardStage, Phone, Rules } from "@/components/lovable/battle-field"
 import { RoundStrip } from "@/components/lovable/round-strip"
 import {
   AgentModelMenu,
@@ -127,6 +139,8 @@ export function BattleApp() {
   const [dealing, setDealing] = useState(false)
   const [pendingFamilyId, setPendingFamilyId] = useState<string | null>(null)
   const dealGen = useRef(0)
+  // "Different game" walks every family once before any comes back.
+  const shownFamilies = useRef<string[]>([])
   const [session, setSession] = useState(0)
   const [source, setSource] = useState("fresh local boards")
   const [servers, setServers] = useState<Servers | null>(null)
@@ -295,7 +309,14 @@ export function BattleApp() {
             queueDeal(length, marks)
             return
           }
-          const next = randomDeepFamily(marks, preview?.familyId)
+          const current = preview?.familyId
+          if (current && !shownFamilies.current.includes(current))
+            shownFamilies.current.push(current)
+          let next = randomDeepFamily(marks, shownFamilies.current)
+          if (shownFamilies.current.includes(next.id)) {
+            shownFamilies.current = current ? [current] : []
+            next = randomDeepFamily(marks, shownFamilies.current)
+          }
           queueDeal(length, marks, next.id)
         }}
         onPlay={() => {
@@ -416,10 +437,15 @@ function BattleSession({
   const [sheetOpen, setSheetOpen] = useState(true)
   // Settings open: both clocks and both agents hold still until it closes.
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [leaveOpen, setLeaveOpen] = useState(false)
   const [halted, setHalted] = useState(false)
   const humanPack = packs[snapshot.cursors.human.index]
   const learnerPack = packs[snapshot.cursors.learner.index]
-  const humanDone = started && snapshot.attempts.human.status !== "playing"
+  // Overtime: the round already closed on time, the board just stays open.
+  const overtime = snapshot.overtime.human
+  const closed = (side: Side) =>
+    snapshot.attempts[side].status !== "playing" || snapshot.overtime[side]
+  const humanDone = started && closed("human")
   const armed = started && !snapshot.matchComplete
   const live = started && !halted
   const leftLearner = useSideLearner({
@@ -492,14 +518,22 @@ function BattleSession({
     return () => window.removeEventListener("keydown", onKey)
   }, [battle, watching])
 
-  const setSettings = (open: boolean) => {
-    if (open) {
+  const holdClocks = (hold: boolean) => {
+    if (hold) {
       if (battle.pause()) setHalted(true)
     } else if (halted) {
       battle.start()
       setHalted(false)
     }
+  }
+  const setSettings = (open: boolean) => {
+    holdClocks(open)
     setSettingsOpen(open)
+  }
+  // Leaving a running match asks first; the clocks hold while it does.
+  const setLeave = (open: boolean) => {
+    holdClocks(open)
+    setLeaveOpen(open)
   }
 
   const humanBoard = battle.boardProps("human")
@@ -537,25 +571,25 @@ function BattleSession({
   const blitzDone =
     length === "blitz" &&
     started &&
-    snapshot.attempts.human.status !== "playing" &&
-    snapshot.attempts.learner.status !== "playing" &&
+    closed("human") &&
+    closed("learner") &&
     !snapshot.canAdvance.human &&
     !snapshot.canAdvance.learner
-  const nextLabel =
-    humanAttempt.status === "time-cap"
-      ? "Out of time"
-      : !snapshot.hasNext.human
-        ? "Match complete"
-        : length === "tour"
-          ? "Next family"
-          : length === "blitz"
-            ? "Next board"
-            : "Next round"
+  const nextLabel = !snapshot.hasNext.human
+    ? "Match complete"
+    : length === "blitz" && snapshot.remainingMs.human <= 0
+      ? "Time's up"
+      : length === "tour"
+        ? "Next family"
+        : length === "blitz"
+          ? "Next board"
+          : "Next round"
   // A side is finished when its attempt ended and nothing is left to advance to.
   const sideFinished = (side: Side) =>
     started &&
-    snapshot.attempts[side].status !== "playing" &&
-    !snapshot.canAdvance[side]
+    closed(side) &&
+    // Paused clocks block advancing too; that is not the same as being done.
+    (!snapshot.hasNext[side] || (!snapshot.canAdvance[side] && !halted))
   const humanFinished = sideFinished("human")
   const matchOver =
     snapshot.matchComplete ||
@@ -573,6 +607,45 @@ function BattleSession({
   )
   const winner = compareBlitz(humanTally, learnerTally)
   const learnerCursor = snapshot.cursors.learner
+  const learnerFinished = sideFinished("learner")
+  const unit =
+    length === "deep" ? "round" : length === "tour" ? "family" : "board"
+  // One line under the buttons: how this board ended, then where the other side is.
+  const paceNote = (() => {
+    if (!started || watching) return null
+    const own = overtime
+      ? humanAttempt.status === "finished"
+        ? "Solved in overtime. It does not count toward the result."
+        : `Overtime. This ${unit} already counts as unsolved; finish it for practice${snapshot.hasNext.human && length !== "blitz" ? " or move on" : ""}.`
+      : humanAttempt.status === "finished"
+        ? `Solved in ${formatClock(snapshot.attemptMs.human)}, ${humanAttempt.state.actions} taps.`
+        : humanAttempt.status === "time-cap"
+          ? `Out of time. This ${unit} counts as unsolved. You can still keep solving it.`
+          : humanAttempt.status === "action-cap"
+            ? `Tap limit reached. This ${unit} counts as unsolved.`
+            : null
+    if (matchOver) return own
+    const gap = learnerCursor.index - snapshot.cursors.human.index
+    const race = learnerFinished
+      ? `${rightName} is done in ${formatClock(spentMs(snapshot.records, "learner"))}. Most boards solved wins, then fewest taps.`
+      : gap > 0
+        ? `${rightName} is ${gap} ${unit}${gap === 1 ? "" : "s"} ahead.`
+        : gap < 0
+          ? `You are ${-gap} ${unit}${gap === -1 ? "" : "s"} ahead of ${rightName}.`
+          : `${rightName} is on this ${unit} too.`
+    return own ? `${own} ${race}` : race
+  })()
+  // The agent stopped or lost its model while its board is still open.
+  const learnerTrouble =
+    started &&
+    !halted &&
+    learnerAttempt.status === "playing" &&
+    (rightLearner.trace.phase === "done" ||
+      rightLearner.trace.phase === "retrying")
+      ? rightLearner.trace.phase === "done"
+        ? `${rightName} stopped on this board: ${rightLearner.trace.label}`
+        : `${rightName} can't reach its model: ${rightLearner.trace.label}`
+      : null
   const roundModel = models.roundModel ?? restored?.model ?? null
   // Keep this match in localStorage so a reload lands back here, not on setup.
   useEffect(() => {
@@ -675,12 +748,29 @@ function BattleSession({
       ability={side === "learner" ? rightAbility : leftAbility}
       trace={side === "learner" ? rightLearner.trace : leftLearner.trace}
       live={live && snapshot.attempts[side].status === "playing"}
-      boardLabel={(board) => `Board ${board + 1} · ${familyLabel(packs[board])}`}
+      boardLabel={(board) =>
+        `Board ${board + 1} · ${familyLabel(packs[board])}`
+      }
     />
   )
+  const handleKeepPlaying = () => {
+    if (battle.keepPlaying("human")) setSheetOpen(false)
+  }
+  const canKeepPlaying =
+    !watching && started && humanAttempt.status === "time-cap" && !overtime
   const dock = (
     <div className="dock-row">
-      {watching ? null : (
+      {watching ? null : canKeepPlaying ? (
+        <button
+          type="button"
+          className="paper-button icon-text"
+          disabled={halted}
+          onClick={handleKeepPlaying}
+        >
+          <Hourglass aria-hidden="true" />
+          Keep solving
+        </button>
+      ) : (
         <>
           <button
             type="button"
@@ -715,6 +805,7 @@ function BattleSession({
         type="button"
         className="primary-button"
         data-slot="match-next"
+        data-locked={(started && !watching && !humanDone) || undefined}
         disabled={
           (watching && started) ||
           (!started
@@ -726,7 +817,11 @@ function BattleSession({
           else battle.advance("human")
         }}
       >
-        <Play aria-hidden="true" />
+        {started && !watching && !humanDone ? (
+          <Lock aria-hidden="true" />
+        ) : (
+          <Play aria-hidden="true" />
+        )}
         {awaitingResume
           ? "Resume match"
           : !started
@@ -742,16 +837,19 @@ function BattleSession({
       label: "Board",
       value: `${familyLabel(humanPack)} · ${humanPack.n} × ${humanPack.n}`,
     },
-    { label: "Match", value: `${dealTitle(dealt)} · ${LENGTH_COPY[length].label}` },
+    {
+      label: "Match",
+      value: `${dealTitle(dealt)} · ${LENGTH_COPY[length].label}`,
+    },
     { label: "Model", value: modelId ?? "loading" },
     {
-      label: "Seed",
+      label: "Puzzle no.",
       value:
         snapshot.seeds.human !== snapshot.seeds.learner
           ? `${leftName} ${humanPack.seed} · ${rightName} ${learnerPack.seed}`
           : String(humanPack.seed),
     },
-    { label: "Source", value: source },
+    { label: "Boards", value: source },
     ...(["human", "learner"] as const).map((side) => {
       const cursor = snapshot.cursors[side]
       const group = transferGroup(packs[cursor.index])
@@ -765,9 +863,10 @@ function BattleSession({
       const goal = packs.filter((pack) => transferGroup(pack) === group).length
       return {
         label: side === "human" ? leftName : rightName,
-        value: score.eligible
-          ? `action slope ${score.actionSlope?.toFixed(1)} per round${score.actionsFalling ? " · falling" : ""}`
-          : `${count}/${goal} transfer rounds`,
+        value:
+          score.eligible && score.actionSlope != null
+            ? `taps ${score.actionSlope <= 0 ? "down" : "up"} ${Math.abs(score.actionSlope).toFixed(1)} per round${score.actionsFalling ? " · getting quicker" : ""}`
+            : `${count} of ${goal} rounds solved in this family`,
       }
     }),
   ]
@@ -776,6 +875,7 @@ function BattleSession({
       className="battle-ground is-battle"
       data-match-over={matchOver || undefined}
       data-sheet={(humanFinished && sheetOpen) || undefined}
+      data-results={humanFinished ? (sheetOpen ? "open" : "folded") : undefined}
     >
       <a className="skip-link" href="#boards">
         Skip to boards
@@ -786,7 +886,10 @@ function BattleSession({
           className="icon-button"
           aria-label="Back to setup"
           title="Back to setup"
-          onClick={onSetup}
+          onClick={() => {
+            if (armed && !matchOver) setLeave(true)
+            else onSetup()
+          }}
         >
           <ArrowLeft aria-hidden="true" />
         </button>
@@ -821,6 +924,11 @@ function BattleSession({
           footer={
             <>
               {dock}
+              {paceNote ? (
+                <p className="pace-note" aria-live="polite">
+                  {paceNote}
+                </p>
+              ) : null}
               {watching ? trace("human") : null}
               <Rules pack={humanPack} />
             </>
@@ -853,6 +961,11 @@ function BattleSession({
           behind={!watching && humanDone && learnerAttempt.status === "playing"}
           footer={
             <>
+              {learnerTrouble ? (
+                <p className="agent-trouble" role="status">
+                  {learnerTrouble}
+                </p>
+              ) : null}
               {trace("learner")}
               <Rules pack={learnerPack} />
             </>
@@ -870,6 +983,13 @@ function BattleSession({
           />
         </Phone>
       </div>
+      <AgentPip
+        active={started && !humanFinished && !snapshot.matchComplete}
+        name={rightName}
+        clock={formatClock(snapshot.remainingMs.learner)}
+        line={roundText(length, learnerCursor, gameCount, roundsPerGame)}
+        board={learnerBoard}
+      />
       {humanFinished ? (
         <MatchResults
           open={sheetOpen}
@@ -916,10 +1036,37 @@ function BattleSession({
           traces={{ human: leftLearner.trace, learner: rightLearner.trace }}
           sameFamilyLabel={sameFamilyLabel}
           onRematch={onRematch}
+          onKeepPlaying={canKeepPlaying ? handleKeepPlaying : undefined}
           onNextFamily={onNextFamily}
           onSetup={onSetup}
         />
       ) : null}
+      <AlertDialog.Root open={leaveOpen} onOpenChange={setLeave}>
+        <AlertDialog.Portal>
+          <AlertDialog.Backdrop className="trace-backdrop" />
+          <AlertDialog.Popup className="settings-sheet confirm-sheet">
+            <AlertDialog.Title className="trace-title">
+              Leave this match?
+            </AlertDialog.Title>
+            <AlertDialog.Description className="trace-description">
+              Clocks are paused. Leaving ends the match for both sides, with no
+              result.
+            </AlertDialog.Description>
+            <div className="confirm-actions">
+              <AlertDialog.Close className="paper-button">
+                Keep playing
+              </AlertDialog.Close>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={onSetup}
+              >
+                Leave match
+              </button>
+            </div>
+          </AlertDialog.Popup>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
       <MatchSettings
         open={settingsOpen}
         onOpenChange={setSettings}
@@ -929,6 +1076,7 @@ function BattleSession({
         rightMix={rightMix}
         servers={servers}
         paused={halted}
+        live={armed && !matchOver}
         onLeftMix={onLeftMix}
         onRightMix={onRightMix}
         onRestart={onRestart}

@@ -315,6 +315,10 @@ export const postcards: Record<
         <Strip category="lamp_rays" cells={[lamp, wall(2), lamp]} /> a number
         counts the lamps beside it
       </>,
+      <>
+        <Strip category="lamp_rays" cells={[{ v: 0 }]} /> marks a cell with no
+        lamp
+      </>,
     ],
   },
   mosaic_count: {

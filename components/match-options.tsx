@@ -26,9 +26,18 @@ export type Arena = "play" | "watch"
 
 export const LENGTH_COPY: Record<MatchLength, { label: string; hint: string }> =
   {
-    deep: { label: "Deep", hint: "One family, five boards." },
-    tour: { label: "Tour", hint: "One board from each family." },
-    blitz: { label: "Blitz", hint: "3 min each. Most boards wins." },
+    deep: {
+      label: "Deep",
+      hint: "One game, five boards in a row. 10 min per board.",
+    },
+    tour: {
+      label: "Tour",
+      hint: "One board from every game. 10 min per board.",
+    },
+    blitz: {
+      label: "Blitz",
+      hint: "A 3 min clock for each side. Most boards solved wins.",
+    },
   }
 
 export const mixCopy: Record<

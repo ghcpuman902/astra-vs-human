@@ -331,14 +331,16 @@ export function pickDeepFamily(
 /** A different family than the one on screen. Dealing it builds a new board. */
 export function randomDeepFamily(
   marks: FamilyMarks = { played: [], disliked: [] },
-  currentId?: string | null
+  /** The current family, or every family already shown, to skip. */
+  currentId?: string | readonly string[] | null
 ): MatchFamily {
   const ranked = rankMatchFamilies(marks).filter((family) => !family.demote)
   const fallback = matchFamilies().filter((family) => !family.demote)
   const list = ranked.length ? ranked : fallback
-  const others = currentId
-    ? list.filter((family) => family.id !== currentId)
-    : list
+  const skip = new Set(
+    typeof currentId === "string" ? [currentId] : (currentId ?? [])
+  )
+  const others = list.filter((family) => !skip.has(family.id))
   const pool = others.length > 0 ? others : list
   const index = Math.floor(Math.random() * pool.length)
   return pool[index] ?? list[0] ?? matchFamilies()[0]

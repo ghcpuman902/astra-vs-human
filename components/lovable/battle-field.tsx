@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
-import { Eye, Pause } from "lucide-react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react"
+import { Eye, EyeOff, Pause } from "lucide-react"
 
 import { postcardFor } from "@/components/lovable/marks"
 import { PaperBoard } from "@/components/lovable/paper-board"
@@ -47,8 +53,16 @@ function Cover({
   }, [peek])
 
   if (peek) {
+    // Taps on a peeked board do nothing; only the Hide chip (or Escape) folds it.
     return (
-      <div className="puzzle-cover" style={coverStyle(board)} data-peek="true">
+      <div
+        className="puzzle-cover"
+        style={coverStyle(board)}
+        data-peek="true"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setPeek(false)
+        }}
+      >
         <PaperBoard
           key={`peek-${board.seed}`}
           board={board}
@@ -62,9 +76,11 @@ function Cover({
           type="button"
           className="peek-dismiss"
           aria-pressed="true"
-          aria-label="Hide preview"
           onClick={() => setPeek(false)}
-        />
+        >
+          <EyeOff aria-hidden="true" />
+          Hide
+        </button>
       </div>
     )
   }

@@ -1,13 +1,10 @@
 "use client"
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
-import { RefreshCw } from "lucide-react"
+import { ChevronDown, ChevronUp, RefreshCw } from "lucide-react"
 
 import { formatThink, formatTokens } from "@/components/agent-trace"
-import {
-  scoreBoards,
-  type CellRates,
-} from "@/lib/battle-ground-ui/cell-f1"
+import { scoreBoards, type CellRates } from "@/lib/battle-ground-ui/cell-f1"
 import type { AgentTraceSnapshot } from "@/lib/battle-ground-ui/agent-trace"
 import type {
   BattleRecord,
@@ -46,11 +43,14 @@ const verdictReason = (
   human: BlitzTally,
   learner: BlitzTally
 ) => {
-  if (winner === "tie") return "Same boards, taps, and time"
+  if (winner === "tie")
+    return human.rounds === 0
+      ? "Neither side solved a board"
+      : "Same boards solved, same taps, same time left"
   const ahead = winner === "human" ? human : learner
   const behind = winner === "human" ? learner : human
   if (ahead.rounds !== behind.rounds) return "Cleared more boards"
-  if (ahead.actions !== behind.actions) return "Fewer taps on the same boards"
+  if (ahead.actions !== behind.actions) return "Fewer taps on the solved boards"
   return "More time left"
 }
 
@@ -67,7 +67,7 @@ const MODEL_ROWS = [
   },
   {
     key: "reasoning",
-    label: "Reasoning",
+    label: "Reasoning tokens",
     title: "Reasoning tokens, when the model reports them",
   },
   {
@@ -77,12 +77,12 @@ const MODEL_ROWS = [
   },
   {
     key: "calls",
-    label: "Requests",
+    label: "Model calls",
     title: "Model calls this match, including one still in flight",
   },
   {
     key: "per",
-    label: "Tokens / solved",
+    label: "Tokens per solved board",
     title: "Input plus output tokens, divided by solved boards",
   },
 ] as const
@@ -135,6 +135,7 @@ export function MatchResults({
   traces,
   sameFamilyLabel,
   onRematch,
+  onKeepPlaying,
   onNextFamily,
   onSetup,
 }: {
@@ -165,17 +166,33 @@ export function MatchResults({
   traces: Record<Side, AgentTraceSnapshot>
   sameFamilyLabel: string | null
   onRematch: () => void
+  /** Out of time: reopen the board for unscored play. */
+  onKeepPlaying?: () => void
   onNextFamily: () => void
   onSetup: () => void
 }) {
   const pending =
     traces.human.pendingSince != null || traces.learner.pendingSince != null
   const now = useNow(open && pending)
+  // Escape folds the sheet down to its headline so the final boards show.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]'))
+        return
+      onToggle()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onToggle, open])
   const scores = useMemo(() => {
     const packBySeed = new Map(packs.map((pack) => [pack.seed, pack]))
     const score = (side: Side): CellRates => {
       const closed = new Set(
-        records.filter((record) => record.side === side).map((record) => record.seed)
+        records
+          .filter((record) => record.side === side)
+          .map((record) => record.seed)
       )
       const boards = records.flatMap((record) => {
         if (record.side !== side || !record.cells) return []
@@ -203,6 +220,17 @@ export function MatchResults({
     }
     return { human: score("human"), learner: score("learner") }
   }, [live, packs, records, solutions])
+  const names = { human: leftName, learner: rightName }
+  // Every tap, solved board or not. The verdict only counts solved boards.
+  const taps = (side: Side) =>
+    records
+      .filter((record) => record.side === side)
+      .reduce((sum, record) => sum + record.actions, 0) +
+    (records.some(
+      (record) => record.side === side && record.seed === live[side].seed
+    )
+      ? 0
+      : live[side].actions)
   const pace = useMemo(() => {
     const forSide = (side: Side, seed: number): RoundPace | null => {
       const closed = records.find(
@@ -259,7 +287,6 @@ export function MatchResults({
       ]
     })
   }, [leftName, live, packs, records, rightName])
-  const names = { human: leftName, learner: rightName }
   const you = watching ? leftName : "You"
   const headline = !matchOver
     ? `${you} finished`
@@ -270,8 +297,15 @@ export function MatchResults({
           ? `${leftName} wins`
           : "You win"
         : `${rightName} wins`
+  const tieCloser =
+    matchOver &&
+    winner === "tie" &&
+    tallies.human.rounds === 0 &&
+    (scores.human.recall ?? 0) !== (scores.learner.recall ?? 0)
+      ? `. ${(scores.human.recall ?? 0) > (scores.learner.recall ?? 0) ? names.human : names.learner} got more cells right`
+      : ""
   const detail = matchOver
-    ? verdictReason(winner, tallies.human, tallies.learner)
+    ? verdictReason(winner, tallies.human, tallies.learner) + tieCloser
     : progress
   const verdict = !matchOver
     ? "wait"
@@ -326,6 +360,20 @@ export function MatchResults({
           <RefreshCw aria-hidden="true" />
           {sameFamilyLabel ? `Rematch ${sameFamilyLabel}` : "Rematch"}
         </button>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={open ? "Hide results" : "Show results"}
+          title={open ? "Hide results (Esc)" : "Show results"}
+          aria-expanded={open}
+          onClick={onToggle}
+        >
+          {open ? (
+            <ChevronDown aria-hidden="true" />
+          ) : (
+            <ChevronUp aria-hidden="true" />
+          )}
+        </button>
       </div>
       <div className="results-body" hidden={!open}>
         <div className="pace-block">
@@ -357,6 +405,7 @@ export function MatchResults({
                     }
                   />
                   <span className="pace-index">{round.index + 1}</span>
+                  <span className="pace-name">{round.name}</span>
                 </span>
                 {SIDES.map((side) => (
                   <span
@@ -394,7 +443,7 @@ export function MatchResults({
         <div
           className="results-table"
           role="table"
-          aria-label="Boards, taps, cell precision and recall, then model cost"
+          aria-label="Boards, taps, cells right, then model cost"
         >
           <div className="pace-key" role="row">
             <span role="columnheader">
@@ -415,16 +464,24 @@ export function MatchResults({
             ))}
           </div>
           <div className="score-row" role="row">
-            <span role="rowheader">Taps</span>
+            <span
+              role="rowheader"
+              title="Every tap, solved or not. Ties are broken by taps on solved boards only."
+            >
+              Taps
+            </span>
             {SIDES.map((side) => (
               <span key={side} role="cell">
-                {tallies[side].actions}
+                {taps(side)}
               </span>
             ))}
           </div>
           <div className="score-row" role="row">
-            <span role="rowheader" title="Correct fills divided by cells that were filled">
-              Precision
+            <span
+              role="rowheader"
+              title="Of the cells filled in, the share that were right (precision)"
+            >
+              Filled cells right
             </span>
             {SIDES.map((side) => (
               <span key={side} role="cell">
@@ -433,8 +490,11 @@ export function MatchResults({
             ))}
           </div>
           <div className="score-row" role="row">
-            <span role="rowheader" title="Correct fills divided by open cells">
-              Recall
+            <span
+              role="rowheader"
+              title="Of all open cells, the share filled in right (recall)"
+            >
+              Board done right
             </span>
             {SIDES.map((side) => (
               <span key={side} role="cell">
@@ -458,16 +518,26 @@ export function MatchResults({
             </div>
           ))}
         </div>
-        <div className="results-actions">
-          {length === "deep" ? (
-            <button type="button" className="paper-button" onClick={onNextFamily}>
-              Next family
-            </button>
-          ) : null}
-          <button type="button" className="paper-button" onClick={onSetup}>
-            Back to setup
+      </div>
+      <div className="results-actions" hidden={!open}>
+        {onKeepPlaying ? (
+          <button
+            type="button"
+            className="paper-button"
+            onClick={onKeepPlaying}
+            title="Your board reopens. The result above stays as it is."
+          >
+            Keep solving my board
           </button>
-        </div>
+        ) : null}
+        {length === "deep" ? (
+          <button type="button" className="paper-button" onClick={onNextFamily}>
+            Next family
+          </button>
+        ) : null}
+        <button type="button" className="paper-button" onClick={onSetup}>
+          Back to setup
+        </button>
       </div>
     </section>
   )

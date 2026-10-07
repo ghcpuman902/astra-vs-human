@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { ChevronRight, Play, RefreshCw } from "lucide-react"
 
+import { postcardFor } from "@/components/lovable/marks"
 import { MiniBoard } from "@/components/lovable/mini-board"
 import { RoundStrip } from "@/components/lovable/round-strip"
 import {
@@ -62,8 +63,12 @@ function UpFirst({
       </div>
       <p className="up-next-copy" aria-live="polite">
         <span>Up first</span>
-        <strong>{dealing || !preview ? "Dealing…" : dealTitle(preview)}</strong>
-        <span>{LENGTH_COPY[length].hint}</span>
+        <strong>{preview ? dealTitle(preview) : "Dealing…"}</strong>
+        <span>
+          {length === "deep" && first && !dealing
+            ? postcardFor(first).goal
+            : LENGTH_COPY[length].hint}
+        </span>
       </p>
       <button
         type="button"
@@ -74,10 +79,7 @@ function UpFirst({
           onRespawn()
         }}
       >
-        <span
-          className="respawn-icon"
-          style={{ rotate: `${turns * 180}deg` }}
-        >
+        <span className="respawn-icon" style={{ rotate: `${turns * 180}deg` }}>
           <RefreshCw aria-hidden="true" />
         </span>
         {length === "deep" ? "Different game" : "Reshuffle"}

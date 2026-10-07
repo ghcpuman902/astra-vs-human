@@ -52,6 +52,7 @@ function SettingsBody({
   rightMix,
   servers,
   paused,
+  live = false,
   onLeftMix,
   onRightMix,
   onRestart,
@@ -62,6 +63,8 @@ function SettingsBody({
   rightMix: LearnerMixId
   servers: Servers | null
   paused: boolean
+  /** A match is running, so restarting throws its progress away. */
+  live?: boolean
   onLeftMix: (mix: LearnerMixId) => void
   onRightMix: (mix: LearnerMixId) => void
   onRestart: (next: { arena: Arena; length: MatchLength }) => void
@@ -114,6 +117,11 @@ function SettingsBody({
         </section>
       </div>
       <footer className="settings-foot">
+        {changed && live ? (
+          <p className="settings-warn">
+            Restarting ends this match. Progress on both sides is lost.
+          </p>
+        ) : null}
         <button
           type="button"
           className="primary-button"

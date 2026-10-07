@@ -575,6 +575,15 @@ body {
   color: var(--ink-secondary);
   font: 400 12px/16px var(--font-sans);
 }
+.up-next-copy span:last-child:has(.rule-strip) {
+  line-height: 24px;
+}
+.up-next-copy .rule-strip {
+  margin-block: -2px;
+}
+.up-next[data-pending="true"] .up-next-copy strong {
+  color: var(--ink-secondary);
+}
 .up-next-copy span:first-child {
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -813,6 +822,30 @@ body {
   min-width: 0;
   font-variant-numeric: tabular-nums;
 }
+/* Next is locked until this board is solved: an outline, not a dead grey slab. */
+.dock-row .primary-button[data-locked="true"]:disabled {
+  border: 1px dashed var(--hairline-strong);
+  background: var(--canvas);
+  color: var(--ink-secondary);
+  cursor: default;
+}
+.pace-note,
+.agent-trouble {
+  margin: 0;
+  color: var(--ink-secondary);
+  font: 500 12px/16px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+/* Two lines reserved, so the buttons above don't jump as the note changes. */
+.pace-note {
+  min-height: 32px;
+}
+.agent-trouble {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+}
 .phone-foot .agent-status {
   grid-area: auto;
   justify-self: stretch;
@@ -886,12 +919,31 @@ body {
   position: sticky;
   bottom: 0;
   display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
   padding: var(--s-3) var(--s-5);
   border-top: 1px solid var(--hairline);
   background: var(--canvas);
 }
 .settings-foot .primary-button {
   width: 100%;
+}
+.settings-warn {
+  margin: 0;
+  color: var(--ink-secondary);
+  font: 500 12px/16px var(--font-sans);
+}
+.confirm-sheet {
+  display: grid;
+  gap: var(--s-2);
+  width: min(22rem, calc(100% - 2rem));
+  padding: var(--s-5);
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
 }
 
 /* Info popover: seed, source, and other meta. */
@@ -959,6 +1011,10 @@ body {
 .small-rounds-view {
   position: relative;
   overflow: hidden;
+}
+/* Long strips fade at the right edge, so it reads as "more boards", not a cut. */
+.small-rounds[data-window="true"] .small-rounds-view {
+  mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
 }
 .small-rounds ol {
   display: flex;
@@ -1488,15 +1544,29 @@ q.trace-part-text {
   border: 0;
   color: var(--ink);
 }
+/* A small tab hanging off the board's bottom edge. Taps on the board itself do nothing. */
 .peek-dismiss {
   position: absolute;
-  inset: 0;
+  bottom: 0;
+  left: 50%;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
   margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 0 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: var(--t-badge);
   cursor: pointer;
+  translate: -50% 50%;
+}
+.peek-dismiss svg {
+  width: 14px;
+  height: 14px;
 }
 .peek-dismiss:focus-visible {
   outline: var(--focus-outline);
@@ -1510,6 +1580,122 @@ q.trace-part-text {
   .puzzle-cover:hover {
     border-color: var(--ink-secondary);
   }
+}
+
+/* ---------- Agent picture-in-picture (stacked layout only) ---------- */
+
+.pip-bounds {
+  position: fixed;
+  inset: max(var(--s-3), env(safe-area-inset-top))
+    max(var(--s-3), env(safe-area-inset-right))
+    max(var(--s-3), env(safe-area-inset-bottom))
+    max(var(--s-3), env(safe-area-inset-left));
+  pointer-events: none;
+}
+.agent-pip {
+  position: fixed;
+  right: max(var(--s-3), env(safe-area-inset-right));
+  bottom: max(var(--s-4), env(safe-area-inset-bottom));
+  z-index: 15;
+  display: grid;
+  gap: var(--s-2);
+  width: 156px;
+  padding: var(--s-2) var(--s-3) var(--s-3);
+  border: 2px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--canvas);
+  color: var(--ink);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.agent-pip:active {
+  cursor: grabbing;
+}
+.pip-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 2px;
+}
+.pip-name {
+  display: grid;
+  min-width: 0;
+}
+.pip-name strong {
+  font: 650 12px/16px var(--font-sans);
+}
+.pip-name span,
+.pip-tab span {
+  overflow: hidden;
+  color: var(--ink-secondary);
+  font: 500 11px/14px var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pip-clock {
+  font: 650 12px/16px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.pip-fold {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: -6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+/* 44px hit area without growing the bar. */
+.pip-fold::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}
+.pip-fold svg,
+.pip-tab svg {
+  width: 16px;
+  height: 16px;
+}
+.pip-fold:focus-visible,
+.pip-tab:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: var(--focus-offset);
+}
+.pip-board {
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.pip-tab {
+  position: fixed;
+  bottom: max(var(--s-3), env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: calc(100% - 2rem);
+  height: 44px;
+  margin-left: calc(min(20rem, 100% - 2rem) / -2);
+  width: min(20rem, calc(100% - 2rem));
+  padding: 0 var(--s-4);
+  border: 2px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: 650 13px/18px var(--font-sans);
+  cursor: pointer;
+}
+.pip-tab span {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
 }
 
 /* ---------- Results sheet ---------- */
@@ -1723,13 +1909,28 @@ q.trace-part-text {
 }
 .results-actions {
   display: flex;
+  flex-shrink: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-2);
-  padding-top: var(--s-1);
+  padding: var(--s-3) var(--s-5) 0;
+  border-top: 1px solid var(--hairline);
+}
+.results-actions[hidden] {
+  display: none;
+}
+.pace-name {
+  overflow: hidden;
+  color: var(--ink-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .is-battle[data-sheet="true"] {
   --dock-space: 420px;
+}
+/* Folded to its headline: leave room so the boards above can be read. */
+.is-battle[data-results="folded"] {
+  --dock-space: 112px;
 }
 
 /* ---------- Board ---------- */

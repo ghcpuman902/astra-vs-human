@@ -237,6 +237,23 @@ try {
   assert.equal(paused.getSnapshot().attempts.human.status, "time-cap")
   assert.equal(paused.getSnapshot().attempts.learner.status, "time-cap")
 
+  // Overtime: after a time-cap the board reopens, but nothing new is recorded.
+  const capped = paused.getSnapshot().records.length
+  assert.equal(paused.getSnapshot().matchComplete, true)
+  assert.equal(paused.keepPlaying("human"), true)
+  assert.equal(paused.keepPlaying("human"), false)
+  assert.equal(paused.getSnapshot().overtime.human, true)
+  assert.equal(paused.getSnapshot().attempts.human.status, "playing")
+  assert.equal(paused.getSnapshot().matchComplete, true)
+  readingClock += 60000
+  paused.tick()
+  assert.equal(paused.getSnapshot().attempts.human.status, "playing")
+  paused.actions("human").selectCell(0)
+  paused.actions("human").cycle()
+  assert.ok(paused.getSnapshot().attempts.human.state.actions > 0)
+  assert.equal(paused.getSnapshot().records.length, capped)
+  assert.equal(paused.dump().overtime.human, true)
+
   // Settings open: pause() freezes both clocks; start() resumes from the same second.
   for (const clock of ["attempt", "side"]) {
     let stillClock = 0
@@ -510,6 +527,13 @@ try {
     assert.notEqual(next.id, "pipe-boundaries")
     assert.notEqual(next.demote, true)
     spun.add(next.id)
+  }
+  // A list of shown families is skipped as a whole, so repeats wait their turn.
+  const shown = [firstDeal.familyId]
+  for (let i = 0; i < 4; i++) {
+    const next = randomDeepFamily(noMarks, shown)
+    assert.ok(!shown.includes(next.id))
+    shown.push(next.id)
   }
   assert.ok(spun.size > 1)
   // Ties go to the family dealt least recently, so reloads rotate families.
@@ -921,7 +945,7 @@ try {
   assert.match(setupSource, /length === "deep" \? matchFamilies\(\)/)
   assert.doesNotMatch(setupSource, /Families you/)
   assert.match(setupSource, /More options/)
-  assert.match(appSource, /randomDeepFamily\(marks, preview\?\.familyId\)/)
+  assert.match(appSource, /randomDeepFamily\(marks, shownFamilies\.current\)/)
   assert.match(appSource, /useState<MatchLength>\(DEFAULT_MATCH_LENGTH\)/)
   assert.equal(DEFAULT_MATCH_LENGTH, "deep")
   assert.match(optionSource, /3 min/)
@@ -966,7 +990,7 @@ try {
   assert.match(sideLearnerSource, /fetchGameLearnerDecision/)
   assert.match(appSource, /useSideLearner/)
   assert.match(appSource, /transferGroup\(packs\[cursor\.index\]\)/)
-  assert.match(appSource, /transfer rounds/)
+  assert.match(appSource, /rounds solved in this family/)
   assert.doesNotMatch(appSource, /5 × 3|5×3/)
   console.log(
     "Battle bridge verified: Deep 1×5 default, Tour 5×1, Blitz 3:00 independent clocks, human Next leaves the agent thinking, Code policy steps, shared-rules scroll."

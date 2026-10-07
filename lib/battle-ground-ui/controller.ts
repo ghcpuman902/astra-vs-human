@@ -58,6 +58,11 @@ export type BattleSnapshot = {
   /** This side has ended its attempt and a later pack exists. The other side is not consulted. */
   canAdvance: Record<Side, boolean>
   hasNext: Record<Side, boolean>
+  /**
+   * This side ran out of time and chose to keep solving. The board plays on,
+   * but it already counts as unsolved and a late solve is never recorded.
+   */
+  overtime: Record<Side, boolean>
   records: readonly BattleRecord[]
   /** Both sides have ended the last pack. Not a per-round lock. */
   matchComplete: boolean
@@ -108,6 +113,8 @@ export type BattleDump = {
   matchMs: Record<Side, number>
   /** This side's match clock already stopped at matchMs. */
   stopped: Record<Side, boolean>
+  /** Missing on matches saved before overtime existed. */
+  overtime?: Record<Side, boolean>
 }
 export type BattleOptions = {
   actionCap?: number
@@ -197,6 +204,10 @@ export function createBattleGround(
     : { human: 0, learner: 0 }
   let running = !options.startPaused && !restore
   let records: BattleRecord[] = restore ? [...restore.records] : []
+  let overtime: Record<Side, boolean> = {
+    human: restore?.overtime?.human ?? false,
+    learner: restore?.overtime?.learner ?? false,
+  }
   // Time already on the clocks from before a reload. Applied once on start().
   const carry = {
     attempt: {
@@ -264,7 +275,7 @@ export function createBattleGround(
     )
   const sideCanAdvance = (side: Side) =>
     running &&
-    attempts[side].status !== "playing" &&
+    (attempts[side].status !== "playing" || overtime[side]) &&
     cursor[side] + 1 < packs.length &&
     !(clock === "side" && remaining(side) <= 0)
   const publish = () => {
@@ -293,9 +304,10 @@ export function createBattleGround(
         human: cursor.human + 1 < packs.length,
         learner: cursor.learner + 1 < packs.length,
       },
+      overtime,
       records,
       matchComplete: SIDES.every((side) => {
-        if (attempts[side].status === "playing") return false
+        if (attempts[side].status === "playing" && !overtime[side]) return false
         if (clock === "side")
           return remaining(side) <= 0 || cursor[side] + 1 >= packs.length
         return cursor[side] + 1 >= packs.length
@@ -305,7 +317,8 @@ export function createBattleGround(
   }
   const record = (side: Side) => {
     const attempt = attempts[side]
-    if (attempt.status === "playing") return
+    // The time-cap record already stands for a board solved in overtime.
+    if (attempt.status === "playing" || overtime[side]) return
     const pack = packs[cursor[side]]
     records = [
       ...records,
@@ -329,7 +342,7 @@ export function createBattleGround(
           const elapsed =
             origin[side] == null ? 0 : Math.max(0, now() - origin[side]!)
           if (stoppedAt[side] == null && elapsed >= timeCapMs) {
-            if (attempt.status === "playing") {
+            if (attempt.status === "playing" && !overtime[side]) {
               attempts = {
                 ...attempts,
                 [side]: {
@@ -353,6 +366,7 @@ export function createBattleGround(
         }
         if (
           attempt.status !== "playing" ||
+          overtime[side] ||
           attempt.startedAt == null ||
           now() - attempt.startedAt < timeCapMs
         )
@@ -491,6 +505,7 @@ export function createBattleGround(
           human: stoppedAt.human != null,
           learner: stoppedAt.learner != null,
         },
+        overtime: { ...overtime },
       }
     },
     subscribe: (listener: () => void) => {
@@ -552,9 +567,21 @@ export function createBattleGround(
       )
       publish()
     },
+    /** After a time-cap: reopen this board for unscored play. */
+    keepPlaying: (side: Side) => {
+      if (!running || attempts[side].status !== "time-cap") return false
+      overtime = { ...overtime, [side]: true }
+      attempts = {
+        ...attempts,
+        [side]: { ...attempts[side], status: "playing", endedAtMs: null },
+      }
+      publish()
+      return true
+    },
     advance: (side: Side) => {
       tick()
       if (!sideCanAdvance(side)) return false
+      overtime = { ...overtime, [side]: false }
       cursor = { ...cursor, [side]: cursor[side] + 1 }
       attempts = {
         ...attempts,
