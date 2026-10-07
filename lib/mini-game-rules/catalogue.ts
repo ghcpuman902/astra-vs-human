@@ -90,6 +90,17 @@ const families: Record<
     knobs: ["scramble depth", "press-parity rank", "grid size"],
     neighbors: ["Lights Out", "2048 tactile rounds"],
   },
+  lamp_rays: {
+    niches: [
+      "dark corners with one viewer",
+      "numbered walls around a courtyard",
+      "long halls split by pillars",
+    ],
+    localPattern:
+      "A dark cell only one open cell can see takes the lamp; a full number fills its sides.",
+    knobs: ["wall share", "number carving", "symmetric walls"],
+    neighbors: ["Light Up", "Akari"],
+  },
 }
 
 const modes: Mode[] = ["FORCED-CHAIN", "BRANCHY", "MULTI", "RISK"]
@@ -99,6 +110,7 @@ const supported: Record<GameCategory, Mode[]> = {
   path_cover: ["FORCED-CHAIN", "BRANCHY"],
   tile_rotate_connect: ["FORCED-CHAIN"],
   lights_toggle: ["BRANCHY", "MULTI"],
+  lamp_rays: ["FORCED-CHAIN"],
 }
 
 /** A cross-product of mechanics and research axes, never a list of puzzle boards. */

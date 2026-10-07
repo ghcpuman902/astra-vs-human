@@ -53,7 +53,7 @@ try {
   const { assembleGamePack } = await import(
     join(output, "mini-game-rules/assembler.js")
   )
-  assert.equal(gameLandscape().length, 120)
+  assert.equal(gameLandscape().length, 144)
   assert.deepEqual(pickGameIdeas(57), pickGameIdeas(57))
   assert.equal(pickGameIdeas(57).length, 4)
   assert.ok(new Set(pickGameIdeas(57).map((idea) => idea.category)).size >= 3)
@@ -184,6 +184,7 @@ try {
     "path_cover",
     "tile_rotate_connect",
     "lights_toggle",
+    "lamp_rays",
   ]) {
     const result = await offline.generate({
       seed: 500,
@@ -391,7 +392,7 @@ try {
     else process.env.PACK_GEN_BUDGET_MS = originalBudget
   }
   console.log(
-    "Game generation checks passed: seeded sift, real assembly, rejection retry, deadline abort, profile cache, public audit, and all five mechanics."
+    "Game generation checks passed: seeded sift, real assembly, rejection retry, deadline abort, profile cache, public audit, and all six mechanics."
   )
 } finally {
   await rm(output, { recursive: true, force: true })

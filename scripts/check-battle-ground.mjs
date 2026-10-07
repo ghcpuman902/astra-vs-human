@@ -291,7 +291,7 @@ try {
   assert.equal(match.getSnapshot().cursors.learner.index, 1)
 
   const catalogue = matchFamilies()
-  assert.equal(catalogue.length, 11)
+  assert.equal(catalogue.length, 12)
   const rankedFresh = rankMatchFamilies()
   assert.equal(rankedFresh.length, catalogue.length)
   assert.equal(rankedFresh.at(-1).demote, true)
@@ -322,7 +322,9 @@ try {
     played: [],
     disliked: ["cross-lights"],
   })
-  assert.equal(ordered.at(-1).category, "tile_rotate_connect")
+  // Five mechanics fill the deck before demoted pipe; disliked lights go last.
+  assert.ok(deck.games.some((game) => game.category === "lamp_rays"))
+  assert.equal(ordered.at(-1).category, "lights_toggle")
   assert.equal(ordered[0].category, "binary_fill")
   assert.equal(
     ordered.flatMap((game) => game.packs).length,
@@ -365,6 +367,8 @@ try {
   assert.equal(tour.gameCount, 5)
   assert.equal(tour.clock, "attempt")
   assert.equal(new Set(tour.packs.map((pack) => pack.category)).size, 5)
+  assert.ok(tour.packs.some((pack) => pack.category === "lamp_rays"))
+  assert.ok(!tour.packs.some((pack) => pack.category === "tile_rotate_connect"))
 
   // Every deal is fresh: a rematch of the same family shares no board with the last one.
   const noMarks = { played: [], disliked: [] }

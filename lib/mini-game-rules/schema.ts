@@ -6,6 +6,7 @@ export const categorySchema = z.enum([
   "path_cover",
   "tile_rotate_connect",
   "lights_toggle",
+  "lamp_rays",
 ])
 export const modeSchema = z.enum(["FORCED-CHAIN", "BRANCHY", "MULTI", "RISK"])
 export type Mode = z.infer<typeof modeSchema>
@@ -118,6 +119,19 @@ export const packSchema = z
       rules: z.object({ neighborhood: z.literal("orthogonal-cross") }),
       winPredicate: z.literal("all-lights-off"),
     }),
+    z.object({
+      ...common,
+      category: z.literal("lamp_rays"),
+      rules: z.object({
+        /** Cells that block light. */
+        walls: z.array(index),
+        /** Numbered walls: lamps on their four edge sides. */
+        numbers: z.array(
+          z.object({ cell: index, lamps: z.number().int().min(0).max(4) })
+        ),
+      }),
+      winPredicate: z.literal("every-cell-lit"),
+    }),
   ])
   .superRefine((pack, ctx) => {
     const count = pack.n ** 2
@@ -138,7 +152,9 @@ export const packSchema = z
                 pack.rules.end,
                 ...pack.rules.checkpoints.map((p) => p.cell),
               ]
-            : []
+            : pack.category === "lamp_rays"
+              ? pack.rules.walls
+              : []
     if (ids.some((id) => id >= count))
       ctx.addIssue({ code: "custom", message: "Clue cell outside board" })
     if (
@@ -166,12 +182,32 @@ export const packSchema = z
       )
     )
       issue("Initial cell outside action alphabet")
-    if (pack.category === "binary_fill" || pack.category === "crown") {
+    if (
+      pack.category === "binary_fill" ||
+      pack.category === "crown" ||
+      pack.category === "lamp_rays"
+    ) {
       if (
         pack.actionSurface.effect !== "set-cell" ||
         pack.actionSurface.cycleValues.join(",") !== [null, 0, 1].join(",")
       )
-        issue("Binary and crown games require empty, 0, 1 cell cycling")
+        issue("Binary, crown and lamp games require empty, 0, 1 cell cycling")
+    }
+    if (pack.category === "lamp_rays") {
+      const walls = new Set(pack.rules.walls)
+      if (walls.size !== pack.rules.walls.length) issue("Lamp walls repeat")
+      if (
+        pack.cells.some(
+          (cell, id) => walls.has(id) && (!cell.locked || cell.value !== null)
+        )
+      )
+        issue("Lamp walls must be locked blank")
+      if (
+        pack.rules.numbers.some((clue) => !walls.has(clue.cell)) ||
+        new Set(pack.rules.numbers.map((clue) => clue.cell)).size !==
+          pack.rules.numbers.length
+      )
+        issue("Lamp numbers must sit on distinct walls")
     }
     if (pack.category === "binary_fill")
       for (const rule of pack.rules.constraints) {

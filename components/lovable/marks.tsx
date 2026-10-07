@@ -10,6 +10,9 @@ type Mini = {
   wrong?: boolean
   mask?: number
   cross?: boolean
+  /** Lamplight: a numbered wall, or an open cell in a lamp's light. */
+  num?: number
+  lit?: boolean
 }
 
 export const cellGlyph = (
@@ -29,6 +32,11 @@ export const cellGlyph = (
   }
   if (category === "crown") {
     if (value === 1) return <Crown className="cell-symbol" />
+    if (value === 0) return <span className="pencil-dot" />
+    return null
+  }
+  if (category === "lamp_rays") {
+    if (value === 1) return <Lightbulb className="cell-symbol" />
     if (value === 0) return <span className="pencil-dot" />
     return null
   }
@@ -54,6 +62,7 @@ export const cellFill = (
   if (category === "crown") return value === 1 ? "cat-6" : ""
   if (category === "path_cover") return ""
   if (category === "lights_toggle") return value === 1 ? "cat-2" : ""
+  if (category === "lamp_rays") return value === 1 ? "cat-2" : ""
   return ""
 }
 
@@ -79,8 +88,14 @@ const Strip = ({
         className={`game-cell mg-cell ${cellFill(category, cell.v, !!cell.blocked)}`}
         data-invalid={cell.wrong || undefined}
         data-cross={cell.cross || undefined}
+        data-lit={cell.lit || undefined}
+        data-wall={category === "lamp_rays" && cell.blocked ? true : undefined}
       >
-        {cellGlyph(category, cell.v, !!cell.blocked, cell.mask)}
+        {cell.num !== undefined ? (
+          <span className="lamp-number">{cell.num}</span>
+        ) : (
+          cellGlyph(category, cell.v, !!cell.blocked, cell.mask)
+        )}
       </span>
     ))}
   </span>
@@ -108,6 +123,10 @@ const ZipStrip = () => (
     ))}
   </span>
 )
+
+const lamp = { v: 1 }
+const lit = { v: null, lit: true }
+const wall = (num?: number) => ({ v: null, blocked: true, num })
 
 /** Picture postcards from the newer Lovable gallery. Text only where a strip cannot say it. */
 export const postcards: Record<
@@ -202,6 +221,31 @@ export const postcards: Record<
           ]}
         />{" "}
         no end into a blank or the edge
+      </>,
+    ],
+  },
+  lamp_rays: {
+    goal: (
+      <>
+        Light every open cell with{" "}
+        <Strip category="lamp_rays" cells={[lamp]} />
+      </>
+    ),
+    rules: [
+      <>
+        <Strip category="lamp_rays" cells={[lamp, lit, lit, wall(), empty]} />{" "}
+        light runs to the next wall
+      </>,
+      <>
+        <Strip
+          category="lamp_rays"
+          cells={[lamp, lit, { v: 1, wrong: true }]}
+        />{" "}
+        lamps never light each other
+      </>,
+      <>
+        <Strip category="lamp_rays" cells={[lamp, wall(2), lamp]} /> a number
+        counts the lamps beside it
       </>,
     ],
   },

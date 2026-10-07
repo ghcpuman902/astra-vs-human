@@ -31,6 +31,7 @@ export const MATCH_CATEGORIES = [
   "path_cover",
   "tile_rotate_connect",
   "lights_toggle",
+  "lamp_rays",
 ] as const satisfies readonly GameCategory[]
 
 export type MatchGame = {

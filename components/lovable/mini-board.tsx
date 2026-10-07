@@ -16,8 +16,15 @@ export function MiniBoard({ pack }: { pack: GamePack }) {
     (pack.category === "crown" && pack.rules.blocked.includes(id)) ||
     (pack.category === "path_cover" && !pack.rules.active.includes(id)) ||
     (pack.category === "tile_rotate_connect" && pack.rules.ports[id] === 0)
+  const lampWalls =
+    pack.category === "lamp_rays" ? new Set(pack.rules.walls) : null
+  const lampNumbers =
+    pack.category === "lamp_rays"
+      ? new Map(pack.rules.numbers.map((clue) => [clue.cell, clue.lamps]))
+      : null
   const fill = (id: number) => {
     const value = pack.cells[id].value
+    if (lampWalls?.has(id)) return "var(--ink)"
     if (blocked(id)) return "var(--mini-blocked)"
     if (pack.category === "binary_fill" && value !== null)
       return value === 0 ? "var(--cat-2)" : "var(--cat-5)"
@@ -67,6 +74,11 @@ export function MiniBoard({ pack }: { pack: GamePack }) {
                 r={0.16}
                 className={cell.value === 0 ? "mini-sun" : "mini-moon"}
               />
+            ) : null}
+            {lampNumbers?.has(id) ? (
+              <text x={0.5} y={0.5} className="mini-order">
+                {lampNumbers.get(id)}
+              </text>
             ) : null}
             {order !== null ? (
               <>

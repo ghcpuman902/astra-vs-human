@@ -16,13 +16,13 @@ export type FamilyDef = {
   n: 4 | 5 | 6
   knobs?: FamilyKnobs
   /** Lucide / emoji hint for setup cards. */
-  icon: "sun-moon" | "crown" | "path" | "pipe" | "lights" | "islands" | "sparse" | "cascade"
+  icon: "sun-moon" | "crown" | "path" | "pipe" | "lights" | "islands" | "sparse" | "cascade" | "lamp"
   /**
    * Round-ribbon fills. One color paints the square. Two split it into
    * diagonal halves, first color on the top-left triangle.
    */
   paint: readonly [string] | readonly [string, string]
-  spirit?: "Tango" | "Queens" | "Zip" | "Lights Out" | "Friend"
+  spirit?: "Tango" | "Queens" | "Zip" | "Lights Out" | "Akari" | "Friend"
   /** Soft-demote in ranking (boring pipe etc.). */
   demote?: boolean
 }
@@ -126,6 +126,18 @@ export const FAMILY_DEFS: readonly FamilyDef[] = [
     spirit: "Friend",
   },
   {
+    // E8: the first family whose rule travels. See docs/e8-new-mechanic.md.
+    id: "lamplight",
+    category: "lamp_rays",
+    label: "Lamplight",
+    pattern:
+      "Light runs to the next wall. A dark cell only one open cell can see takes the lamp.",
+    n: 6,
+    icon: "lamp",
+    paint: ["var(--cat-2)", "var(--cat-6)"],
+    spirit: "Akari",
+  },
+  {
     id: "cross-lights",
     category: "lights_toggle",
     label: "Cross lights",
@@ -225,6 +237,7 @@ const CATEGORY_PAINT: Record<
   path_cover: ["var(--cat-4)"],
   lights_toggle: ["var(--cat-2)"],
   tile_rotate_connect: ["var(--cat-1)"],
+  lamp_rays: ["var(--cat-2)", "var(--cat-6)"],
 }
 
 /** Ribbon color for a dealt board. Unknown ids fall back to the mechanic. */

@@ -19,7 +19,7 @@ try {
   )
   for (const [folder, files] of Object.entries({
     puzzle: ["author", "types", "verifier", "model-learner"],
-    "mini-game-rules": ["schema", "runtime", "verifier", "binary", "assembler"],
+    "mini-game-rules": ["schema", "runtime", "verifier", "binary", "lamp", "assembler"],
     "battle-ground-ui": ["agent-trace", "controller", "learner-mix", "model-learner"],
   })) {
     await mkdir(join(output, folder))
@@ -70,6 +70,7 @@ try {
     "path_cover",
     "tile_rotate_connect",
     "lights_toggle",
+    "lamp_rays",
   ]) {
     const { pack } = assembleGamePack({ category, seed: 700, n: 4 })
     const battle = createBattleGround([pack], { now: () => 0 })
@@ -391,7 +392,7 @@ try {
     assert.equal("solution" in decisionsBody, false)
   }
   console.log(
-    "All five public board contracts, hidden-field rejection, deadlines, failure waits, stale cancellation and shared counted actions passed."
+    "All six public board contracts, hidden-field rejection, deadlines, failure waits, stale cancellation and shared counted actions passed."
   )
 } finally {
   await rm(output, { recursive: true, force: true })

@@ -1,5 +1,5 @@
 import { constraintPossible } from "../puzzle/verifier"
-import { neighbors, rotatePorts, walled } from "./runtime"
+import { lampSight, neighbors, rotatePorts, walled } from "./runtime"
 import { packSchema, type GamePack } from "./schema"
 
 export type Verification = {
@@ -154,6 +154,24 @@ export function verifyGame(
       }
     }
     complete = !cells.includes(null) && seen.size === active.length
+  } else if (pack.category === "lamp_rays") {
+    // × marks are pencil only; lamps decide every rule.
+    const sight = lampSight(pack.n, pack.rules.walls)
+    const lamp = (id: number) => cells[id] === 1
+    if (
+      sight.some(
+        (seen, id) => lamp(id) && seen.slice(1).some((other) => lamp(other))
+      )
+    )
+      errors.push("Two lamps light each other")
+    const counts = pack.rules.numbers.map(
+      (clue) => neighbors(clue.cell, pack.n).filter(lamp).length - clue.lamps
+    )
+    if (counts.some((extra) => extra > 0))
+      errors.push("A number has too many lamps")
+    complete =
+      counts.every((extra) => extra === 0) &&
+      sight.every((seen) => !seen.length || seen.some(lamp))
   } else complete = cells.every((value) => value === 0)
   return {
     valid: errors.length === 0,

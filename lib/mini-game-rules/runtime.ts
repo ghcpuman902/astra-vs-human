@@ -53,6 +53,44 @@ export function pathCandidates(
   }
   return [...options].sort((a, b) => a - b)
 }
+/**
+ * Lamplight rays: for each open cell, the open cells it sees along its row
+ * and column until a wall or the edge, itself first. Walls see nothing.
+ */
+export function lampSight(n: number, walls: readonly number[]) {
+  const wall = new Set(walls)
+  return Array.from({ length: n * n }, (_, cell) => {
+    if (wall.has(cell)) return []
+    const seen = [cell]
+    const row = Math.floor(cell / n),
+      col = cell % n
+    for (const [dr, dc] of [
+      [-1, 0],
+      [0, 1],
+      [1, 0],
+      [0, -1],
+    ])
+      for (
+        let r = row + dr, c = col + dc;
+        r >= 0 && r < n && c >= 0 && c < n && !wall.has(r * n + c);
+        r += dr, c += dc
+      )
+        seen.push(r * n + c)
+    return seen
+  })
+}
+/** Open cells lit by a lamp (value 1) somewhere along their rays. */
+export function litCells(
+  n: number,
+  walls: readonly number[],
+  cells: readonly (number | null)[]
+) {
+  const lit = new Set<number>()
+  lampSight(n, walls).forEach((seen, cell) => {
+    if (cells[cell] === 1) for (const id of seen) lit.add(id)
+  })
+  return lit
+}
 export function rotatePorts(mask: number, turns: number) {
   for (let i = 0; i < ((turns % 4) + 4) % 4; i++)
     mask = ((mask << 1) & 15) | (mask >> 3)
