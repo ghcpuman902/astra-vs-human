@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -257,9 +258,17 @@ export function BattleApp() {
     nextMarks: FamilyMarks,
     familyId?: string
   ) => {
-    const gen = ++dealGen.current
     setDealing(true)
     setPendingFamilyId(nextLength === "deep" ? (familyId ?? null) : null)
+    startDeal(nextLength, nextMarks, familyId)
+  }
+  /** Deals in the background; only the async result touches state. */
+  const startDeal = (
+    nextLength: MatchLength,
+    nextMarks: FamilyMarks,
+    familyId?: string
+  ) => {
+    const gen = ++dealGen.current
     const recentMarks = { ...nextMarks, recent: memory.recent }
     void freshDealIdle(nextLength, recentMarks, { familyId, avoid })
       .then((next) => {
@@ -277,9 +286,10 @@ export function BattleApp() {
 
   useEffect(() => {
     if (!mounted || !checked || dealt || preview) return
-    queueDeal(length, marks)
+    // An empty setup already reads as dealing, so no state is set here.
+    startDeal(length, marks)
     // Length and marks are whatever the form holds when the board is empty.
-    // A fresh queueDeal identity must not start another deal.
+    // A fresh startDeal identity must not start another deal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, checked, dealt, preview])
   const play = (next: DealtMatch, label = "fresh local boards") => {
@@ -298,10 +308,21 @@ export function BattleApp() {
     setResume(null)
     setDealt(null)
   }
-  const dealtRef = useRef(dealt)
-  dealtRef.current = dealt
-  const leaveRef = useRef(leaveMatch)
-  leaveRef.current = leaveMatch
+  const onPop = useEffectEvent(() => {
+    const onMatchUrl =
+      new URL(window.location.href).searchParams.get("match") === "1"
+    if (!onMatchUrl && dealt) {
+      leaveMatch()
+      return
+    }
+    if (onMatchUrl && !dealt) {
+      history.replaceState(
+        { ...historyBase(), battle: "setup" },
+        "",
+        hrefWithoutMatch()
+      )
+    }
+  })
 
   useEffect(() => {
     if (!dealt) return
@@ -309,23 +330,9 @@ export function BattleApp() {
   }, [dealt])
 
   useEffect(() => {
-    const onPop = () => {
-      const onMatchUrl =
-        new URL(window.location.href).searchParams.get("match") === "1"
-      if (!onMatchUrl && dealtRef.current) {
-        leaveRef.current()
-        return
-      }
-      if (onMatchUrl && !dealtRef.current) {
-        history.replaceState(
-          { ...historyBase(), battle: "setup" },
-          "",
-          hrefWithoutMatch()
-        )
-      }
-    }
-    window.addEventListener("popstate", onPop, true)
-    return () => window.removeEventListener("popstate", onPop, true)
+    const listener = () => onPop()
+    window.addEventListener("popstate", listener, true)
+    return () => window.removeEventListener("popstate", listener, true)
   }, [])
 
   const backToSetup = () => {
@@ -349,7 +356,7 @@ export function BattleApp() {
         onArena={setArena}
         onLeftMix={setLeftMix}
         onRightMix={setRightMix}
-        dealing={dealing}
+        dealing={dealing || !preview}
         pendingFamilyId={pendingFamilyId}
         onLength={(next) => {
           setLength(next)
@@ -893,11 +900,15 @@ function BattleSession({
           type="button"
           className="primary-button"
           data-slot="match-next"
-          data-locked={(!humanDone) || undefined}
+          data-locked={!humanDone || undefined}
           disabled={halted || !humanDone || !snapshot.canAdvance.human}
           onClick={() => battle.advance("human")}
         >
-          {!humanDone ? <Lock aria-hidden="true" /> : <Play aria-hidden="true" />}
+          {!humanDone ? (
+            <Lock aria-hidden="true" />
+          ) : (
+            <Play aria-hidden="true" />
+          )}
           {nextLabel}
         </button>
       )}

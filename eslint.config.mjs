@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local agent scratch and isolated verification builds.
     "_agent/**",
+    // Claude Code session worktrees are full copies of this repo on other
+    // branches, not app code. Each is linted from inside its own checkout.
+    ".claude/**",
   ]),
 ]);
 

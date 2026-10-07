@@ -1,37 +1,22 @@
 import assert from "node:assert/strict"
-import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises"
+import { mkdtemp, mkdir, rm } from "node:fs/promises"
 import { join } from "node:path"
-import ts from "typescript"
+import { transpileGraph } from "./transpile-ts.mjs"
 await mkdir("_agent", { recursive: true })
 const output = await mkdtemp(join(process.cwd(), "_agent/model-selection-"))
 const oldModels = process.env.LEARNER_MODELS
 const oldDefault = process.env.OPENAI_MODEL
 try {
-  for (const [name, path] of Object.entries({
+  const modules = {
     config: "lib/learner-models.ts",
     binary: "lib/puzzle/model-learner.ts",
     game: "lib/battle-ground-ui/model-learner.ts",
     binaryRoute: "app/api/learner/route.ts",
     gameRoute: "app/api/game-learner/route.ts",
     modelsRoute: "app/api/learner-models/route.ts",
-  })) {
-    const source = await readFile(path, "utf8")
-    const js = ts
-      .transpileModule(source, {
-        compilerOptions: {
-          target: ts.ScriptTarget.ES2022,
-          module: ts.ModuleKind.ES2022,
-        },
-      })
-      .outputText.replaceAll('"@/lib/learner-models"', '"./config.js"')
-      .replaceAll('"@/lib/puzzle/model-learner"', '"./binary.js"')
-      .replaceAll('"@/lib/battle-ground-ui/model-learner"', '"./game.js"')
-      .replaceAll('"../puzzle/model-learner"', '"./binary.js"')
-    await writeFile(join(output, `${name}.js`), js)
   }
-  const { learnerModelConfig, allowedLearnerModel } = await import(
-    join(output, "config.js")
-  )
+  const load = await transpileGraph(Object.values(modules), output)
+  const { learnerModelConfig, allowedLearnerModel } = await load(modules.config)
   assert.deepEqual(
     learnerModelConfig({}).models.map((model) => model.id),
     ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna"]
@@ -45,9 +30,9 @@ try {
   assert.equal(allowedLearnerModel(undefined, restricted), "gpt-6-luna")
   process.env.LEARNER_MODELS = "gpt-6-astra,gpt-6-luna"
   process.env.OPENAI_MODEL = "gpt-6-astra"
-  const { POST: binaryPost } = await import(join(output, "binaryRoute.js"))
-  const { POST: gamePost } = await import(join(output, "gameRoute.js"))
-  const { GET } = await import(join(output, "modelsRoute.js"))
+  const { POST: binaryPost } = await load(modules.binaryRoute)
+  const { POST: gamePost } = await load(modules.gameRoute)
+  const { GET } = await load(modules.modelsRoute)
   const publicConfig = GET()
   assert.equal(publicConfig.headers.get("cache-control"), "no-store")
   assert.deepEqual(await publicConfig.json(), learnerModelConfig())
@@ -84,7 +69,25 @@ try {
       visible: true,
       locked: false,
       selected: false,
+      role: "open",
     })),
+    affordances: {
+      cells: Array.from({ length: 16 }, (_, index) => ({
+        index,
+        role: "open",
+        value: index === 0 ? 1 : 0,
+        selected: false,
+        options: [0, 1],
+      })),
+      controls: {
+        selectCell: Array.from({ length: 16 }, (_, index) => index),
+        cycle: false,
+        undo: false,
+        clear: false,
+      },
+      cycle: { alphabet: [0, 1], effect: "Toggle the cell and its cross." },
+      intents: "setCell",
+    },
     actions: 0,
     remainingActions: 300,
     remainingMs: 60_000,
@@ -145,7 +148,7 @@ try {
   } finally {
     globalThis.fetch = originalFetch
   }
-  const { createGameLearnerRunner } = await import(join(output, "game.js"))
+  const { createGameLearnerRunner } = await load(modules.game)
   let model = "gpt-6-astra",
     resolve,
     signal

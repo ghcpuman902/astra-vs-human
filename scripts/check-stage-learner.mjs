@@ -2,52 +2,41 @@ import assert from "node:assert/strict"
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises"
 import { join } from "node:path"
 import ts from "typescript"
+import { transpileGraph } from "./transpile-ts.mjs"
 const external =
   process.argv[2] ??
   "/Users/manglekuo/Downloads/927cd1f1-9e21-4ecd-86a5-cab3f3acb3fb/src/lib/puzzle"
 await mkdir("_agent", { recursive: true })
 const output = await mkdtemp(join(process.cwd(), "_agent/stage-learner-"))
 try {
-  for (const [folder, base, files] of [
-    ["export", external, ["stage", "battle", "match", "types", "verifier"]],
-    [
-      "public",
-      "lib/puzzle",
-      [
-        "stage-learner",
-        "stage-observation",
-        "model-learner",
-        "learner",
-        "types",
-      ],
-    ],
-  ]) {
-    await mkdir(join(output, folder))
-    for (const name of files) {
-      const source = await readFile(join(base, `${name}.ts`), "utf8")
-      const js = ts
-        .transpileModule(source, {
-          compilerOptions: {
-            target: ts.ScriptTarget.ES2022,
-            module: ts.ModuleKind.ES2022,
-          },
-        })
-        .outputText.replace(/from "(\.[^"\n]+)"/g, 'from "$1.js"')
-      await writeFile(join(output, folder, `${name}.js`), js)
-    }
+  // The exported stage lives outside the repo and only imports its siblings.
+  await mkdir(join(output, "export"))
+  for (const name of ["stage", "battle", "match", "types", "verifier"]) {
+    const source = await readFile(join(external, `${name}.ts`), "utf8")
+    const js = ts
+      .transpileModule(source, {
+        compilerOptions: {
+          target: ts.ScriptTarget.ES2022,
+          module: ts.ModuleKind.ES2022,
+        },
+      })
+      .outputText.replace(/from "(\.[^"\n]+)"/g, 'from "$1.js"')
+    await writeFile(join(output, "export", `${name}.js`), js)
   }
   const { createStage, STAGE_MS } = await import(
     join(output, "export/stage.js")
   )
-  const { observeStage } = await import(
-    join(output, "public/stage-observation.js")
+  const load = await transpileGraph(
+    [
+      "lib/puzzle/stage-observation.ts",
+      "lib/puzzle/stage-learner.ts",
+      "lib/puzzle/model-learner.ts",
+    ],
+    join(output, "public")
   )
-  const { createStageLearner } = await import(
-    join(output, "public/stage-learner.js")
-  )
-  const { learnerRequestSchema } = await import(
-    join(output, "public/model-learner.js")
-  )
+  const { observeStage } = await load("lib/puzzle/stage-observation.ts")
+  const { createStageLearner } = await load("lib/puzzle/stage-learner.ts")
+  const { learnerRequestSchema } = await load("lib/puzzle/model-learner.ts")
   const pack = {
     seed: 1,
     n: 4,

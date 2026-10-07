@@ -64,7 +64,6 @@ const quotaFor = (board: BoardProps, line: number, axis: "row" | "column") => {
   return rule?.kind === "quota" ? rule.ones : undefined
 }
 
-
 /** Skyline edge clues: one slot per line, empty where the puzzle gives none. */
 const SightRail = ({
   side,
@@ -232,13 +231,20 @@ export const PaperBoard = ({
     board.affordances.controls.selectCell.includes(index)
 
   /** One orthogonal move of the trace head. False stops the drag there. */
-  const stepTo = (current: Trace, to: number) => {
+  const stepTo = (current: Trace, to: number, now: number) => {
     const value = current.cells[current.head]
     const there = current.cells[to]
     if (value === null || isBlocked(to) || walled(walls, current.head, to))
       return false
     const send = (cell: number, want: number | null) => {
-      const cycles = pathCyclesTo(n, current.cells, cell, want, pathLength, walls)
+      const cycles = pathCyclesTo(
+        n,
+        current.cells,
+        cell,
+        want,
+        pathLength,
+        walls
+      )
       if (cycles === null) return false
       onPathStep?.(cell, cycles)
       current.cells[cell] = want
@@ -261,7 +267,7 @@ export const PaperBoard = ({
         current.direction = -delta as 1 | -1
       // Back along the line erases the cell being left; forward just follows it.
       if (current.direction !== 0 && delta === -current.direction) {
-        if (performance.now() - current.grewAt < REVERSE_GUARD_MS) {
+        if (now - current.grewAt < REVERSE_GUARD_MS) {
           current.guarded = true
           return false
         }
@@ -284,7 +290,7 @@ export const PaperBoard = ({
     if (!send(to, value + direction)) return false
     current.direction = direction
     current.head = to
-    current.grewAt = performance.now()
+    current.grewAt = now
     return true
   }
 
@@ -325,7 +331,7 @@ export const PaperBoard = ({
                 ? current.head + Math.sign(dc)
                 : current.head + Math.sign(dr) * n
             current.guarded = false
-            if (!stepTo(current, to)) {
+            if (!stepTo(current, to, event.timeStamp)) {
               if (!current.guarded) setRejected(to)
               break
             }
@@ -399,13 +405,11 @@ export const PaperBoard = ({
                 regions && cell.value !== 1
                   ? {
                       background:
-                        REGION_FILLS[
-                          regions[cell.index] % REGION_FILLS.length
-                        ],
+                        REGION_FILLS[regions[cell.index] % REGION_FILLS.length],
                     }
                   : undefined
               }
-              aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}${zip && cell.value !== null ? `, ${cell.value}` : ""}${lampNumbers?.has(cell.index) ? `, wall ${lampNumbers.get(cell.index)}` : blockedCell ? lampWalls ? ", wall" : ", blocked" : ""}${mosaicNumbers?.has(cell.index) ? `, number ${mosaicNumbers.get(cell.index)}` : ""}${board.category === "mosaic_count" ? (cell.value === 1 ? ", shaded" : cell.value === 0 ? ", ruled out" : "") : ""}${board.category === "tower_sight" && cell.value !== null ? `, height ${cell.value}` : ""}${lampWalls && cell.value === 1 ? ", lamp" : ""}${lit?.has(cell.index) && cell.value !== 1 ? ", lit" : ""}${fixed ? ", fixed" : ""}${cell.selected ? ", selected" : ""}`}
+              aria-label={`Row ${cell.row + 1}, column ${cell.column + 1}${zip && cell.value !== null ? `, ${cell.value}` : ""}${lampNumbers?.has(cell.index) ? `, wall ${lampNumbers.get(cell.index)}` : blockedCell ? (lampWalls ? ", wall" : ", blocked") : ""}${mosaicNumbers?.has(cell.index) ? `, number ${mosaicNumbers.get(cell.index)}` : ""}${board.category === "mosaic_count" ? (cell.value === 1 ? ", shaded" : cell.value === 0 ? ", ruled out" : "") : ""}${board.category === "tower_sight" && cell.value !== null ? `, height ${cell.value}` : ""}${lampWalls && cell.value === 1 ? ", lamp" : ""}${lit?.has(cell.index) && cell.value !== 1 ? ", lit" : ""}${fixed ? ", fixed" : ""}${cell.selected ? ", selected" : ""}`}
               aria-pressed={cell.selected}
               disabled={!interactive || board.readOnly}
               onAnimationEnd={() => setRejected(null)}
@@ -448,7 +452,9 @@ export const PaperBoard = ({
                   <span className="mosaic-number">
                     {mosaicNumbers.get(cell.index)}
                   </span>
-                  {cell.value === 0 ? <span className="pencil-dot corner" /> : null}
+                  {cell.value === 0 ? (
+                    <span className="pencil-dot corner" />
+                  ) : null}
                 </>
               ) : zip && !blockedCell ? (
                 cell.value !== null ? (

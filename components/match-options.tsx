@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  createElement,
   useId,
   useState,
   type ComponentType,
@@ -14,7 +15,10 @@ import {
   learnerModeIds,
   type LearnerMixId,
 } from "@/lib/battle-ground-ui/learner-mix"
-import { MATCH_LENGTHS, type MatchLength } from "@/lib/battle-ground-ui/match-deck"
+import {
+  MATCH_LENGTHS,
+  type MatchLength,
+} from "@/lib/battle-ground-ui/match-deck"
 
 export type Servers = {
   openai: boolean
@@ -70,7 +74,8 @@ export const mixCopy: Record<
   },
   "laya-bare": {
     label: "Laya",
-    detail: "Laya sees the public board only. No LLM plan is wrapped around it.",
+    detail:
+      "Laya sees the public board only. No LLM plan is wrapped around it.",
   },
   "openai-decisions": {
     label: "LLM + Decisions",
@@ -174,6 +179,20 @@ export function modelMark(id: string, label: string): ChipIcon | null {
   if (name.includes("luna") || name.includes("moon")) return Moon
   if (/(^|[^a-z])sol([^a-z]|$)/.test(name) || name.includes("sun")) return Sun
   return null
+}
+
+/** The model's mark as an element, so callers never hold a component in render. */
+function ModelMark({
+  id,
+  label,
+  className,
+}: {
+  id: string
+  label: string
+  className: string
+}) {
+  const Icon = modelMark(id, label)
+  return Icon ? createElement(Icon, { className }) : null
 }
 
 const shortModelLabel = (label: string) => label.replace(/^GPT-[\d.]+\s+/i, "")
@@ -386,7 +405,6 @@ export function AgentModelMenu({
   onChange: (id: string) => void
 }) {
   const current = models.find((model) => model.id === value)
-  const Mark = current ? modelMark(current.id, current.label) : null
   const label =
     status === "loading"
       ? "Loading"
@@ -402,7 +420,13 @@ export function AgentModelMenu({
         disabled={status !== "ready" || !current}
         aria-label={`Agent model, ${current?.label ?? label}. Swap without restarting.`}
       >
-        {Mark ? <Mark className="model-swap-mark" /> : null}
+        {current ? (
+          <ModelMark
+            id={current.id}
+            label={current.label}
+            className="model-swap-mark"
+          />
+        ) : null}
         <span className="model-swap-label">{label}</span>
         <ChevronDown aria-hidden="true" />
       </Menu.Trigger>
@@ -418,26 +442,27 @@ export function AgentModelMenu({
               value={value}
               onValueChange={(id: string) => onChange(id)}
             >
-              {models.map((model) => {
-                const Icon = modelMark(model.id, model.label)
-                return (
-                  <Menu.RadioItem
-                    key={model.id}
-                    className="model-menu-item"
-                    value={model.id}
+              {models.map((model) => (
+                <Menu.RadioItem
+                  key={model.id}
+                  className="model-menu-item"
+                  value={model.id}
+                  label={model.label}
+                  closeOnClick
+                >
+                  <span className="model-menu-check">
+                    <Menu.RadioItemIndicator>
+                      <Check aria-hidden="true" />
+                    </Menu.RadioItemIndicator>
+                  </span>
+                  <ModelMark
+                    id={model.id}
                     label={model.label}
-                    closeOnClick
-                  >
-                    <span className="model-menu-check">
-                      <Menu.RadioItemIndicator>
-                        <Check aria-hidden="true" />
-                      </Menu.RadioItemIndicator>
-                    </span>
-                    {Icon ? <Icon className="model-menu-icon" /> : null}
-                    {model.label}
-                  </Menu.RadioItem>
-                )
-              })}
+                    className="model-menu-icon"
+                  />
+                  {model.label}
+                </Menu.RadioItem>
+              ))}
             </Menu.RadioGroup>
           </Menu.Popup>
         </Menu.Positioner>
@@ -545,8 +570,7 @@ export function AgentStack({
   }
   const handleStack = (stack: AgentStack) =>
     commit(stack, held.code, held.decision)
-  const handleCode = (code: boolean) =>
-    commit(parts.stack, code, held.decision)
+  const handleCode = (code: boolean) => commit(parts.stack, code, held.decision)
   const handleDecision = (decision: DecisionModel) =>
     commit(parts.stack, held.code, decision)
   const copy = mixCopy[value as (typeof learnerModeIds)[number]]
