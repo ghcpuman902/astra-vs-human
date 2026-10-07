@@ -158,13 +158,13 @@ export function applyGameAction(
   if (action.type === "undo") {
     const previous = state.history.at(-1)
     if (!previous) return reject(state, "Nothing to undo")
+    // Corrections are free. The player can undo and keep tapping.
     return {
       ok: true,
       state: {
         ...state,
         cells: [...previous],
         history: state.history.slice(0, -1),
-        actions: state.actions + 1,
       },
     }
   }
@@ -172,7 +172,8 @@ export function applyGameAction(
     const start = pack.cells.map((cell) => cell.value)
     const dirty = state.cells.some((value, index) => value !== start[index])
     if (!dirty) return reject(state, "Board already clear")
-    // Reset wipes the undo stack so clear↔undo cannot ping-pong as counted taps.
+    // Reset wipes the undo stack so clear and undo cannot ping-pong.
+    // Clearing does not spend a tap.
     return {
       ok: true,
       state: {
@@ -180,7 +181,6 @@ export function applyGameAction(
         cells: start,
         history: [],
         selectedCell: null,
-        actions: state.actions + 1,
       },
     }
   }

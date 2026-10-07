@@ -111,6 +111,11 @@ export type BattleDump = {
 }
 export type BattleOptions = {
   actionCap?: number
+  /**
+   * When false, the human never ends a round for tap count.
+   * The learner still stops at `actionCap` so a looping model cannot run forever.
+   */
+  limitHumanTaps?: boolean
   timeCapMs?: number
   practice?: boolean
   startPaused?: boolean
@@ -161,6 +166,7 @@ export function createBattleGround(
   const packs = input.map((pack) => packSchema.parse(structuredClone(pack)))
   const gameCount = packs.length / roundsPerGame
   const actionCap = options.actionCap ?? 300
+  const limitHumanTaps = options.limitHumanTaps ?? true
   // 10–120s is the intended length of one attempt. A stuck side gets its own 10min cap.
   const timeCapMs = options.timeCapMs ?? 600_000
   if (
@@ -386,9 +392,11 @@ export function createBattleGround(
     const result = applyGameAction(pack, current.state, action)
     if (!result.ok) return
     const state = result.state
+    const overTaps =
+      state.actions >= actionCap && (side === "learner" || limitHumanTaps)
     const status: RoundStatus = verifyGame(pack, state.cells).complete
       ? "finished"
-      : state.actions >= actionCap
+      : overTaps
         ? "action-cap"
         : "playing"
     attempts = {
