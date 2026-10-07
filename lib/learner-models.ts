@@ -30,6 +30,7 @@ export function learnerModelConfig(
     "gpt-6-astra": "GPT-6 Astra",
     "gpt-6.1-sol": "GPT-6.1 Sol",
     "gpt-6-luna": "GPT-6 Luna",
+    "gpt-6-terra": "GPT-6 Terra",
   }
   return {
     models: allowed.map((id) => ({ id, label: labels[id] ?? id })),

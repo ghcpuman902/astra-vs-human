@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from "react"
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import { Eye, Pause } from "lucide-react"
 
 import { postcards } from "@/components/lovable/marks"
@@ -37,17 +37,19 @@ function Cover({
   locked?: boolean
 }) {
   const [peek, setPeek] = useState(false)
-  return (
-    <button
-      type="button"
-      className="puzzle-cover"
-      style={coverStyle(board)}
-      data-peek={peek || undefined}
-      aria-pressed={locked ? undefined : peek}
-      disabled={locked}
-      onClick={() => setPeek((value) => !value)}
-    >
-      {peek ? (
+  const coverRef = useRef<HTMLButtonElement>(null)
+  const dismissRef = useRef<HTMLButtonElement>(null)
+  const wasPeeking = useRef(false)
+
+  useEffect(() => {
+    if (peek) dismissRef.current?.focus()
+    else if (wasPeeking.current) coverRef.current?.focus()
+    wasPeeking.current = peek
+  }, [peek])
+
+  if (peek) {
+    return (
+      <div className="puzzle-cover" style={coverStyle(board)} data-peek="true">
         <PaperBoard
           key={`peek-${board.seed}`}
           board={board}
@@ -56,12 +58,32 @@ function Cover({
           label={label}
           onTap={() => {}}
         />
-      ) : (
-        <span className="cover-copy">
-          {locked ? <Pause aria-hidden="true" /> : <Eye aria-hidden="true" />}
-          {text}
-        </span>
-      )}
+        <button
+          ref={dismissRef}
+          type="button"
+          className="peek-dismiss"
+          aria-pressed="true"
+          aria-label="Hide preview"
+          onClick={() => setPeek(false)}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <button
+      ref={coverRef}
+      type="button"
+      className="puzzle-cover"
+      style={coverStyle(board)}
+      aria-pressed={locked ? undefined : false}
+      disabled={locked}
+      onClick={() => setPeek(true)}
+    >
+      <span className="cover-copy">
+        {locked ? <Pause aria-hidden="true" /> : <Eye aria-hidden="true" />}
+        {text}
+      </span>
     </button>
   )
 }
@@ -70,6 +92,7 @@ function Cover({
 export function Phone({
   side,
   name,
+  titleExtra,
   sub,
   clock,
   tally,
@@ -81,7 +104,8 @@ export function Phone({
 }: {
   side: "human" | "learner"
   name: string
-  sub: string
+  titleExtra?: ReactNode
+  sub: ReactNode
   clock: string
   tally: string
   rounds?: ReactNode
@@ -100,8 +124,11 @@ export function Phone({
     >
       <header className="phone-bar">
         <div className="phone-name">
-          <strong>{name}</strong>
-          <span>{sub}</span>
+          <div className="phone-title">
+            <strong>{name}</strong>
+            {titleExtra}
+          </div>
+          <div className="phone-sub">{sub}</div>
         </div>
         <div className="phone-clock">
           <strong>{clock}</strong>

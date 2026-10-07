@@ -39,6 +39,8 @@ export type BattleRecord = {
   actions: number
   elapsedMs: number
   claim: string | null
+  /** Board when the round closed. Missing on matches saved before this field. */
+  cells?: readonly (number | null)[]
 }
 export type BattleSnapshot = {
   gameCount: number
@@ -295,6 +297,7 @@ export function createBattleGround(
         actions: attempt.state.actions,
         elapsedMs: attempt.endedAtMs ?? attemptElapsed(side),
         claim: attempt.claim,
+        cells: [...attempt.state.cells],
       },
     ]
   }

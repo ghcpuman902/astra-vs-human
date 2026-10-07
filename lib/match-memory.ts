@@ -76,6 +76,7 @@ const dumpSchema = z.strictObject({
         actions: z.number().int().min(0),
         elapsedMs: z.number().min(0),
         claim: z.string().max(240).nullable(),
+        cells: z.array(cellValue).max(64).optional(),
       })
     )
     .max(256),
@@ -109,6 +110,9 @@ const savedSchema = z.strictObject({
     timeCapMs: z.number().positive().nullable(),
     category: z.string().nullable(),
     familyId: z.string().nullable(),
+    solutions: z
+      .record(z.string().max(24), z.array(cellValue).max(64))
+      .optional(),
   }),
   source: z.string().max(200),
   rulesShown: z.boolean(),

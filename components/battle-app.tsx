@@ -1,17 +1,21 @@
 "use client"
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
-import { ArrowLeft, Play, RefreshCw, RotateCcw, SlidersHorizontal, Undo2 } from "lucide-react"
+import { ArrowLeft, Play, RotateCcw, SlidersHorizontal, Undo2 } from "lucide-react"
 
 import { AgentTrace } from "@/components/agent-trace"
+import { MatchResults } from "@/components/match-results"
 import {
   BoardStage,
   Phone,
   Rules,
   statusWord,
 } from "@/components/lovable/battle-field"
+import { RoundStrip } from "@/components/lovable/round-strip"
 import {
+  AgentModelMenu,
   LENGTH_COPY,
+  mixUsesLanguageModel,
   modeName,
   type Arena,
   type Servers,
@@ -68,20 +72,6 @@ const roundText = (
   if (length === "deep") return `Round ${cursor.round + 1} of ${roundsPerGame}`
   if (length === "tour") return `Family ${cursor.game + 1} of ${gameCount}`
   return `Board ${cursor.index + 1}`
-}
-
-const blitzLine = (
-  humanName: string,
-  learnerName: string,
-  human: ReturnType<typeof tallyBlitz>,
-  learner: ReturnType<typeof tallyBlitz>
-) => {
-  const winner = compareBlitz(human, learner)
-  const side = (name: string, tally: ReturnType<typeof tallyBlitz>) =>
-    `${name} ${tally.rounds} boards, ${tally.actions} taps`
-  const summary = `${side(humanName, human)}. ${side(learnerName, learner)}.`
-  if (winner === "tie") return `Tie. ${summary}`
-  return `${winner === "human" ? humanName : learnerName} ahead. ${summary}`
 }
 
 const spentMs = (records: readonly BattleRecord[], side: Side) =>
@@ -430,14 +420,6 @@ function BattleSession({
     snapshot.attempts.learner.status !== "playing" &&
     !snapshot.canAdvance.human &&
     !snapshot.canAdvance.learner
-  const blitzResult = blitzDone
-    ? blitzLine(
-        leftName,
-        rightName,
-        tallyBlitz(snapshot.records, "human", snapshot.remainingMs.human),
-        tallyBlitz(snapshot.records, "learner", snapshot.remainingMs.learner)
-      )
-    : null
   const nextLabel = !snapshot.hasNext.human
     ? "Match complete"
     : length === "tour"
@@ -466,16 +448,6 @@ function BattleSession({
     snapshot.remainingMs.learner
   )
   const winner = compareBlitz(humanTally, learnerTally)
-  const youName = watching ? leftName : "You"
-  const headline = !matchOver
-    ? `${youName} finished`
-    : winner === "tie"
-      ? "Tie"
-      : winner === "human"
-        ? watching
-          ? `${leftName} wins`
-          : "You win"
-        : `${rightName} wins`
   const learnerCursor = snapshot.cursors.learner
   const roundModel = models.roundModel ?? restored?.model ?? null
   // Keep this match in localStorage so a reload lands back here, not on setup.
@@ -538,33 +510,34 @@ function BattleSession({
   ])
 
   const modelId = models.roundModel ?? models.selectedModel
-  const modelLabel =
-    models.models.find((model) => model.id === modelId)?.label ?? "Agent"
+  const modelMenu = () => (
+    <AgentModelMenu
+      models={models.models}
+      value={modelId}
+      status={models.status}
+      onChange={chooseModel}
+    />
+  )
   const humanStatus =
     watching && started ? leftLearner.status : humanAttempt.status
   const tapLine = (actions: number, status: string) =>
     `${actions} taps${started ? ` · ${statusWord(status)}` : ""}`
-  const roundDots = (side: Side) => {
-    if (length === "blitz") return null
-    const cursor = snapshot.cursors[side]
+  const roundDots = (side: Side, name: string) => {
+    const played = new Set(
+      snapshot.records.flatMap((record) => {
+        if (record.side !== side) return []
+        const at = packs.findIndex((pack) => pack.seed === record.seed)
+        return at < 0 ? [] : [at]
+      })
+    )
     return (
-      <ol className="small-rounds" aria-label={`${side} rounds`}>
-        {packs.map((pack, index) => {
-          const done = snapshot.records.some(
-            (record) => record.side === side && record.seed === pack.seed
-          )
-          const current = cursor.index === index
-          return (
-            <li
-              key={pack.seed}
-              className="small-round"
-              data-current={current || undefined}
-              data-done={done || undefined}
-              title={familyLabel(pack)}
-            />
-          )
-        })}
-      </ol>
+      <RoundStrip
+        label={`${name} rounds`}
+        packs={packs}
+        index={snapshot.cursors[side].index}
+        done={played}
+        windowed={length === "blitz"}
+      />
     )
   }
   const trace = (side: Side) => (
@@ -705,10 +678,13 @@ function BattleSession({
         <Phone
           side="human"
           name={leftName}
+          titleExtra={
+            watching && mixUsesLanguageModel(leftMix) ? modelMenu() : null
+          }
           sub={`${familyLabel(humanPack)} · ${roundText(length, snapshot.cursors.human, gameCount, roundsPerGame)}`}
           clock={formatClock(snapshot.remainingMs.human)}
           tally={tapLine(humanAttempt.state.actions, humanStatus)}
-          rounds={roundDots("human")}
+          rounds={roundDots("human", leftName)}
           done={humanDone && humanStatus === "finished"}
           footer={
             <>
@@ -733,10 +709,11 @@ function BattleSession({
         <Phone
           side="learner"
           name={rightName}
-          sub={`${modelLabel} · ${rightAbility}`}
+          titleExtra={mixUsesLanguageModel(rightMix) ? modelMenu() : null}
+          sub={rightAbility}
           clock={formatClock(snapshot.remainingMs.learner)}
           tally={tapLine(learnerAttempt.state.actions, learnerAttempt.status)}
-          rounds={roundDots("learner")}
+          rounds={roundDots("learner", rightName)}
           behind={!watching && humanDone && learnerAttempt.status === "playing"}
           footer={trace("learner")}
         >
@@ -753,101 +730,56 @@ function BattleSession({
         </Phone>
       </div>
       {humanFinished ? (
-        <section
-          className="match-results"
-          role="region"
-          aria-label="Match results"
-          aria-live="polite"
-          data-open={sheetOpen || undefined}
-        >
-          <button
-            type="button"
-            className="results-grip"
-            aria-expanded={sheetOpen}
-            onClick={() => setSheetOpen((value) => !value)}
-          >
-            <span className="results-headline">
-              <strong>{headline}</strong>
-              <span>
-                {matchOver
-                  ? sheetOpen
-                    ? "Hide to see the boards"
-                    : "Show results"
-                  : `${rightName} is on ${roundText(length, learnerCursor, gameCount, roundsPerGame).toLowerCase()}`}
-              </span>
-            </span>
-          </button>
-          <div className="results-body" hidden={!sheetOpen}>
-            <table className="results-table">
-              <thead>
-                <tr>
-                  <th scope="col">
-                    <span className="sr-only">Side</span>
-                  </th>
-                  <th scope="col">Boards</th>
-                  <th scope="col">Taps</th>
-                  <th scope="col">{length === "blitz" ? "Left" : "Time"}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(
-                  [
-                    ["human", leftName, humanTally],
-                    ["learner", rightName, learnerTally],
-                  ] as const
-                ).map(([side, name, tally]) => (
-                  <tr
-                    key={side}
-                    data-winner={(matchOver && winner === side) || undefined}
-                  >
-                    <th scope="row">
-                      {name}
-                      {!sideFinished(side) ? (
-                        <span className="results-live"> · playing</span>
-                      ) : null}
-                    </th>
-                    <td>
-                      {tally.rounds}/{packs.length}
-                    </td>
-                    <td>{tally.actions}</td>
-                    <td>
-                      {formatClock(
-                        length === "blitz"
-                          ? snapshot.remainingMs[side]
-                          : spentMs(snapshot.records, side)
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {blitzResult ? (
-              <p className="results-blitz">{blitzResult}</p>
-            ) : null}
-            <div className="results-actions">
-              <button
-                type="button"
-                className="primary-button"
-                onClick={onRematch}
-              >
-                <RefreshCw aria-hidden="true" />
-                {sameFamilyLabel ? `Rematch ${sameFamilyLabel}` : "Rematch"}
-              </button>
-              {length === "deep" ? (
-                <button
-                  type="button"
-                  className="paper-button"
-                  onClick={onNextFamily}
-                >
-                  Next family
-                </button>
-              ) : null}
-              <button type="button" className="paper-button" onClick={onSetup}>
-                Back to setup
-              </button>
-            </div>
-          </div>
-        </section>
+        <MatchResults
+          open={sheetOpen}
+          onToggle={() => setSheetOpen((value) => !value)}
+          matchOver={matchOver}
+          watching={watching}
+          length={length}
+          winner={winner}
+          leftName={leftName}
+          rightName={rightName}
+          progress={`${rightName} is on ${roundText(length, learnerCursor, gameCount, roundsPerGame).toLowerCase()}`}
+          packs={packs}
+          solutions={dealt.solutions}
+          records={snapshot.records}
+          live={{
+            human: {
+              seed: snapshot.seeds.human,
+              cells: humanAttempt.state.cells,
+            },
+            learner: {
+              seed: snapshot.seeds.learner,
+              cells: learnerAttempt.state.cells,
+            },
+          }}
+          playing={{
+            human: !sideFinished("human"),
+            learner: !sideFinished("learner"),
+          }}
+          tallies={{ human: humanTally, learner: learnerTally }}
+          times={{
+            human: formatClock(
+              length === "blitz"
+                ? snapshot.remainingMs.human
+                : spentMs(snapshot.records, "human")
+            ),
+            learner: formatClock(
+              length === "blitz"
+                ? snapshot.remainingMs.learner
+                : spentMs(snapshot.records, "learner")
+            ),
+          }}
+          traces={{ human: leftLearner.trace, learner: rightLearner.trace }}
+          rounds={{
+            human: roundDots("human", leftName),
+            learner: roundDots("learner", rightName),
+          }}
+          sameFamilyLabel={sameFamilyLabel}
+          onRematch={onRematch}
+          onNextFamily={onNextFamily}
+          onSetup={onSetup}
+        />
       ) : null}
       <MatchSettings
         open={settingsOpen}
@@ -857,12 +789,10 @@ function BattleSession({
         leftMix={leftMix}
         rightMix={rightMix}
         servers={servers}
-        model={models}
         paused={halted}
         onLeftMix={onLeftMix}
         onRightMix={onRightMix}
         onRestart={onRestart}
-        onSetup={onSetup}
       />
     </main>
   )

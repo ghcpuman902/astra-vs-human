@@ -1,6 +1,6 @@
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
@@ -29,3 +29,4 @@ Next.js 16.3 (App Router, Turbopack) · React 19.3 · TypeScript · Tailwind 4 �
 | TS / React style | [docs/coding-style.md](./docs/coding-style.md) |
 | Branches, PRs, validation | [docs/agent-workflow.md](./docs/agent-workflow.md) |
 | Scoping | [docs/product-principles.md](./docs/product-principles.md) |
+| Minigame / battle craft | `skills/minigame-craft-style` (optionally Mac craft skills under `.cursor/skills/`) |

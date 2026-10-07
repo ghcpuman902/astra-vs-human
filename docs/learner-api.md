@@ -22,7 +22,7 @@ const learner = useStageLearner({
 })
 // learner.status: idle | thinking | playing | wait | finished | error
 // learner.lastAction: last counted action, or null
-// learner.waitReason: deadline | unavailable | invalid-decision | inactive
+// learner.waitReason: deadline | unavailable | rejected | invalid-decision | inactive
 ```
 
 Memoize `displayedMarks` from stable public-board props before passing it to the hook. The hook waits for the existing Start control, then makes serial real `/api/learner` decisions every 250 ms after the preceding response. It uses the stage's Learner action controls and never writes to the human attempt. UI clock updates should continue calling the existing `stage.match.tick`; inference never pauses either clock. Replacing the stage or seed disposes pending work. Stopping `running`, stage expiry, and component teardown cancel inference. The hook waits through same-seed stage respawns, discards decisions from the previous attempt, and retains one-line claims in the supplied memory.
@@ -88,7 +88,7 @@ The Learner board's `readOnly` flag controls the human viewing that tab. The Lea
 
 `POST /api/learner` takes `{ observation, priorClaims }`. `observation` is the existing `Observation` from `lib/puzzle/types.ts`. Extra properties fail validation, including pack constraints, solutions, verifier specs, and hint requests. This first adapter supports the existing binary FORCED-CHAIN round. Future categories need their own visible observation adapter; do not pass the full rules engine to this route.
 
-The response is `{ action, state, patternClaim?, reason? }`. `action` is one of the existing four counted controls or `null`. `state` is `decision` or `wait`. A wait never advances the board. Failure reasons are `inactive`, `deadline`, `unavailable`, or `invalid-decision`; provider error bodies and credentials are never returned or logged.
+The response is `{ action, state, patternClaim?, reason? }`. `action` is one of the existing four counted controls or `null`. `state` is `decision` or `wait`. A wait never advances the board. Failure reasons are `inactive`, `deadline`, `unavailable`, `rejected`, or `invalid-decision`. `rejected` means the provider refused the request we sent, so the client does not ask again. `unavailable` means the provider could not be reached and may be asked again. Provider error bodies and credentials are never returned or logged.
 
 The server uses `OPENAI_API_KEY`, optional `OPENAI_ORG_ID`, and `OPENAI_MODEL`, defaulting to `gpt-6-astra`. These variables stay in the route. Each call has zero SDK retries and ends after at most eight seconds or the remaining round clock, whichever is shorter. Aborted results cannot produce a tap. This clock continues during inference, just as it does while a human thinks.
 

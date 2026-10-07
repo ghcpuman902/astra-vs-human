@@ -44,6 +44,7 @@ const ENDED: Record<string, string> = {
 const WAIT: Record<string, string> = {
   deadline: "No answer within 8 s. Asking again.",
   unavailable: "Server could not reach the model. Asking again.",
+  rejected: "The model rejected the request shape. Asking stops.",
   "invalid-decision": "Answer broke the board rules, so nothing was played.",
   inactive: "Board was not live when the answer arrived.",
 }
@@ -101,6 +102,7 @@ export function useSideLearner({
     const memories: Record<string, LearnerMemory> = {}
     const closed = new Set<number>(mine.map((record) => record.seed))
     let family: string | null = null
+    let halt = false
     // The message for the request this loop turn opened, if any.
     let open: { id: number; planned: number } | null = null
     const syncMemory = () => {
@@ -205,23 +207,29 @@ export function useSideLearner({
           sumUsage(result.trace ?? [])
         )
         if (!disposed) {
+          if (played.reason === "rejected") halt = true
           trace.phase(
-            played.state === "decision"
-              ? "playing"
-              : played.reason === "deadline" || played.reason === "unavailable"
-                ? "retrying"
-                : "waiting",
-            played.state === "decision"
-              ? batch > 1
-                ? `Playing · ${batch} cells`
-                : `Playing · ${played.action?.type ?? played.policy?.rule ?? "plan"}`
-              : played.patternClaim
-                ? played.patternClaim
-                : played.reason === "deadline"
-                  ? "Thinking took too long; retrying"
-                  : played.reason === "unavailable"
-                    ? "Connection unavailable; retrying"
-                    : "Considering next move"
+            played.reason === "rejected"
+              ? "done"
+              : played.state === "decision"
+                ? "playing"
+                : played.reason === "deadline" ||
+                    played.reason === "unavailable"
+                  ? "retrying"
+                  : "waiting",
+            played.reason === "rejected"
+              ? "Request rejected"
+              : played.state === "decision"
+                ? batch > 1
+                  ? `Playing · ${batch} cells`
+                  : `Playing · ${played.action?.type ?? played.policy?.rule ?? "plan"}`
+                : played.patternClaim
+                  ? played.patternClaim
+                  : played.reason === "deadline"
+                    ? "Thinking took too long; retrying"
+                    : played.reason === "unavailable"
+                      ? "Connection unavailable; retrying"
+                      : "Considering next move"
           )
           if (played.patternClaim) trace.claim(played.patternClaim)
         }
@@ -311,6 +319,7 @@ export function useSideLearner({
           trace.phase("retrying", "Connection interrupted; retrying")
       }
       if (!disposed) settle(before)
+      if (halt) return
       if (!disposed) timer = setTimeout(() => void loop(), 500)
     }
     void loop()

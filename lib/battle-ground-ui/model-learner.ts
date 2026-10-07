@@ -4,6 +4,7 @@ import {
   learnerDecisionSchema,
   type ModelLearnerResult,
 } from "../puzzle/model-learner"
+import { modelRefusal } from "../model-refusal"
 import type { LearnerMemory } from "../puzzle/learner"
 import { serverStepSchema, type ServerStep } from "./agent-trace"
 import type { BoardProps, SharedActions } from "./controller"
@@ -276,11 +277,11 @@ export async function decideGameLearner(
         ? { patternClaim: patternClaim.replace(/\s+/g, " ").trim() }
         : {}),
     }
-  } catch {
+  } catch (error) {
     return {
       action: null,
       state: "wait",
-      reason: controller.signal.aborted ? "deadline" : "unavailable",
+      reason: modelRefusal(error, controller.signal.aborted),
     }
   } finally {
     clearTimeout(timer)
@@ -304,7 +305,13 @@ export async function fetchGameLearnerDecision(
       patternClaim: z.string().max(240).optional(),
       state: z.enum(["decision", "wait"]),
       reason: z
-        .enum(["inactive", "deadline", "unavailable", "invalid-decision"])
+        .enum([
+          "inactive",
+          "deadline",
+          "unavailable",
+          "invalid-decision",
+          "rejected",
+        ])
         .optional(),
       placements: z.array(placementSchema).max(6).optional(),
       policy: policySchema.optional(),

@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { modelRefusal } from "../model-refusal"
+
 /**
  * Inspectable agent work, shaped like AI SDK UIMessage parts but read-only.
  * The server records one step per model call; the browser groups a whole
@@ -72,15 +74,21 @@ export async function traced<T>(
     })
     return value
   } catch (error) {
+    const refusal = modelRefusal(
+      error,
+      error instanceof Error && error.name === "AbortError"
+    )
     steps?.push({
       ...step,
       model: step.model.slice(0, 120),
       ms: ms(),
       status: "error",
       note:
-        error instanceof Error && error.name === "AbortError"
+        refusal === "deadline"
           ? "Stopped at the deadline"
-          : "Call failed",
+          : refusal === "rejected"
+            ? "Request rejected"
+            : "Call failed",
     })
     throw error
   }

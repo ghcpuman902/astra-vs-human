@@ -2,6 +2,8 @@ import { createOpenAI } from "@ai-sdk/openai"
 import { experimental_decide, gateway, generateText, Output } from "ai"
 import { z } from "zod"
 
+import { modelRefusal } from "../model-refusal"
+import { providerSchema } from "../provider-schema"
 import { allowedLearnerModel } from "../learner-models"
 import { traced, type ServerStep } from "./agent-trace"
 import {
@@ -25,10 +27,31 @@ import {
 } from "./learner-mix"
 import type { GameLearnerRequest } from "./model-learner"
 
+/** What the game plays. Captions may be absent. */
 const hybridSchema = z.strictObject({
   placements: z.array(placementSchema).max(6),
   patternClaim: z.string().max(240).nullable(),
   captions: z.array(captionSchema).max(12).optional(),
+})
+
+/**
+ * What OpenAI strict mode can request. Every key is present.
+ * No captions is an empty array, not a missing key.
+ */
+const planWireSchema = providerSchema(
+  z.strictObject({
+    placements: z.array(placementSchema).max(6),
+    patternClaim: z.string().max(240).nullable(),
+    captions: z.array(captionSchema).max(12),
+  })
+)
+
+const toPlan = (
+  wire: z.infer<typeof planWireSchema>
+): z.infer<typeof hybridSchema> => ({
+  placements: wire.placements,
+  patternClaim: wire.patternClaim,
+  ...(wire.captions.length ? { captions: wire.captions } : {}),
 })
 
 const hybridPrompt = `Propose up to four placements on the public board. Each placement names one visible editable cell and how many cycle taps follow the selection (1 to 3). Skip locked cells. This is a short plan of counted taps, not a puzzle-class name and not a hidden solution. If useful, add one local pattern claim.
@@ -63,8 +86,8 @@ function captionMap(
   return map
 }
 
-const planNote = (plan: z.infer<typeof hybridSchema>) =>
-  `${plan.placements.length} placement${plan.placements.length === 1 ? "" : "s"}${plan.captions?.length ? ` · ${plan.captions.length} captions` : ""}`
+const planNote = (plan: z.infer<typeof planWireSchema>) =>
+  `${plan.placements.length} placement${plan.placements.length === 1 ? "" : "s"}${plan.captions.length ? ` · ${plan.captions.length} captions` : ""}`
 
 async function astraPlan(
   input: GameLearnerRequest,
@@ -89,7 +112,7 @@ async function astraPlan(
       () =>
         generateText({
           model: openai.responses(model),
-          output: Output.object({ schema: hybridSchema }),
+          output: Output.object({ schema: planWireSchema }),
           system: hybridPrompt,
           prompt,
           abortSignal: signal,
@@ -98,7 +121,7 @@ async function astraPlan(
         }),
       (result) => ({ usage: result.usage, note: planNote(result.output) })
     )
-    return output
+    return toPlan(output)
   }
   if (!credentials.gateway) throw new Error("Unconfigured")
   const { output } = await traced(
@@ -107,7 +130,7 @@ async function astraPlan(
     () =>
       generateText({
         model: gateway.languageModel(gatewayModelId(model)),
-        output: Output.object({ schema: hybridSchema }),
+        output: Output.object({ schema: planWireSchema }),
         system: hybridPrompt,
         prompt,
         abortSignal: signal,
@@ -115,7 +138,7 @@ async function astraPlan(
       }),
     (result) => ({ usage: result.usage, note: planNote(result.output) })
   )
-  return output
+  return toPlan(output)
 }
 
 async function jevCommit(
@@ -238,7 +261,7 @@ async function planCodePolicy(
       () =>
         generateText({
           model: openai.responses(model),
-          output: Output.object({ schema: policySchema }),
+          output: Output.object({ schema: providerSchema(policySchema) }),
           system: policyPrompt,
           prompt,
           abortSignal: signal,
@@ -256,7 +279,7 @@ async function planCodePolicy(
     () =>
       generateText({
         model: gateway.languageModel(gatewayModelId(model)),
-        output: Output.object({ schema: policySchema }),
+        output: Output.object({ schema: providerSchema(policySchema) }),
         system: policyPrompt,
         prompt,
         abortSignal: signal,
@@ -478,7 +501,8 @@ export async function openaiDecisionsControl(
     plan = hybridSchema.parse(
       await astraPlan(input, writer, signal, env, steps)
     )
-  } catch {
+  } catch (error) {
+    if (modelRefusal(error, signal.aborted) === "rejected") throw error
     return {
       action: null,
       patternClaim: null,
@@ -563,7 +587,8 @@ export async function openaiDecisionsControl(
       patternClaim: plan.patternClaim,
       status: "ok",
     }
-  } catch {
+  } catch (error) {
+    if (modelRefusal(error, signal.aborted) === "rejected") throw error
     return {
       action: null,
       patternClaim: plan.patternClaim,

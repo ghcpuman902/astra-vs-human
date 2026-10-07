@@ -3,25 +3,17 @@
 import { useState } from "react"
 import { Dialog } from "@base-ui/react/dialog"
 import { Popover } from "@base-ui/react/popover"
-import { Info, Play, RotateCcw, X } from "lucide-react"
+import { Info, X } from "lucide-react"
 
 import {
+  AgentStack,
   ArenaChoice,
   LengthChoice,
-  MethodSelect,
-  ModelChoice,
   type Arena,
   type Servers,
 } from "@/components/match-options"
 import type { LearnerMixId } from "@/lib/battle-ground-ui/learner-mix"
 import type { MatchLength } from "@/lib/battle-ground-ui/match-deck"
-
-type ModelPick = {
-  models: readonly { id: string; label: string }[]
-  selectedModel: string | undefined
-  status: "loading" | "ready" | "unavailable"
-  chooseModel: (id: string) => boolean
-}
 
 /** Seed, source, and scoring meta. Kept off the play surface. */
 export function MatchInfo({
@@ -59,37 +51,32 @@ function SettingsBody({
   leftMix,
   rightMix,
   servers,
-  model,
   paused,
   onLeftMix,
   onRightMix,
   onRestart,
-  onSetup,
-  onResume,
 }: {
   arena: Arena
   length: MatchLength
   leftMix: LearnerMixId
   rightMix: LearnerMixId
   servers: Servers | null
-  model: ModelPick
   paused: boolean
   onLeftMix: (mix: LearnerMixId) => void
   onRightMix: (mix: LearnerMixId) => void
   onRestart: (next: { arena: Arena; length: MatchLength }) => void
-  onSetup: () => void
-  onResume: () => void
 }) {
   const [draftArena, setDraftArena] = useState(arena)
   const [draftLength, setDraftLength] = useState(length)
+  const changed = draftArena !== arena || draftLength !== length
   return (
     <>
       <header className="settings-head">
         <div>
           <Dialog.Title className="trace-title">Settings</Dialog.Title>
           <Dialog.Description className="trace-description">
-            {paused ? "Clocks are paused." : "Nothing is running."} Agent changes
-            apply right away.
+            {paused ? "Clocks are paused. Closing resumes. " : null}
+            Agent changes apply right away.
           </Dialog.Description>
         </div>
         <Dialog.Close className="icon-button" aria-label="Close settings">
@@ -97,30 +84,24 @@ function SettingsBody({
         </Dialog.Close>
       </header>
       <div className="settings-body">
-        <ModelChoice
-          models={model.models}
-          value={model.selectedModel}
-          status={model.status}
-          onChange={model.chooseModel}
-        />
         {arena === "watch" ? (
           <>
-            <MethodSelect
-              legend="Agent A method"
+            <AgentStack
+              legend="Agent A"
               value={leftMix}
               servers={servers}
               onChange={onLeftMix}
             />
-            <MethodSelect
-              legend="Agent B method"
+            <AgentStack
+              legend="Agent B"
               value={rightMix}
               servers={servers}
               onChange={onRightMix}
             />
           </>
         ) : (
-          <MethodSelect
-            legend="Agent method"
+          <AgentStack
+            legend="Agent"
             value={rightMix}
             servers={servers}
             onChange={onRightMix}
@@ -130,23 +111,16 @@ function SettingsBody({
           <h3>Restart with changes</h3>
           <ArenaChoice value={draftArena} onChange={setDraftArena} />
           <LengthChoice value={draftLength} onChange={setDraftLength} />
-          <button
-            type="button"
-            className="paper-button"
-            onClick={() => onRestart({ arena: draftArena, length: draftLength })}
-          >
-            <RotateCcw aria-hidden="true" />
-            Restart match
-          </button>
         </section>
       </div>
       <footer className="settings-foot">
-        <button type="button" className="text-button" onClick={onSetup}>
-          Leave to setup
-        </button>
-        <button type="button" className="primary-button" onClick={onResume}>
-          <Play aria-hidden="true" />
-          {paused ? "Resume" : "Done"}
+        <button
+          type="button"
+          className="primary-button"
+          disabled={!changed}
+          onClick={() => onRestart({ arena: draftArena, length: draftLength })}
+        >
+          Apply settings and restart
         </button>
       </footer>
     </>
@@ -161,13 +135,13 @@ export function MatchSettings({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-} & Omit<Parameters<typeof SettingsBody>[0], "onResume">) {
+} & Parameters<typeof SettingsBody>[0]) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Backdrop className="trace-backdrop" />
         <Dialog.Popup className="settings-sheet">
-          <SettingsBody {...body} onResume={() => onOpenChange(false)} />
+          <SettingsBody {...body} />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

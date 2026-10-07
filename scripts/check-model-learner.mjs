@@ -38,14 +38,32 @@ try {
     new URL("../lib/puzzle/model-learner.ts", import.meta.url),
     "utf8"
   )
+  const refusalSource = await readFile(
+    new URL("../lib/model-refusal.ts", import.meta.url),
+    "utf8"
+  )
   await writeFile(
-    artifact,
-    ts.transpileModule(source, {
+    new URL("../_agent/model-refusal.mjs", import.meta.url),
+    ts.transpileModule(refusalSource, {
       compilerOptions: {
         target: ts.ScriptTarget.ES2022,
         module: ts.ModuleKind.ES2022,
       },
     }).outputText
+  )
+  await writeFile(
+    artifact,
+    ts
+      .transpileModule(source, {
+        compilerOptions: {
+          target: ts.ScriptTarget.ES2022,
+          module: ts.ModuleKind.ES2022,
+        },
+      })
+      .outputText.replace(
+        'from "../model-refusal"',
+        'from "./model-refusal.mjs"'
+      )
   )
   const { learnerRequestSchema, decideWithModel, createModelLearnerRunner } =
     await import(artifact.href)
@@ -180,6 +198,16 @@ try {
     ).reason,
     "unavailable"
   )
+  const rejected = new Error("schema")
+  rejected.statusCode = 400
+  assert.equal(
+    (
+      await decideWithModel(input, async () => {
+        throw rejected
+      })
+    ).reason,
+    "rejected"
+  )
   let aborted = false
   const timeout = await decideWithModel(
     input,
@@ -260,6 +288,19 @@ try {
     false,
     "Malformed view waits without throwing into UI"
   )
+  const providerSource = await readFile(
+    new URL("../lib/provider-schema.ts", import.meta.url),
+    "utf8"
+  )
+  await writeFile(
+    new URL("../_agent/provider-schema.mjs", import.meta.url),
+    ts.transpileModule(providerSource, {
+      compilerOptions: {
+        target: ts.ScriptTarget.ES2022,
+        module: ts.ModuleKind.ES2022,
+      },
+    }).outputText
+  )
   const routeSource = await readFile(
     new URL("../app/api/learner/route.ts", import.meta.url),
     "utf8"
@@ -273,10 +314,11 @@ try {
           module: ts.ModuleKind.ES2022,
         },
       })
-      .outputText.replace(
+      .outputText      .replace(
         '"@/lib/learner-models"',
         '"./check-learner-config.mjs"'
       )
+      .replace('"@/lib/provider-schema"', '"./provider-schema.mjs"')
       .replace('"@/lib/puzzle/model-learner"', '"./check-model-learner.mjs"')
   )
   const { POST } = await import(routeArtifact.href)
@@ -317,6 +359,12 @@ try {
   )
 } finally {
   await rm(artifact, { force: true })
+  await rm(new URL("../_agent/model-refusal.mjs", import.meta.url), {
+    force: true,
+  })
+  await rm(new URL("../_agent/provider-schema.mjs", import.meta.url), {
+    force: true,
+  })
   await rm(routeArtifact, { force: true })
   await rm(matchArtifact, { force: true })
   await rm(verifierArtifact, { force: true })

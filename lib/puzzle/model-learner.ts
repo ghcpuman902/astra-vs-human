@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { modelRefusal } from "../model-refusal"
 import type { LearnerDecision, LearnerMemory } from "./learner"
 import type { ActionAPI, Observation } from "./types"
 
@@ -98,7 +99,12 @@ export const learnerDecisionSchema = z.strictObject({
 export type LearnerRequest = z.infer<typeof learnerRequestSchema>
 export type ModelLearnerResult = LearnerDecision & {
   state: "decision" | "wait"
-  reason?: "inactive" | "deadline" | "unavailable" | "invalid-decision"
+  reason?:
+    | "inactive"
+    | "deadline"
+    | "unavailable"
+    | "invalid-decision"
+    | "rejected"
 }
 export type ModelDecisionProvider = (
   input: LearnerRequest,
@@ -168,11 +174,11 @@ export async function decideWithModel(
         ? { patternClaim: patternClaim.replace(/\s+/g, " ").trim() }
         : {}),
     }
-  } catch {
+  } catch (error) {
     return {
       action: null,
       state: "wait",
-      reason: controller.signal.aborted ? "deadline" : "unavailable",
+      reason: modelRefusal(error, controller.signal.aborted),
     }
   } finally {
     clearTimeout(timer)
@@ -197,7 +203,13 @@ export async function fetchLearnerDecision(
     patternClaim: z.string().max(240).optional(),
     state: z.enum(["decision", "wait"]),
     reason: z
-      .enum(["inactive", "deadline", "unavailable", "invalid-decision"])
+      .enum([
+        "inactive",
+        "deadline",
+        "unavailable",
+        "invalid-decision",
+        "rejected",
+      ])
       .optional(),
   })
   return schema.parse(body)

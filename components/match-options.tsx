@@ -1,7 +1,8 @@
 "use client"
 
-import { useId } from "react"
-import { Check } from "lucide-react"
+import { useId, useState, type ComponentType, type SVGProps } from "react"
+import { Menu } from "@base-ui/react/menu"
+import { Check, ChevronDown, Earth, Moon, Sun } from "lucide-react"
 
 import {
   learnerModeIds,
@@ -66,6 +67,91 @@ export const mixCopy: Record<
 export const modeName = (mix: LearnerMixId) =>
   mixCopy[mix as (typeof learnerModeIds)[number]]?.label ?? "Astra"
 
+export type AgentStack = "llm" | "dm" | "both"
+export type DecisionModel = "jev" | "laya" | "openai"
+
+const STACKS: readonly { id: AgentStack; label: string }[] = [
+  { id: "llm", label: "LLM" },
+  { id: "dm", label: "DM" },
+  { id: "both", label: "LLM + DM" },
+]
+
+/** Bare decision models do not use the language-model picker. */
+export const mixUsesLanguageModel = (mix: LearnerMixId) =>
+  mix !== "jev-bare" && mix !== "laya-bare"
+
+export function readAgentStack(mix: LearnerMixId): {
+  stack: AgentStack
+  code: boolean
+  decision: DecisionModel
+} {
+  switch (mix) {
+    case "code":
+      return { stack: "llm", code: true, decision: "jev" }
+    case "jev-bare":
+      return { stack: "dm", code: false, decision: "jev" }
+    case "laya-bare":
+      return { stack: "dm", code: false, decision: "laya" }
+    case "astra-jev":
+      return { stack: "both", code: false, decision: "jev" }
+    case "astra-laya":
+      return { stack: "both", code: false, decision: "laya" }
+    case "openai-decisions":
+      return { stack: "both", code: false, decision: "openai" }
+    default:
+      return { stack: "llm", code: false, decision: "jev" }
+  }
+}
+
+/** Code without a language model is not a mode: nothing would write the policy. */
+export function writeAgentStack(
+  stack: AgentStack,
+  code: boolean,
+  decision: DecisionModel
+): LearnerMixId {
+  if (stack === "dm") return decision === "laya" ? "laya-bare" : "jev-bare"
+  if (stack === "llm") return code ? "code" : "astra"
+  if (decision === "laya") return "astra-laya"
+  if (decision === "openai") return "openai-decisions"
+  return "astra-jev"
+}
+
+type ChipIcon = ComponentType<{ className?: string }>
+
+/** Two arms and a core. Lucide has no galaxy glyph; same 24px stroke. */
+function Galaxy({ className, ...props }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M12 12c2.2-4 6.4-4.2 8.2-1.6" />
+      <path d="M12 12c-2.2 4-6.4 4.2-8.2 1.6" />
+      <path d="M12 12c3.6 1.2 4.6 4.8 2.4 7" />
+      <path d="M12 12c-3.6-1.2-4.6-4.8-2.4-7" />
+      <circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+export function modelMark(id: string, label: string): ChipIcon | null {
+  const name = `${id} ${label}`.toLowerCase()
+  if (name.includes("astra")) return Galaxy
+  if (name.includes("terra") || name.includes("earth")) return Earth
+  if (name.includes("luna") || name.includes("moon")) return Moon
+  if (/(^|[^a-z])sol([^a-z]|$)/.test(name) || name.includes("sun")) return Sun
+  return null
+}
+
+const shortModelLabel = (label: string) => label.replace(/^GPT-[\d.]+\s+/i, "")
+
 function modeNote(mix: LearnerMixId, servers: Servers | null) {
   if (!servers) return ""
   if (mix === "openai-decisions")
@@ -90,7 +176,12 @@ export function Choice<T extends string>({
 }: {
   legend: string
   value: T
-  options: readonly { id: T; label: string }[]
+  options: readonly {
+    id: T
+    label: string
+    title?: string
+    icon?: ChipIcon | null
+  }[]
   onChange: (id: T) => void
 }) {
   const name = useId()
@@ -98,19 +189,28 @@ export function Choice<T extends string>({
     <fieldset className="setup-group">
       <legend>{legend}</legend>
       <div className="chip-row">
-        {options.map((option) => (
-          <label key={option.id} className="option-chip">
-            <input
-              type="radio"
-              name={name}
-              value={option.id}
-              checked={value === option.id}
-              onChange={() => onChange(option.id)}
-            />
-            <Check className="chip-check" aria-hidden="true" />
-            {option.label}
-          </label>
-        ))}
+        {options.map((option) => {
+          const Icon = option.icon
+          return (
+            <label
+              key={option.id}
+              className={Icon ? "option-chip has-icon" : "option-chip"}
+              title={option.title}
+            >
+              <input
+                type="radio"
+                name={name}
+                value={option.id}
+                checked={value === option.id}
+                aria-label={option.title}
+                onChange={() => onChange(option.id)}
+              />
+              {Icon ? <Icon className="chip-icon" aria-hidden="true" /> : null}
+              <Check className="chip-check" aria-hidden="true" />
+              {option.label}
+            </label>
+          )
+        })}
       </div>
     </fieldset>
   )
@@ -161,8 +261,8 @@ export function ArenaChoice({
   )
 }
 
-/** Every model is visible, one tap each. */
-export function ModelChoice({
+/** Mid-game model swap. Lives on the agent card header. */
+export function AgentModelMenu({
   models,
   value,
   status,
@@ -173,6 +273,85 @@ export function ModelChoice({
   status: "loading" | "ready" | "unavailable"
   onChange: (id: string) => void
 }) {
+  const current = models.find((model) => model.id === value)
+  const Mark = current ? modelMark(current.id, current.label) : null
+  const label =
+    status === "loading"
+      ? "Loading"
+      : status === "unavailable"
+        ? "Unavailable"
+        : current
+          ? shortModelLabel(current.label)
+          : "Model"
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        className="model-swap"
+        disabled={status !== "ready" || !current}
+        aria-label={`Agent model, ${current?.label ?? label}. Swap without restarting.`}
+      >
+        {Mark ? <Mark className="model-swap-mark" /> : null}
+        <span className="model-swap-label">{label}</span>
+        <ChevronDown aria-hidden="true" />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner side="bottom" align="start" sideOffset={6}>
+          <Menu.Popup className="model-menu">
+            <Menu.RadioGroup
+              value={value}
+              onValueChange={(id: string) => onChange(id)}
+            >
+              {models.map((model) => {
+                const Icon = modelMark(model.id, model.label)
+                return (
+                  <Menu.RadioItem
+                    key={model.id}
+                    className="model-menu-item"
+                    value={model.id}
+                    label={model.label}
+                    closeOnClick
+                  >
+                    <span className="model-menu-check">
+                      <Menu.RadioItemIndicator>
+                        <Check aria-hidden="true" />
+                      </Menu.RadioItemIndicator>
+                    </span>
+                    {Icon ? <Icon className="model-menu-icon" /> : null}
+                    {model.label}
+                  </Menu.RadioItem>
+                )
+              })}
+            </Menu.RadioGroup>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
+  )
+}
+
+/** Every model is visible, one tap each. */
+export function ModelChoice({
+  models,
+  value,
+  status,
+  active = true,
+  hint,
+  onChange,
+}: {
+  models: readonly { id: string; label: string }[]
+  value: string | undefined
+  status: "loading" | "ready" | "unavailable"
+  active?: boolean
+  hint?: string
+  onChange: (id: string) => void
+}) {
+  if (!active)
+    return (
+      <div className="setup-group">
+        <span className="field-label">Agent model</span>
+        <p className="model-none">None</p>
+      </div>
+    )
   if (status !== "ready")
     return (
       <div className="setup-group">
@@ -185,16 +364,39 @@ export function ModelChoice({
       </div>
     )
   return (
-    <Choice
-      legend="Agent model"
-      value={value ?? models[0]?.id ?? ""}
-      options={models}
-      onChange={onChange}
-    />
+    <div className="setup-group">
+      <Choice
+        legend="Agent model"
+        value={value ?? models[0]?.id ?? ""}
+        options={models.map((model) => ({
+          id: model.id,
+          label: shortModelLabel(model.label),
+          title: model.label,
+          icon: modelMark(model.id, model.label),
+        }))}
+        onChange={onChange}
+      />
+      {hint ? <p className="setup-note">{hint}</p> : null}
+    </div>
   )
 }
 
-export function MethodSelect({
+const decisionOptions = (stack: AgentStack) => {
+  const options: { id: DecisionModel; label: string }[] = [
+    { id: "jev", label: "Jev" },
+    { id: "laya", label: "Laya" },
+  ]
+  if (stack === "both") options.push({ id: "openai", label: "Decisions" })
+  return options
+}
+
+/**
+ * Stack, then the pieces that stack allows.
+ * LLM alone can write code. A bare decision model has no language model.
+ * LLM + DM reviews a written plan; code stays off because these decision
+ * models do not run a policy.
+ */
+export function AgentStack({
   legend,
   value,
   servers,
@@ -205,29 +407,75 @@ export function MethodSelect({
   servers: Servers | null
   onChange: (mix: LearnerMixId) => void
 }) {
-  const id = useId()
+  const parts = readAgentStack(value)
+  const [held, setHeld] = useState({
+    code: parts.code,
+    decision: parts.decision,
+  })
+  const [tracked, setTracked] = useState(value)
+  if (tracked !== value) {
+    setTracked(value)
+    const next = readAgentStack(value)
+    setHeld((current) => {
+      const code = next.stack === "llm" ? next.code : current.code
+      const decision = next.stack === "llm" ? current.decision : next.decision
+      if (code === current.code && decision === current.decision) return current
+      return { code, decision }
+    })
+  }
+  const noteId = useId()
+  const commit = (
+    stack: AgentStack,
+    code: boolean,
+    decision: DecisionModel
+  ) => {
+    const nextDecision =
+      stack === "dm" && decision === "openai" ? "jev" : decision
+    setHeld({ code, decision: nextDecision })
+    onChange(writeAgentStack(stack, code, nextDecision))
+  }
+  const handleStack = (stack: AgentStack) =>
+    commit(stack, held.code, held.decision)
+  const handleCode = (code: boolean) =>
+    commit(parts.stack, code, held.decision)
+  const handleDecision = (decision: DecisionModel) =>
+    commit(parts.stack, held.code, decision)
   const copy = mixCopy[value as (typeof learnerModeIds)[number]]
-  const note = modeNote(value, servers)
+  const warning = modeNote(value, servers)
+  const note = [copy?.detail, warning].filter(Boolean).join(" ")
+  const decision =
+    parts.stack === "dm" && parts.decision === "openai" ? "jev" : parts.decision
   return (
-    <div className="setup-group">
-      <label htmlFor={id} className="field-label">
-        {legend}
-      </label>
-      <select
-        id={id}
-        className="paper-select"
-        value={learnerModeIds.includes(value as never) ? value : "astra"}
-        onChange={(event) => onChange(event.target.value as LearnerMixId)}
-      >
-        {learnerModeIds.map((mix) => (
-          <option key={mix} value={mix}>
-            {mixCopy[mix].label}
-          </option>
-        ))}
-      </select>
-      <p className="setup-note" aria-live="polite">
-        {copy?.detail}
-        {note ? ` ${note}` : ""}
+    <div className="agent-stack">
+      <Choice
+        legend={legend}
+        value={parts.stack}
+        options={STACKS}
+        onChange={handleStack}
+      />
+      {parts.stack === "llm" ? (
+        <label className="code-switch">
+          <span className="field-label">Writes code</span>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={parts.code}
+            aria-describedby={noteId}
+            onChange={(event) => handleCode(event.target.checked)}
+          />
+          <span className="switch-track" aria-hidden="true" />
+        </label>
+      ) : null}
+      {parts.stack === "llm" ? null : (
+        <Choice
+          legend="Decision model"
+          value={decision}
+          options={decisionOptions(parts.stack)}
+          onChange={handleDecision}
+        />
+      )}
+      <p id={noteId} className="setup-note" aria-live="polite">
+        {note}
       </p>
     </div>
   )

@@ -4,11 +4,13 @@ import { useState } from "react"
 import { ChevronRight, Play, RefreshCw } from "lucide-react"
 
 import { MiniBoard } from "@/components/lovable/mini-board"
+import { RoundStrip } from "@/components/lovable/round-strip"
 import {
+  AgentStack,
   ArenaChoice,
   LENGTH_COPY,
   LengthChoice,
-  MethodSelect,
+  mixUsesLanguageModel,
   ModelChoice,
   modeName,
   type Arena,
@@ -17,6 +19,8 @@ import {
 import { dealTitle } from "@/lib/battle-ground-ui/labels"
 import type { LearnerMixId } from "@/lib/battle-ground-ui/learner-mix"
 import type { DealtMatch, MatchLength } from "@/lib/battle-ground-ui/match-deck"
+
+const NONE = new Set<number>()
 
 type ModelPick = {
   models: readonly { id: string; label: string }[]
@@ -38,11 +42,7 @@ function UpFirst({
   const [turns, setTurns] = useState(0)
   const first = preview?.packs[0]
   return (
-    <section
-      className="up-next"
-      aria-label="Boards for this match"
-      aria-live="polite"
-    >
+    <section className="up-next" aria-label="Boards for this match">
       <div className="up-next-board">
         {first ? (
           <div key={first.seed} className="board-swap">
@@ -52,7 +52,7 @@ function UpFirst({
           <div className="mini-board-skeleton" />
         )}
       </div>
-      <p className="up-next-copy">
+      <p className="up-next-copy" aria-live="polite">
         <span>Up first</span>
         <strong>{preview ? dealTitle(preview) : "Dealing…"}</strong>
         <span>{LENGTH_COPY[length].hint}</span>
@@ -73,6 +73,15 @@ function UpFirst({
         />
         {length === "deep" ? "Different game" : "Reshuffle"}
       </button>
+      {preview ? (
+        <RoundStrip
+          label="Boards in this match"
+          packs={preview.packs}
+          index={0}
+          done={NONE}
+          windowed={length === "blitz"}
+        />
+      ) : null}
     </section>
   )
 }
@@ -130,6 +139,16 @@ export function SetupScreen({
           models={model.models}
           value={model.selectedModel}
           status={model.status}
+          active={
+            mixUsesLanguageModel(rightMix) ||
+            (watching && mixUsesLanguageModel(leftMix))
+          }
+          hint={
+            watching &&
+            mixUsesLanguageModel(leftMix) !== mixUsesLanguageModel(rightMix)
+              ? "Used by the side that includes a language model."
+              : undefined
+          }
           onChange={model.chooseModel}
         />
         <UpFirst preview={preview} length={length} onRespawn={onRespawn} />
@@ -157,22 +176,22 @@ export function SetupScreen({
             <ArenaChoice value={arena} onChange={onArena} />
             {watching ? (
               <>
-                <MethodSelect
-                  legend="Agent A method"
+                <AgentStack
+                  legend="Agent A"
                   value={leftMix}
                   servers={servers}
                   onChange={onLeftMix}
                 />
-                <MethodSelect
-                  legend="Agent B method"
+                <AgentStack
+                  legend="Agent B"
                   value={rightMix}
                   servers={servers}
                   onChange={onRightMix}
                 />
               </>
             ) : (
-              <MethodSelect
-                legend="Agent method"
+              <AgentStack
+                legend="Agent"
                 value={rightMix}
                 servers={servers}
                 onChange={onRightMix}

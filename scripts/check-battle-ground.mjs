@@ -33,6 +33,24 @@ try {
         )
       }
   }
+  for (const file of [
+    "model-refusal.ts",
+    "provider-schema.ts",
+    "learner-models.ts",
+  ]) {
+    const source = await readFile("lib/" + file, "utf8")
+    await writeFile(
+      out + "/" + file.replace(/\.ts$/, ".js"),
+      ts
+        .transpileModule(source, {
+          compilerOptions: {
+            target: ts.ScriptTarget.ES2022,
+            module: ts.ModuleKind.ES2022,
+          },
+        })
+        .outputText.replace(/from "(\.\.?\/[^".]+)"/g, 'from "$1.js"')
+    )
+  }
   const { assembleGamePack } = await import(
     out + "/mini-game-rules/assembler.js"
   )
@@ -41,6 +59,10 @@ try {
   const { createGameLearnerRunner } = await import(
     out + "/battle-ground-ui/model-learner.js"
   )
+  const { countCells, rates } = await import(
+    out + "/battle-ground-ui/cell-f1.js"
+  )
+  const { verifyGame } = await import(out + "/mini-game-rules/verifier.js")
   const {
     buildMatchDeck,
     dealMatch,
@@ -53,6 +75,18 @@ try {
   const { matchFamilies, rankMatchFamilies, orderByFamily } = await import(
     out + "/battle-ground-ui/family-bias.js"
   )
+  const locked = [1, 0, null]
+  const exact = countCells(locked, [1, 0, 1], [false, false, true])
+  assert.deepEqual(exact, { tp: 2, fp: 0, fn: 0, open: 2 })
+  assert.equal(rates(exact).f1, 1)
+  const blank = countCells([1, 0], [1, null], [false, false])
+  assert.deepEqual(blank, { tp: 1, fp: 0, fn: 1, open: 2 })
+  assert.equal(rates(blank).precision, 1)
+  assert.equal(rates(blank).recall, 0.5)
+  assert.ok(Math.abs(rates(blank).f1 - 2 / 3) < 1e-9)
+  const wrong = countCells([1], [0], [false])
+  assert.deepEqual(wrong, { tp: 0, fp: 1, fn: 1, open: 1 })
+  assert.equal(rates(wrong).f1, 0)
   for (const category of [
     "binary_fill",
     "crown",
@@ -71,6 +105,7 @@ try {
     )
     assert.equal(battle.boardProps("learner").readOnly, true)
     assert.equal("friendPatterns" in battle.boardProps("human"), false)
+    assert.equal("solution" in battle.boardProps("human"), false)
     const before = battle.getSnapshot().attempts.learner.state.cells
     battle.actions("human").selectCell(0)
     battle.actions("human").undo()
@@ -86,6 +121,10 @@ try {
     const learnerRemaining = battle.getSnapshot().remainingMs.learner
     assert.equal(battle.advance("human"), true)
     assert.equal(battle.getSnapshot().cursors.human.index, 1)
+    const closed = battle
+      .getSnapshot()
+      .records.find((record) => record.side === "human")
+    assert.equal(closed?.cells?.length, 16)
     assert.equal(battle.getSnapshot().cursors.learner.index, 0)
     assert.equal(battle.getSnapshot().attempts.learner.status, "playing")
     assert.equal(battle.getSnapshot().remainingMs.learner, learnerRemaining)
@@ -341,6 +380,12 @@ try {
       (pack) => !firstDeal.packs.some((old) => boardId(old) === boardId(pack))
     )
   )
+  for (const pack of firstDeal.packs) {
+    const gold = firstDeal.solutions?.[String(pack.seed)]
+    assert.equal(gold?.length, pack.n ** 2)
+    assert.equal(verifyGame(pack, gold).complete, true)
+    assert.equal("solution" in pack, false)
+  }
   // Ties go to the family dealt least recently, so reloads rotate families.
   assert.notEqual(
     freshDeal("deep", { ...noMarks, recent: [firstDeal.familyId] }).familyId,
@@ -711,8 +756,10 @@ try {
   assert.doesNotMatch(fieldSource, /onNext|advance\(/)
   assert.match(appSource, /Start both/)
   assert.match(appSource, /interactive=\{!watching\}/)
-  // Every method stays choosable, for one agent or two.
-  assert.match(optionSource, /learnerModeIds\.map/)
+  // Methods are composed: LLM, DM, or both. Code only with an LLM.
+  assert.match(optionSource, /LLM \+ DM/)
+  assert.match(optionSource, /Writes code/)
+  assert.match(optionSource, /writeAgentStack/)
   for (const label of [
     "Astra",
     "Code",
@@ -732,8 +779,8 @@ try {
       new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     )
   }
-  assert.match(setupSource, /Agent A method/)
-  assert.match(setupSource, /Agent B method/)
+  assert.match(setupSource, /legend="Agent A"/)
+  assert.match(setupSource, /legend="Agent B"/)
   // Hero: host, one punchline, one call to action. No eyebrow.
   assert.match(setupSource, /astra-vs-human\.vercel\.app/)
   assert.match(setupSource, /Agents are faster, but are they smarter than humans\?/)
@@ -749,7 +796,9 @@ try {
   assert.match(appSource, /<Phone/)
   assert.match(appSource, /<MatchInfo/)
   assert.doesNotMatch(appSource, /New boards|Scored|Invent a board/)
-  assert.match(settingsSource, /Restart match/)
+  assert.match(settingsSource, /Apply settings and restart/)
+  assert.doesNotMatch(settingsSource, /Leave to setup/)
+  assert.match(appSource, /<AgentModelMenu|modelMenu\(/)
   assert.match(appSource, /battle\.pause\(\)/)
   assert.match(appSource, /battle\.start\(\)/)
   assert.match(appSource, /chooseModel/)

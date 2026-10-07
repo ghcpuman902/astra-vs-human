@@ -48,6 +48,8 @@ export type FamilyShelf = {
   label: string
   transferGroup: string
   packs: readonly GamePack[]
+  /** Authored boards, keyed by seed. Host scoring only. */
+  solutions: Readonly<Record<string, readonly (number | null)[]>>
 }
 
 export type DealtMatch = {
@@ -60,6 +62,11 @@ export type DealtMatch = {
   timeCapMs: number | null
   category: GameCategory | null
   familyId: string | null
+  /**
+   * Authored boards keyed by seed. Used to score cell F1 after a round.
+   * Never part of the learner observation. Absent on matches saved earlier.
+   */
+  solutions?: Readonly<Record<string, readonly (number | null)[]>>
 }
 
 const fingerprint = (pack: GamePack) =>
@@ -98,15 +105,16 @@ function assembleDistinct(
   usedSeeds: Set<number>,
   usedBoards: Set<string>,
   avoid: ReadonlySet<string>
-): GamePack {
+): { pack: GamePack; solution: readonly (number | null)[] } {
   for (let step = 0; step < 120; step++) {
     const seed =
       (salt + game * 17_777 + round * 1_031 + step * 97 + familyId.length * 13) >>>
       0
     if (usedSeeds.has(seed)) continue
     let pack: GamePack
+    let solution: readonly (number | null)[]
     try {
-      pack = assembleGamePack({
+      const built = assembleGamePack({
         category,
         seed,
         n,
@@ -115,7 +123,9 @@ function assembleDistinct(
           visibility: "full",
           targetSeconds: n <= 4 ? 60 : n === 5 ? 75 : 90,
         },
-      }).pack
+      })
+      pack = built.pack
+      solution = built.audit.solution
     } catch {
       continue
     }
@@ -140,7 +150,7 @@ function assembleDistinct(
     usedSeeds.add(pack.seed)
     usedBoards.add(board)
     usedBoards.add(cells)
-    return pack
+    return { pack, solution }
   }
   throw new Error(
     `No distinct ${category} pack for ${familyId} round ${round + 1}`
@@ -159,7 +169,7 @@ function assembleShelves(
   return defs.map((def) => {
     const index = FAMILY_DEFS.indexOf(def)
     const usedBoards = new Set<string>()
-    const packs = Array.from({ length: FAMILY_PACKS }, (_, round) =>
+    const built = Array.from({ length: FAMILY_PACKS }, (_, round) =>
       assembleDistinct(
         def.category,
         def.n,
@@ -172,6 +182,10 @@ function assembleShelves(
         avoid
       )
     )
+    const packs = built.map((item) => item.pack)
+    const solutions = Object.fromEntries(
+      built.map((item) => [String(item.pack.seed), item.solution])
+    )
     const group = transferGroup(packs[0])
     if (packs.some((pack) => pack.transfer.family !== def.id))
       throw new Error(`${def.id} rounds left their transfer family`)
@@ -183,6 +197,7 @@ function assembleShelves(
       label: def.label,
       transferGroup: group,
       packs,
+      solutions,
     }
   })
 }
@@ -246,6 +261,7 @@ export function freshDeal(
       timeCapMs: null,
       category: def.category,
       familyId,
+      solutions: shelf.solutions,
     }
   }
   return dealMatch(
@@ -262,6 +278,24 @@ function shelfFor(
   const shelf = source.find((item) => item.familyId === familyId)
   if (!shelf) throw new Error(`No packs for ${familyId}`)
   return shelf
+}
+
+/** Gold boards for these packs. Host scoring only — not a learner input. */
+function solutionsFor(
+  packs: readonly GamePack[],
+  source: readonly FamilyShelf[]
+): Record<string, readonly (number | null)[]> {
+  const bySeed = new Map<string, readonly (number | null)[]>()
+  for (const shelf of source)
+    for (const [seed, cells] of Object.entries(shelf.solutions))
+      bySeed.set(seed, cells)
+  const out: Record<string, readonly (number | null)[]> = {}
+  for (const pack of packs) {
+    const cells = bySeed.get(String(pack.seed))
+    if (!cells) throw new Error(`No authored board for seed ${pack.seed}`)
+    out[String(pack.seed)] = cells
+  }
+  return out
 }
 
 function uniqueCategoryShelves(
@@ -336,6 +370,7 @@ export function dealMatch(
       timeCapMs: null,
       category: family.category,
       familyId: family.id,
+      solutions: solutionsFor(packs, source),
     }
   }
   if (length === "tour") {
@@ -352,6 +387,7 @@ export function dealMatch(
       timeCapMs: null,
       category: null,
       familyId: null,
+      solutions: solutionsFor(packs, source),
     }
   }
   const ordered = uniqueCategoryShelves(marks, source)
@@ -368,5 +404,6 @@ export function dealMatch(
     timeCapMs: BLITZ_MATCH_MS,
     category: null,
     familyId: null,
+    solutions: solutionsFor(packs, source),
   }
 }

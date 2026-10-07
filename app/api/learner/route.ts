@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai"
 import { generateText, Output } from "ai"
 import { allowedLearnerModel } from "@/lib/learner-models"
+import { providerSchema } from "@/lib/provider-schema"
 
 import {
   decideWithModel,
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
       })
       const { output } = await generateText({
         model: openai.responses(selectedModel),
-        output: Output.object({ schema: learnerDecisionSchema }),
+        output: Output.object({ schema: providerSchema(learnerDecisionSchema) }),
         system: learnerSystemPrompt,
         prompt: JSON.stringify({
           observation: visible.observation,

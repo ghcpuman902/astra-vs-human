@@ -109,6 +109,11 @@ export function createStageLearner(options: {
       const acted = await runner.step()
       if (disposed || !running) return
       const result = decision as ModelLearnerResult | null
+      if (result?.reason === "rejected") {
+        running = false
+        publish("error", latest.lastAction, "rejected")
+        return
+      }
       failureDelay =
         result?.reason === "unavailable"
           ? Math.min(8_000, failureDelay ? failureDelay * 2 : 1_000)

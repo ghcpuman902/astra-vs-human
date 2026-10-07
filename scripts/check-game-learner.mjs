@@ -5,6 +5,18 @@ import ts from "typescript"
 await mkdir("_agent", { recursive: true })
 const output = await mkdtemp(join(process.cwd(), "_agent/game-learner-"))
 try {
+  const refusal = await readFile("lib/model-refusal.ts", "utf8")
+  await writeFile(
+    join(output, "model-refusal.js"),
+    ts
+      .transpileModule(refusal, {
+        compilerOptions: {
+          target: ts.ScriptTarget.ES2022,
+          module: ts.ModuleKind.ES2022,
+        },
+      })
+      .outputText
+  )
   for (const [folder, files] of Object.entries({
     puzzle: ["author", "types", "verifier", "model-learner"],
     "mini-game-rules": ["schema", "runtime", "verifier", "assembler"],
@@ -148,6 +160,26 @@ try {
       (
         await decideGameLearner(input, async () => {
           throw new Error("Provider details must stay private")
+        })
+      ).reason,
+      "unavailable"
+    )
+    const rejected = new Error("schema")
+    rejected.statusCode = 400
+    assert.equal(
+      (
+        await decideGameLearner(input, async () => {
+          throw rejected
+        })
+      ).reason,
+      "rejected"
+    )
+    const down = new Error("down")
+    down.statusCode = 503
+    assert.equal(
+      (
+        await decideGameLearner(input, async () => {
+          throw down
         })
       ).reason,
       "unavailable"
