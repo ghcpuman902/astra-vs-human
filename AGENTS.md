@@ -14,7 +14,7 @@ Next.js 16.3 (App Router, Turbopack) · React 19.3 · TypeScript · Tailwind 4 �
 
 - Use **pnpm** only. Before handing back: `pnpm lint && pnpm typecheck && pnpm build`.
 - **Never start `pnpm dev` / `pnpm start` unless the user asks.** If one is running, `.next/dev/lock` has its URL — reuse it.
-- Runtime checks (incl. the `next-dev-loop` skill): use `/_next/mcp` plus **your own built-in browser/preview or browser MCP first**; `agent-browser` / headless Chrome only if you have none. This overrides the skill's agent-browser requirement.
+- Runtime checks (incl. the `next-dev-loop` skill): use `/_next/mcp` plus a browser. Cursor agents: Cursor's built-in browser tab. Claude Code and others: `agent-browser` (system Chrome); end with `agent-browser close`. Never launch Chrome directly or write throwaway Playwright scripts.
 - Never commit `.env.local` or secrets. Agent scratch goes in git-ignored `_agent/`.
 - Keep diffs small; no big refactors or marketing copy unless asked.
 

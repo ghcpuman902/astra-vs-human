@@ -28,8 +28,8 @@ won't treat it as always-on/nested rules. Skills still read `REFERENCE.md` on de
 This project overrides `next-dev-loop`'s browser choice. The vendored `SKILL.md` is left unedited so `skills-lock.json` hashes and `npx skills update` keep working.
 
 1. Framework view: always `/_next/mcp` on the running dev server (URL in `.next/dev/lock`; default `http://localhost:3000/_next/mcp`).
-2. Browser view: use the browser tooling your agent already has — Cursor's built-in browser, Claude Code / Codex preview or browser MCP (Playwright MCP, Chrome DevTools MCP), etc. Map the skill's `agent-browser` steps (open, console, network, DOM/React tree, screenshot) to the nearest equivalent your tool offers.
-3. Fallback only: if the agent has no built-in browser tooling, use `agent-browser` (`npm i -g agent-browser@latest`, optional) or a headless Chrome/Playwright script. Ignore the skill's "refuse if agent-browser is missing" rule.
+2. Browser view: Cursor agents use Cursor's built-in browser tab and map the skill's `agent-browser` steps (open, console, network, DOM/React tree, screenshot) to it. Claude Code and other CLI agents use `agent-browser` as the skill describes (it runs on the system Google Chrome).
+3. Always finish with `agent-browser close`. Never launch Chrome binaries directly, `pkill` Chrome, run `playwright install`, or write throwaway headless Chrome/Playwright scripts.
 
 Next.js 16.3 retired the old docs-only Next.js skills (`next-best-practices` etc.); the managed block in `AGENTS.md` plus `node_modules/next/dist/docs/` replace them. Do not reinstall them.
 
